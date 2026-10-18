@@ -1,0 +1,39 @@
+# Supabase CLI project config (local dev + `supabase start`).
+# Secrets (JWT, SMS, etc.) come from environment variables on linked projects;
+# nothing sensitive is stored here.
+
+[project]
+id = "balaji-store"
+name = "Balaji Provision Store"
+description = "Hyperlocal grocery ordering platform"
+
+[api]
+enabled = true
+schemas = ["public"]
+extra_search_paths = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+enabled = true
+port = 5432
+major_version = 15
+
+[studio]
+enabled = true
+
+[local_smtp]
+enabled = true
+smtp_port = 3000
+pop3_port = 3001
+web_port = 3002
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+
+[storage]
+enabled = true
+file_size_limit = 52428800
+
+[functions]
+enabled = true
