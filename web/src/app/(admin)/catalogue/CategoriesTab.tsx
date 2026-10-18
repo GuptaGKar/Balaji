@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
-import { categorySchema, categoryWithIdSchema, type Category, type CategoryWithId } from "@/lib/schemas";
+import {
+  categorySchema,
+  categoryWithIdSchema,
+  type Category,
+  type CategoryWithId,
+} from "@/lib/schemas";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { cn } from "@/lib/utils";
@@ -98,7 +103,10 @@ export default function CategoriesTab() {
           <p className="text-gray-500">Manage product categories</p>
         </div>
         <button
-          onClick={() => { setCreating(true); form.reset(); }}
+          onClick={() => {
+            setCreating(true);
+            form.reset();
+          }}
           className="btn-primary"
         >
           <Plus className="h-4 w-4 mr-2" /> Add Category
@@ -118,19 +126,37 @@ export default function CategoriesTab() {
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Slug</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sort Order</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Name
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Slug
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Sort Order
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Status
+              </th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
             {categories.map((cat) => (
-              <tr key={cat.id} className={editingId === cat.id ? "bg-indigo-50" : "hover:bg-gray-50"}>
+              <tr
+                key={cat.id}
+                className={editingId === cat.id ? "bg-indigo-50" : "hover:bg-gray-50"}
+              >
                 {editingId === cat.id ? (
                   <td colSpan={5} className="px-6 py-4">
-                    <CategoryForm form={form} onSubmit={onSubmit} onCancel={cancelEdit} title="Edit Category" />
+                    <CategoryForm
+                      form={form}
+                      onSubmit={onSubmit}
+                      onCancel={cancelEdit}
+                      title="Edit Category"
+                    />
                   </td>
                 ) : (
                   <>
@@ -138,16 +164,29 @@ export default function CategoriesTab() {
                     <td className="px-6 py-4 text-gray-500">{cat.slug}</td>
                     <td className="px-6 py-4 text-gray-500">{cat.sort_order}</td>
                     <td className="px-6 py-4">
-                      <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium", cat.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800")}>
+                      <span
+                        className={cn(
+                          "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
+                          cat.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800",
+                        )}
+                      >
                         {cat.active ? "Active" : "Inactive"}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => startEdit(cat)} className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg" aria-label="Edit">
+                        <button
+                          onClick={() => startEdit(cat)}
+                          className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+                          aria-label="Edit"
+                        >
                           <Edit className="h-4 w-4" />
                         </button>
-                        <button onClick={() => handleDelete(cat.id)} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg" aria-label="Delete">
+                        <button
+                          onClick={() => handleDelete(cat.id)}
+                          className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                          aria-label="Delete"
+                        >
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
@@ -159,7 +198,9 @@ export default function CategoriesTab() {
           </tbody>
         </table>
         {categories.length === 0 && (
-          <div className="p-12 text-center text-gray-500">No categories yet. Click the button above to create one.</div>
+          <div className="p-12 text-center text-gray-500">
+            No categories yet. Click the button above to create one.
+          </div>
         )}
       </div>
 
@@ -182,24 +223,37 @@ function CategoryForm({
   return (
     <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-6">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">{title}</h3>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="grid grid-cols-1 md:grid-cols-2 gap-4"
+      >
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
           <input
             {...form.register("name")}
-            className={cn("w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500", form.formState.errors.name && "border-red-500")}
+            className={cn(
+              "w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500",
+              form.formState.errors.name && "border-red-500",
+            )}
             placeholder="Category name"
           />
-          {form.formState.errors.name && <p className="mt-1 text-sm text-red-600">{form.formState.errors.name.message}</p>}
+          {form.formState.errors.name && (
+            <p className="mt-1 text-sm text-red-600">{form.formState.errors.name.message}</p>
+          )}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Slug</label>
           <input
             {...form.register("slug")}
-            className={cn("w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500", form.formState.errors.slug && "border-red-500")}
+            className={cn(
+              "w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500",
+              form.formState.errors.slug && "border-red-500",
+            )}
             placeholder="category-slug"
           />
-          {form.formState.errors.slug && <p className="mt-1 text-sm text-red-600">{form.formState.errors.slug.message}</p>}
+          {form.formState.errors.slug && (
+            <p className="mt-1 text-sm text-red-600">{form.formState.errors.slug.message}</p>
+          )}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Sort Order</label>
@@ -207,21 +261,31 @@ function CategoryForm({
             {...form.register("sort_order", { valueAsNumber: true })}
             type="number"
             min="0"
-            className={cn("w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500", form.formState.errors.sort_order && "border-red-500")}
+            className={cn(
+              "w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500",
+              form.formState.errors.sort_order && "border-red-500",
+            )}
           />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
           <select
             {...form.register("active")}
-            className={cn("w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500", form.formState.errors.active && "border-red-500")}
+            className={cn(
+              "w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500",
+              form.formState.errors.active && "border-red-500",
+            )}
           >
             <option value="true">Active</option>
             <option value="false">Inactive</option>
           </select>
         </div>
         <div className="md:col-span-2 flex justify-end gap-3 pt-4 border-t border-indigo-200">
-          <button type="button" onClick={onCancel} className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+          >
             <X className="h-4 w-4 mr-2 inline" /> Cancel
           </button>
           <button type="submit" className="btn-primary">

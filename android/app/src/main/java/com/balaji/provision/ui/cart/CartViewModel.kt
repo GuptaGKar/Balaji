@@ -7,14 +7,12 @@ import com.balaji.provision.domain.model.Cart
 import com.balaji.provision.domain.model.CartItem
 import com.balaji.provision.domain.model.QuoteBreakdown
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.scopes.ActivityRetainedScoped
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
-@ActivityRetainedScoped
 class CartViewModel @Inject constructor(
     private val cartRepository: CartRepository
 ) : ViewModel() {

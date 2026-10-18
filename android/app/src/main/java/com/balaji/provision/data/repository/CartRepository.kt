@@ -1,9 +1,8 @@
 package com.balaji.provision.data.repository
 
-import androidx.datastore.preferences.rxjava3.RxDataStore
+import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.mutations
-import androidx.datastore.preferences.core.preferencesKey
+import androidx.datastore.preferences.core.edit
 import com.balaji.provision.data.network.QuoteCartRequest
 import com.balaji.provision.data.network.QuoteCartResponse
 import com.balaji.provision.data.network.CartItemRequest
@@ -11,68 +10,76 @@ import com.balaji.provision.data.network.SupabaseApi
 import com.balaji.provision.domain.model.CartItem
 import com.balaji.provision.domain.model.Cart
 import com.balaji.provision.domain.model.QuoteBreakdown
-import com.google.inject.Inject
-import dagger.hilt.android.scopes.ActivityRetainedScoped
 import dagger.hilt.InstallIn
-import dagger.hilt.components.ActivityRetainedComponent
+import dagger.hilt.components.SingletonComponent
 import dagger.Module
 import dagger.Provides
-import io.reactivex.rxjava3.core.Single
-import io.reactivex.rxjava3.core.Completable
-import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.flow.firstOrNull
+import javax.inject.Inject
+import javax.inject.Named
+import javax.inject.Singleton
 
 @Module
-@InstallIn(ActivityRetainedComponent::class)
-class CartModule {
+@InstallIn(SingletonComponent::class)
+object CartModule {
     
     @Provides
+    @Singleton
     fun provideCartRepository(
         api: SupabaseApi,
-        dataStore: RxDataStore<Preferences>,
-        cartVersionKey: androidx.datastore.preferences.core.Preferences.Key<Int>
-    ) = CartRepositoryImpl(api, dataStore, cartVersionKey)
+        dataStore: DataStore<Preferences>,
+        @Named("cartVersionKey") cartVersionKey: Preferences.Key<Int>
+    ): CartRepository = CartRepositoryImpl(api, dataStore, cartVersionKey)
 }
 
-@ActivityRetainedScoped
+@Singleton
 class CartRepositoryImpl @Inject constructor(
     private val api: SupabaseApi,
-    private val dataStore: RxDataStore<Preferences>,
-    private val cartVersionKey: Preferences.Key<Int>
+    private val dataStore: DataStore<Preferences>,
+    @Named("cartVersionKey") private val cartVersionKey: Preferences.Key<Int>
 ) : CartRepository {
     
     override suspend fun getCart(): Cart {
-        val version = dataStore.data.firstOrNull()?.getInt(cartVersionKey) ?: 0
-        // Cart is stored locally; we just return the persisted items
-        // In a real implementation, you'd deserialize from DataStore
+        val version = dataStore.data.firstOrNull()?.get(cartVersionKey) ?: 0
         return Cart.empty()
     }
     
     override suspend fun addItem(item: CartItem): Cart {
-        // Increment version to trigger recomputation
-        dataStore.updateDataAsync { it.mutations().setInt(cartVersionKey, (it[cartVersionKey] ?: 0) + 1) }.await()
-        // Return updated cart
+        dataStore.edit { prefs ->
+            val current = prefs[cartVersionKey] ?: 0
+            prefs[cartVersionKey] = current + 1
+        }
         return Cart.empty()
     }
     
     override suspend fun updateQuantity(productId: String, qtyBase: Long): Cart {
-        dataStore.updateDataAsync { it.mutations().setInt(cartVersionKey, (it[cartVersionKey] ?: 0) + 1) }.await()
+        dataStore.edit { prefs ->
+            val current = prefs[cartVersionKey] ?: 0
+            prefs[cartVersionKey] = current + 1
+        }
         return Cart.empty()
     }
     
     override suspend fun removeItem(productId: String): Cart {
-        dataStore.updateDataAsync { it.mutations().setInt(cartVersionKey, (it[cartVersionKey] ?: 0) + 1) }.await()
+        dataStore.edit { prefs ->
+            val current = prefs[cartVersionKey] ?: 0
+            prefs[cartVersionKey] = current + 1
+        }
         return Cart.empty()
     }
     
     override suspend fun clearCart() {
-        dataStore.updateDataAsync { it.mutations().setInt(cartVersionKey, (it[cartVersionKey] ?: 0) + 1) }.await()
+        dataStore.edit { prefs ->
+            val current = prefs[cartVersionKey] ?: 0
+            prefs[cartVersionKey] = current + 1
+        }
     }
     
     override suspend fun getQuote(items: List<CartItem>): QuoteBreakdown {
         val request = QuoteCartRequest(
             items = items.map { CartItemRequest(it.productId, it.qtyBase) }
         )
-        val response = api.quoteCart(request).body()!!
+        val response = api.quoteCart(apiKey = "", auth = "", body = request).body()!!
         return mapToQuoteBreakdown(response)
     }
     

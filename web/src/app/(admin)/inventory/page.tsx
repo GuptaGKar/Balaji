@@ -5,7 +5,16 @@ import { createClient } from "@/lib/supabase";
 import { formatRupees } from "@/lib/money";
 import { formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { Loader2, AlertTriangle, TrendingDown, Plus, Minus, Search, RotateCcw } from "lucide-react";
+import {
+  Loader2,
+  AlertTriangle,
+  TrendingDown,
+  Plus,
+  Minus,
+  Search,
+  RotateCcw,
+  CheckCircle,
+} from "lucide-react";
 import { Toaster, toast } from "sonner";
 
 type Product = {
@@ -36,6 +45,7 @@ type InventoryMovement = {
   actor_id: string | null;
   note: string | null;
   created_at: string;
+  products?: { sku: string; name: string } | null;
 };
 
 type LowStockProduct = Product & {
@@ -46,16 +56,20 @@ export default function InventoryPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
   const [lowStock, setLowStock] = useState<LowStockProduct[]>([]);
-  const [reconciliation, setReconciliation] = useState<Array<{
-    product_id: string;
-    sku: string;
-    name: string;
-    current_stock: number;
-    movement_sum: number;
-    discrepancy: number;
-  }>>([]);
+  const [reconciliation, setReconciliation] = useState<
+    Array<{
+      product_id: string;
+      sku: string;
+      name: string;
+      current_stock: number;
+      movement_sum: number;
+      discrepancy: number;
+    }>
+  >([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"stock" | "movements" | "low-stock" | "reconciliation">("stock");
+  const [activeTab, setActiveTab] = useState<
+    "stock" | "movements" | "low-stock" | "reconciliation"
+  >("stock");
   const [search, setSearch] = useState("");
 
   const supabase = createClient();
@@ -66,7 +80,10 @@ export default function InventoryPage() {
       .select("*")
       .eq("active", true)
       .order("name");
-    if (error) { toast.error("Failed to load products"); return; }
+    if (error) {
+      toast.error("Failed to load products");
+      return;
+    }
     setProducts(data || []);
   };
 
@@ -76,14 +93,20 @@ export default function InventoryPage() {
       .select("*, products(sku, name)")
       .order("created_at", { ascending: false })
       .limit(200);
-    if (error) { toast.error("Failed to load movements"); return; }
+    if (error) {
+      toast.error("Failed to load movements");
+      return;
+    }
     setMovements(data || []);
   };
 
   const fetchLowStock = async () => {
     const supabase = createClient();
     const { data, error } = await supabase.rpc("get_low_stock_products");
-    if (error) { toast.error("Failed to load low stock"); return; }
+    if (error) {
+      toast.error("Failed to load low stock");
+      return;
+    }
     const lowStockData = (data || []).map((p: any) => ({
       ...p,
       deficit: p.low_stock_threshold - p.stock_qty,
@@ -94,7 +117,10 @@ export default function InventoryPage() {
   const fetchReconciliation = async () => {
     const supabase = createClient();
     const { data, error } = await supabase.rpc("check_stock_reconciliation");
-    if (error) { toast.error("Failed to check reconciliation"); return; }
+    if (error) {
+      toast.error("Failed to check reconciliation");
+      return;
+    }
     setReconciliation(data || []);
   };
 
@@ -104,9 +130,16 @@ export default function InventoryPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => {
+    fetchAll();
+  }, []);
 
-  const handleAdjustStock = async (productId: string, currentStock: number, delta: number, reason: string) => {
+  const handleAdjustStock = async (
+    productId: string,
+    currentStock: number,
+    delta: number,
+    reason: string,
+  ) => {
     const supabase = createClient();
     const { data, error } = await supabase.rpc("adjust_stock", {
       p_product_id: productId,
@@ -114,8 +147,14 @@ export default function InventoryPage() {
       p_reason: reason as any,
       p_note: `Manual adjustment: ${reason}`,
     });
-    if (error) { toast.error(error.message); return; }
-    if (data.error) { toast.error(data.error.message); return; }
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    if (data.error) {
+      toast.error(data.error.message);
+      return;
+    }
     toast.success(`Stock adjusted by ${delta > 0 ? "+" : ""}${delta}`);
     fetchAll();
   };
@@ -123,9 +162,10 @@ export default function InventoryPage() {
   const renderStockCell = (product: Product) => {
     const isLowStock = product.stock_qty > 0 && product.stock_qty <= product.low_stock_threshold;
     const isOutOfStock = product.stock_qty === 0;
-    const displayStock = product.quantity_type === "WEIGHTED"
-      ? `${(product.stock_qty / 1000).toFixed(3)} kg`
-      : `${product.stock_qty} ${product.unit_label}`;
+    const displayStock =
+      product.quantity_type === "WEIGHTED"
+        ? `${(product.stock_qty / 1000).toFixed(3)} kg`
+        : `${product.stock_qty} ${product.unit_label}`;
 
     if (isOutOfStock) {
       return (
@@ -146,9 +186,10 @@ export default function InventoryPage() {
     return <span className="font-medium">{displayStock}</span>;
   };
 
-  const filteredProducts = products.filter(p =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.sku.toLowerCase().includes(search.toLowerCase())
+  const filteredProducts = products.filter(
+    (p) =>
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.sku.toLowerCase().includes(search.toLowerCase()),
   );
 
   if (loading) {
@@ -166,7 +207,12 @@ export default function InventoryPage() {
           <h1 className="text-2xl font-bold text-gray-900">Inventory</h1>
           <p className="text-gray-500">Stock levels, movements, and reconciliation</p>
         </div>
-        <button onClick={() => { setActiveTab("stock"); }} className="btn-primary">
+        <button
+          onClick={() => {
+            setActiveTab("stock");
+          }}
+          className="btn-primary"
+        >
           <RotateCcw className="h-4 w-4 mr-2" /> Refresh
         </button>
       </div>
@@ -187,14 +233,17 @@ export default function InventoryPage() {
                 "px-6 py-3 text-sm font-medium border-b-2 transition-colors",
                 activeTab === tab.id
                   ? "border-indigo-600 text-indigo-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300",
               )}
               aria-current={activeTab === tab.id ? "page" : undefined}
             >
               {tab.label}
-              <span className={cn("ml-2 px-2 py-0.5 text-xs font-medium rounded-full",
-                tab.count > 0 ? "bg-indigo-100 text-indigo-700" : "bg-gray-100 text-gray-500"
-              )}>
+              <span
+                className={cn(
+                  "ml-2 px-2 py-0.5 text-xs font-medium rounded-full",
+                  tab.count > 0 ? "bg-indigo-100 text-indigo-700" : "bg-gray-100 text-gray-500",
+                )}
+              >
                 {tab.count}
               </span>
             </button>
@@ -209,8 +258,10 @@ export default function InventoryPage() {
                 <div className="relative max-w-xs">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input
-                    type="text" placeholder="Search products..."
-                    value={search} onChange={(e) => setSearch(e.target.value)}
+                    type="text"
+                    placeholder="Search products..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
@@ -219,12 +270,24 @@ export default function InventoryPage() {
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Threshold</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Product
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Type
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Price
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Stock
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Threshold
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -235,9 +298,14 @@ export default function InventoryPage() {
                           <p className="text-sm text-gray-500">{product.sku}</p>
                         </td>
                         <td className="px-6 py-4">
-                          <span className={cn("inline-flex items-center px-2 py-1 text-xs font-medium rounded-full",
-                            product.quantity_type === "WEIGHTED" ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800"
-                          )}>
+                          <span
+                            className={cn(
+                              "inline-flex items-center px-2 py-1 text-xs font-medium rounded-full",
+                              product.quantity_type === "WEIGHTED"
+                                ? "bg-blue-100 text-blue-800"
+                                : "bg-green-100 text-green-800",
+                            )}
+                          >
                             {product.quantity_type}
                           </span>
                         </td>
@@ -249,9 +317,9 @@ export default function InventoryPage() {
                         <td className="px-6 py-4">{renderStockCell(product)}</td>
                         <td className="px-6 py-4 text-gray-500">
                           {product.low_stock_threshold > 0
-                            ? (product.quantity_type === "WEIGHTED"
+                            ? product.quantity_type === "WEIGHTED"
                               ? `${(product.low_stock_threshold / 1000).toFixed(1)} kg`
-                              : `${product.low_stock_threshold} ${product.unit_label}`)
+                              : `${product.low_stock_threshold} ${product.unit_label}`
                             : "—"}
                         </td>
                         <td className="px-6 py-4 text-right">
@@ -273,12 +341,24 @@ export default function InventoryPage() {
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Delta</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reference</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Note</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Date
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Product
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Reason
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Delta
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Reference
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Note
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -288,27 +368,40 @@ export default function InventoryPage() {
                         {formatRelativeTime(movement.created_at)}
                       </td>
                       <td className="px-6 py-4">
-                        <p className="font-medium text-gray-900">{movement.products?.name || "Unknown"}</p>
+                        <p className="font-medium text-gray-900">
+                          {movement.products?.name || "Unknown"}
+                        </p>
                         <p className="text-sm text-gray-500">{movement.products?.sku}</p>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={cn(
-                          "inline-flex items-center px-2 py-1 text-xs font-medium rounded-full",
-                          movement.reason === "order_placed" ? "bg-blue-100 text-blue-800" :
-                          movement.reason === "order_cancelled" ? "bg-yellow-100 text-yellow-800" :
-                          movement.reason === "order_rejected" ? "bg-red-100 text-red-800" :
-                          movement.reason === "item_removed" ? "bg-orange-100 text-orange-800" :
-                          movement.reason === "pos_sale" ? "bg-green-100 text-green-800" :
-                          movement.reason === "pos_void" ? "bg-red-100 text-red-800" :
-                          movement.reason === "manual_adjustment" ? "bg-purple-100 text-purple-800" :
-                          movement.reason === "correction" ? "bg-teal-100 text-teal-800" :
-                          "bg-gray-100 text-gray-800"
-                        )}>
+                        <span
+                          className={cn(
+                            "inline-flex items-center px-2 py-1 text-xs font-medium rounded-full",
+                            movement.reason === "order_placed"
+                              ? "bg-blue-100 text-blue-800"
+                              : movement.reason === "order_cancelled"
+                                ? "bg-yellow-100 text-yellow-800"
+                                : movement.reason === "order_rejected"
+                                  ? "bg-red-100 text-red-800"
+                                  : movement.reason === "item_removed"
+                                    ? "bg-orange-100 text-orange-800"
+                                    : movement.reason === "pos_sale"
+                                      ? "bg-green-100 text-green-800"
+                                      : movement.reason === "pos_void"
+                                        ? "bg-red-100 text-red-800"
+                                        : movement.reason === "manual_adjustment"
+                                          ? "bg-purple-100 text-purple-800"
+                                          : movement.reason === "correction"
+                                            ? "bg-teal-100 text-teal-800"
+                                            : "bg-gray-100 text-gray-800",
+                          )}
+                        >
                           {movement.reason.replace("_", " ")}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right font-medium">
-                        {movement.delta_qty > 0 ? "+" : ""}{movement.delta_qty}
+                        {movement.delta_qty > 0 ? "+" : ""}
+                        {movement.delta_qty}
                       </td>
                       <td className="px-6 py-4 text-left text-xs font-mono text-gray-500">
                         {movement.reference_type || "—"}
@@ -333,7 +426,9 @@ export default function InventoryPage() {
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
                   <div className="flex items-center gap-2 text-yellow-800 mb-2">
                     <TrendingDown className="h-5 w-5" />
-                    <span className="font-medium">{lowStock.length} product(s) below threshold</span>
+                    <span className="font-medium">
+                      {lowStock.length} product(s) below threshold
+                    </span>
                   </div>
                 </div>
               ) : (
@@ -348,12 +443,24 @@ export default function InventoryPage() {
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Current Stock</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Threshold</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Deficit</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Product
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Type
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Current Stock
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Threshold
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Deficit
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -364,9 +471,14 @@ export default function InventoryPage() {
                           <p className="text-sm text-gray-500">{product.sku}</p>
                         </td>
                         <td className="px-6 py-4">
-                          <span className={cn("inline-flex items-center px-2 py-1 text-xs font-medium rounded-full",
-                            product.quantity_type === "WEIGHTED" ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800"
-                          )}>
+                          <span
+                            className={cn(
+                              "inline-flex items-center px-2 py-1 text-xs font-medium rounded-full",
+                              product.quantity_type === "WEIGHTED"
+                                ? "bg-blue-100 text-blue-800"
+                                : "bg-green-100 text-green-800",
+                            )}
+                          >
                             {product.quantity_type}
                           </span>
                         </td>
@@ -403,9 +515,13 @@ export default function InventoryPage() {
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
                   <div className="flex items-center gap-2 text-red-800 mb-2">
                     <AlertTriangle className="h-5 w-5" />
-                    <span className="font-medium">{reconciliation.length} product(s) with stock discrepancy</span>
+                    <span className="font-medium">
+                      {reconciliation.length} product(s) with stock discrepancy
+                    </span>
                   </div>
-                  <p className="text-sm text-red-700">Run reconciliation job or investigate discrepancies manually.</p>
+                  <p className="text-sm text-red-700">
+                    Run reconciliation job or investigate discrepancies manually.
+                  </p>
                 </div>
               ) : (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
@@ -419,11 +535,21 @@ export default function InventoryPage() {
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Current Stock</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Movement Sum</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Discrepancy</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Product
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Current Stock
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Movement Sum
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Discrepancy
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -436,7 +562,8 @@ export default function InventoryPage() {
                         <td className="px-6 py-4 text-right font-medium">{item.current_stock}</td>
                         <td className="px-6 py-4 text-right text-gray-500">{item.movement_sum}</td>
                         <td className="px-6 py-4 text-right font-bold text-red-600">
-                          {item.discrepancy > 0 ? "+" : ""}{item.discrepancy}
+                          {item.discrepancy > 0 ? "+" : ""}
+                          {item.discrepancy}
                         </td>
                         <td className="px-6 py-4 text-right">
                           <button className="px-3 py-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800">
@@ -448,7 +575,9 @@ export default function InventoryPage() {
                   </tbody>
                 </table>
               </div>
-              {reconciliation.length === 0 && <div className="p-12 text-center text-gray-500">No discrepancies found</div>}
+              {reconciliation.length === 0 && (
+                <div className="p-12 text-center text-gray-500">No discrepancies found</div>
+              )}
             </div>
           )}
         </div>
@@ -502,12 +631,27 @@ function AdjustStockButton({ product, onRefresh }: { product: Product; onRefresh
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
             <h3 className="text-lg font-semibold mb-4">Adjust Stock: {product.name}</h3>
-            <p className="text-sm text-gray-500 mb-4">Current: {product.quantity_type === "WEIGHTED" ? `${(product.stock_qty / 1000).toFixed(3)} kg` : `${product.stock_qty} ${product.unit_label}`}</p>
+            <p className="text-sm text-gray-500 mb-4">
+              Current:{" "}
+              {product.quantity_type === "WEIGHTED"
+                ? `${(product.stock_qty / 1000).toFixed(3)} kg`
+                : `${product.stock_qty} ${product.unit_label}`}
+            </p>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Adjustment</label>
                 <div className="flex gap-2">
-                  <select value={delta.startsWith("-") ? "subtract" : "add"} onChange={(e) => setDelta(e.target.value + (delta.startsWith("-") ? "-" : "") + delta.replace(/[^0-9]/g, ""))} className="w-1/3 px-3 py-2 border border-gray-300 rounded-md">
+                  <select
+                    value={delta.startsWith("-") ? "subtract" : "add"}
+                    onChange={(e) =>
+                      setDelta(
+                        e.target.value +
+                          (delta.startsWith("-") ? "-" : "") +
+                          delta.replace(/[^0-9]/g, ""),
+                      )
+                    }
+                    className="w-1/3 px-3 py-2 border border-gray-300 rounded-md"
+                  >
                     <option value="add">Add</option>
                     <option value="subtract">Subtract</option>
                   </select>
@@ -516,14 +660,21 @@ function AdjustStockButton({ product, onRefresh }: { product: Product; onRefresh
                     min="1"
                     placeholder="Quantity"
                     value={delta.replace(/[^0-9]/g, "")}
-                    onChange={(e) => setDelta(delta.startsWith("-") ? "-" + e.target.value : e.target.value)}
+                    onChange={(e) =>
+                      setDelta(delta.startsWith("-") ? "-" + e.target.value : e.target.value)
+                    }
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
                   />
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Reason *</label>
-                <select value={reason} onChange={(e) => setReason(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md" required>
+                <select
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  required
+                >
                   <option value="manual_adjustment">Manual Adjustment</option>
                   <option value="correction">Correction</option>
                   <option value="damage">Damage</option>
@@ -532,7 +683,11 @@ function AdjustStockButton({ product, onRefresh }: { product: Product; onRefresh
                 </select>
               </div>
               <div className="flex justify-end gap-3 pt-4 border-t">
-                <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                >
                   Cancel
                 </button>
                 <button type="submit" disabled={submitting} className="btn-primary">

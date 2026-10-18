@@ -5,7 +5,16 @@ import { createClient } from "@/lib/supabase";
 import { formatRelativeTime } from "@/lib/format";
 import { formatRupees } from "@/lib/money";
 import { cn } from "@/lib/utils";
-import { Loader2, MapPin, Phone, AlertCircle, CheckCircle, Truck, Clock, RefreshCw } from "lucide-react";
+import {
+  Loader2,
+  MapPin,
+  Phone,
+  AlertCircle,
+  CheckCircle,
+  Truck,
+  Clock,
+  RefreshCw,
+} from "lucide-react";
 import { Toaster, toast } from "sonner";
 
 type Order = {
@@ -54,7 +63,7 @@ export default function RiderPage() {
       const { data, error } = await supabase.rpc("rider_update_status", {
         p_order_id: orderId,
         p_to_status: newStatus,
-        p_note: note || null
+        p_note: note || null,
       });
       if (error) throw error;
       if (data.error) throw new Error(data.error.message);
@@ -84,7 +93,10 @@ export default function RiderPage() {
         <div className="text-center">
           <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
           <p className="text-red-600">{error}</p>
-          <button onClick={fetchOrders} className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg">
+          <button
+            onClick={fetchOrders}
+            className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg"
+          >
             Retry
           </button>
         </div>
@@ -119,11 +131,7 @@ export default function RiderPage() {
         ) : (
           <div className="space-y-4">
             {orders.map((order) => (
-              <OrderCard
-                key={order.id}
-                order={order}
-                onStatusUpdate={handleStatusUpdate}
-              />
+              <OrderCard key={order.id} order={order} onStatusUpdate={handleStatusUpdate} />
             ))}
           </div>
         )}
@@ -134,7 +142,13 @@ export default function RiderPage() {
   );
 }
 
-function OrderCard({ order, onStatusUpdate }: { order: Order; onStatusUpdate: (id: string, status: string, note?: string) => void }) {
+function OrderCard({
+  order,
+  onStatusUpdate,
+}: {
+  order: Order;
+  onStatusUpdate: (id: string, status: string, note?: string) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
   const [updating, setUpdating] = useState<string | null>(null);
 
@@ -155,9 +169,7 @@ function OrderCard({ order, onStatusUpdate }: { order: Order; onStatusUpdate: (i
   const getNextActions = (status: string) => {
     switch (status) {
       case "ready_for_dispatch":
-        return [
-          { status: "out_for_delivery", label: "Start Delivery", color: "bg-orange-600" },
-        ];
+        return [{ status: "out_for_delivery", label: "Start Delivery", color: "bg-orange-600" }];
       case "out_for_delivery":
         return [
           { status: "delivered", label: "Mark Delivered", color: "bg-green-600" },
@@ -176,10 +188,12 @@ function OrderCard({ order, onStatusUpdate }: { order: Order; onStatusUpdate: (i
           <div>
             <div className="flex items-center gap-2">
               <span className="font-bold text-gray-900">#{order.public_order_number}</span>
-              <span className={cn(
-                "inline-flex items-center px-2 py-1 text-xs font-medium rounded-full",
-                statusColors[order.status] || "bg-gray-100 text-gray-800"
-              )}>
+              <span
+                className={cn(
+                  "inline-flex items-center px-2 py-1 text-xs font-medium rounded-full",
+                  statusColors[order.status] || "bg-gray-100 text-gray-800",
+                )}
+              >
                 {statusIcons[order.status]}
                 {order.status.replace("_", " ")}
               </span>
@@ -202,14 +216,16 @@ function OrderCard({ order, onStatusUpdate }: { order: Order; onStatusUpdate: (i
           <div className="flex items-start gap-3">
             <MapPin className="h-5 w-5 text-gray-400 mt-0.5" />
             <div className="flex-1">
-              <p className="font-medium text-gray-900">{order.address_snapshot?.recipient_name || "Customer"}</p>
+              <p className="font-medium text-gray-900">
+                {order.address_snapshot?.recipient_name || "Customer"}
+              </p>
               <p className="text-sm text-gray-500">{order.address_snapshot?.phone}</p>
               <p className="text-sm text-gray-600 mt-1">
                 {order.address_snapshot?.address_lines}
                 {order.address_snapshot?.landmark && `, ${order.address_snapshot.landmark}`}
                 {order.address_snapshot?.area && `, ${order.address_snapshot.area}`}
-                {order.address_snapshot?.city && `, ${order.address_snapshot.city}`}
-                - {order.address_snapshot?.postal_code}
+                {order.address_snapshot?.city && `, ${order.address_snapshot.city}`}-{" "}
+                {order.address_snapshot?.postal_code}
               </p>
             </div>
             <Phone className="h-5 w-5 text-indigo-600 mt-0.5" />
@@ -224,7 +240,9 @@ function OrderCard({ order, onStatusUpdate }: { order: Order; onStatusUpdate: (i
               <div key={item.id} className="flex items-center justify-between text-sm">
                 <div className="flex-1">
                   <p className="font-medium">{item.name}</p>
-                  <p className="text-gray-500">{item.qty} x {item.unit} @ {item.unitPrice}</p>
+                  <p className="text-gray-500">
+                    {item.qty} x {item.unit} @ {item.unitPrice}
+                  </p>
                 </div>
                 <span className="font-medium">{formatRupees(item.total)}</span>
               </div>
@@ -262,7 +280,7 @@ function OrderCard({ order, onStatusUpdate }: { order: Order; onStatusUpdate: (i
               className={cn(
                 "w-full py-2.5 px-4 rounded-lg font-medium transition-colors",
                 action.color,
-                "text-white hover:opacity-90 disabled:opacity-50"
+                "text-white hover:opacity-90 disabled:opacity-50",
               )}
             >
               {action.label}

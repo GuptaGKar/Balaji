@@ -2,7 +2,7 @@ import { createServerSupabaseClient } from "./supabase-server";
 
 export async function callRPC<T>(
   fn: string,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
 ): Promise<{ data: T | null; error: { code: string; message: string } | null }> {
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase.rpc(fn, params);
@@ -14,7 +14,7 @@ export async function callRPC<T>(
 
 export async function callRPCWithUser<T>(
   fn: string,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
 ): Promise<{ data: T | null; error: { code: string; message: string } | null }> {
   return callRPC<T>(fn, params);
 }
@@ -40,7 +40,10 @@ export interface RiderOrder {
   }[];
 }
 
-export async function getRiderOrders(): Promise<{ data: RiderOrder[] | null; error: { code: string; message: string } | null }> {
+export async function getRiderOrders(): Promise<{
+  data: RiderOrder[] | null;
+  error: { code: string; message: string } | null;
+}> {
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase.rpc("get_rider_orders");
   if (error) {

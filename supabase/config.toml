@@ -21,7 +21,7 @@ major_version = 15
 [studio]
 enabled = true
 
-[inbucket]
+[local_smtp]
 enabled = true
 smtp_port = 3000
 pop3_port = 3001

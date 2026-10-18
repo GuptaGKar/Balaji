@@ -65,11 +65,16 @@ export default function AuditPage() {
       if (filters.actor_id) query = query.eq("actor_id", filters.actor_id);
       if (filters.action) query = query.eq("action", filters.action);
 
-      query = query
-        .range((filters.page - 1) * filters.page_size, filters.page * filters.page_size - 1);
+      query = query.range(
+        (filters.page - 1) * filters.page_size,
+        filters.page * filters.page_size - 1,
+      );
 
       const { data, error, count } = await query;
-      if (error) { toast.error("Failed to load audit logs"); return; }
+      if (error) {
+        toast.error("Failed to load audit logs");
+        return;
+      }
       setLogs(data || []);
       setTotalCount(count || 0);
     } catch (err: any) {
@@ -80,11 +85,8 @@ export default function AuditPage() {
   }, [filters, supabase]);
 
   const fetchEntityTypes = useCallback(async () => {
-    const { data } = await supabase
-      .from("audit_logs")
-      .select("entity_type")
-      .order("entity_type");
-    const types = [...new Set(data?.map(d => d.entity_type) || [])];
+    const { data } = await supabase.from("audit_logs").select("entity_type").order("entity_type");
+    const types = Array.from(new Set(data?.map((d) => d.entity_type) || []));
     return types;
   }, [supabase]);
 
@@ -93,12 +95,19 @@ export default function AuditPage() {
       .from("audit_logs")
       .select("actor_id, actor_name, actor_role")
       .order("actor_name");
-    const actors = [...new Map((data || []).map(d => [d.actor_id, { name: d.actor_name, role: d.actor_role }])).values()];
-    return actors.map(a => ({ id: a.id, name: a.name, role: a.role }));
+    const actorsMap = new Map<string, { id: string; name: string | null; role: string | null }>();
+    (data || []).forEach((d) => {
+      if (d.actor_id && !actorsMap.has(d.actor_id)) {
+        actorsMap.set(d.actor_id, { id: d.actor_id, name: d.actor_name, role: d.actor_role });
+      }
+    });
+    return Array.from(actorsMap.values());
   }, [supabase]);
 
   const [entityTypes, setEntityTypes] = useState<string[]>([]);
-  const [actors, setActors] = useState<Array<{ id: string; name: string | null; role: string | null }>>([]);
+  const [actors, setActors] = useState<
+    Array<{ id: string; name: string | null; role: string | null }>
+  >([]);
 
   useEffect(() => {
     fetchEntityTypes().then(setEntityTypes);
@@ -106,11 +115,11 @@ export default function AuditPage() {
   }, [fetchEntityTypes, fetchActors]);
 
   const handleFilterChange = (key: keyof AuditFilters, value: any) => {
-    setFilters(prev => ({ ...prev, [key]: value, page: 1 }));
+    setFilters((prev) => ({ ...prev, [key]: value, page: 1 }));
   };
 
   const handlePageChange = (newPage: number) => {
-    setFilters(prev => ({ ...prev, page: newPage }));
+    setFilters((prev) => ({ ...prev, page: newPage }));
   };
 
   const handleExport = async () => {
@@ -125,10 +134,21 @@ export default function AuditPage() {
         p_offset: 0,
       });
       if (error) throw error;
-      
+
       const csv = [
-        ["ID", "Timestamp", "Actor", "Role", "Action", "Entity Type", "Entity ID", "Before", "After", "Request ID"],
-        ...(data || []).map(log => [
+        [
+          "ID",
+          "Timestamp",
+          "Actor",
+          "Role",
+          "Action",
+          "Entity Type",
+          "Entity ID",
+          "Before",
+          "After",
+          "Request ID",
+        ],
+        ...(data || []).map((log: any) => [
           log.id,
           formatDateTime(log.created_at),
           log.actor_name || log.actor_id,
@@ -140,7 +160,11 @@ export default function AuditPage() {
           JSON.stringify(log.after || {}),
           log.request_id || "",
         ]),
-      ].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+      ]
+        .map((row: any[]) =>
+          row.map((cell: any) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
+        )
+        .join("\n");
 
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
@@ -156,7 +180,7 @@ export default function AuditPage() {
   };
 
   const toggleExpand = (id: string) => {
-    setExpandedLogs(prev => {
+    setExpandedLogs((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -183,7 +207,12 @@ export default function AuditPage() {
     return new Date(iso).toLocaleDateString();
   };
 
-  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-indigo-600" /></div>;
+  if (loading)
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+      </div>
+    );
 
   return (
     <div className="space-y-6">
@@ -193,11 +222,7 @@ export default function AuditPage() {
           <p className="text-gray-500">Track all system changes and user actions</p>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={handleExport}
-            disabled={loading}
-            className="btn-secondary"
-          >
+          <button onClick={handleExport} disabled={loading} className="btn-secondary">
             <Download className="h-4 w-4 mr-2" />
             Export CSV
           </button>
@@ -233,8 +258,10 @@ export default function AuditPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">All Types</option>
-              {entityTypes.map(type => (
-                <option key={type} value={type}>{type}</option>
+              {entityTypes.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
               ))}
             </select>
           </div>
@@ -246,7 +273,7 @@ export default function AuditPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">All Actors</option>
-              {actors.map(actor => (
+              {actors.map((actor) => (
                 <option key={actor.id} value={actor.id}>
                   {actor.name || actor.id} ({actor.role})
                 </option>
@@ -255,7 +282,17 @@ export default function AuditPage() {
           </div>
           <div className="flex items-end">
             <button
-              onClick={() => setFilters(prev => ({ ...prev, start_date: null, end_date: null, entity_type: null, actor_id: null, action: null, page: 1 }))}
+              onClick={() =>
+                setFilters((prev) => ({
+                  ...prev,
+                  start_date: null,
+                  end_date: null,
+                  entity_type: null,
+                  actor_id: null,
+                  action: null,
+                  page: 1,
+                }))
+              }
               className="w-full px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
             >
               <X className="h-4 w-4 mr-2 inline" /> Clear Filters
@@ -270,13 +307,27 @@ export default function AuditPage() {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actor</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Entity</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Entity ID</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Request ID</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Time
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actor
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Action
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Entity
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Entity ID
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Request ID
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Details
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -284,7 +335,9 @@ export default function AuditPage() {
                 const isExpanded = expandedLogs.has(log.id);
                 return (
                   <React.Fragment key={log.id}>
-                    <tr className={cn("hover:bg-gray-50", expandedLogs.has(log.id) && "bg-blue-50")}>
+                    <tr
+                      className={cn("hover:bg-gray-50", expandedLogs.has(log.id) && "bg-blue-50")}
+                    >
                       <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
                         {formatRelativeTime(log.created_at)}
                       </td>
@@ -296,84 +349,113 @@ export default function AuditPage() {
                             </span>
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-gray-900">{log.actor_name || "Unknown"}</p>
+                            <p className="text-sm font-medium text-gray-900">
+                              {log.actor_name || "Unknown"}
+                            </p>
                             <p className="text-xs text-gray-500">{log.actor_role || "N/A"}</p>
                           </div>
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={cn(
-                          "inline-flex items-center px-2 py-1 text-xs font-medium rounded-full",
-                          log.action === "INSERT" ? "bg-green-100 text-green-800" :
-                          log.action === "UPDATE" ? "bg-yellow-100 text-yellow-800" :
-                          log.action === "DELETE" ? "bg-red-100 text-red-800" :
-                          log.action === "ASSIGN_ORDER" ? "bg-indigo-100 text-indigo-800" :
-                          log.action === "REMOVE_ORDER_ITEM" ? "bg-orange-100 text-orange-800" :
-                          log.action === "ADJUST_STOCK" ? "bg-purple-100 text-purple-800" :
-                          log.action === "CREATE_RIDER" ? "bg-blue-100 text-blue-800" :
-                          log.action === "RESET_RIDER_PASSWORD" ? "bg-pink-100 text-pink-800" :
-                          log.action === "SET_RIDER_ACTIVE" ? "bg-teal-100 text-teal-800" :
-                          log.action === "ASSIGN_ORDER" ? "bg-indigo-100 text-indigo-800" :
-                          "bg-gray-100 text-gray-800"
-                        )}>
+                        <span
+                          className={cn(
+                            "inline-flex items-center px-2 py-1 text-xs font-medium rounded-full",
+                            log.action === "INSERT"
+                              ? "bg-green-100 text-green-800"
+                              : log.action === "UPDATE"
+                                ? "bg-yellow-100 text-yellow-800"
+                                : log.action === "DELETE"
+                                  ? "bg-red-100 text-red-800"
+                                  : log.action === "ASSIGN_ORDER"
+                                    ? "bg-indigo-100 text-indigo-800"
+                                    : log.action === "REMOVE_ORDER_ITEM"
+                                      ? "bg-orange-100 text-orange-800"
+                                      : log.action === "ADJUST_STOCK"
+                                        ? "bg-purple-100 text-purple-800"
+                                        : log.action === "CREATE_RIDER"
+                                          ? "bg-blue-100 text-blue-800"
+                                          : log.action === "RESET_RIDER_PASSWORD"
+                                            ? "bg-pink-100 text-pink-800"
+                                            : log.action === "SET_RIDER_ACTIVE"
+                                              ? "bg-teal-100 text-teal-800"
+                                              : log.action === "ASSIGN_ORDER"
+                                                ? "bg-indigo-100 text-indigo-800"
+                                                : "bg-gray-100 text-gray-800",
+                          )}
+                        >
                           {log.action.replace("_", " ")}
                         </span>
                       </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{log.entity_type}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500 font-mono text-xs">{log.entity_id.slice(0, 8)}…</td>
-                    <td className="px-4 py-3 text-sm text-gray-500 font-mono text-xs">{log.request_id?.slice(0, 12) || "—"}</td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => toggleExpand(log.id)}
-                        className="p-1 text-gray-500 hover:text-gray-700"
-                        aria-label={expandedLogs.has(log.id) ? "Collapse" : "Expand"}
-                      >
-                        {expandedLogs.has(log.id) ? (
-                          <ChevronUp className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        )}
-                      </button>
-                    </td>
-                  </tr>
-                  {expandedLogs.has(log.id) ? (
-                    <tr className="bg-blue-50">
-                      <td colSpan={7} className="px-4 py-3">
-                        <div className="grid grid-cols-2 gap-4 p-3 bg-white rounded border">
-                          <div>
-                            <p className="text-xs font-medium text-gray-500 mb-1">Before</p>
-                            <pre className="text-xs bg-gray-50 p-2 rounded overflow-auto max-h-40" style={{ fontSize: "10px" }}>
-                              {JSON.stringify(log.before, null, 2) || "—"}
-                            </pre>
-                          </div>
-                          <div>
-                            <p className="text-xs font-medium text-gray-500 mb-1">After</p>
-                            <pre className="text-xs bg-gray-50 p-2 rounded overflow-auto max-h-40" style={{ fontSize: "10px" }}>
-                              {JSON.stringify(log.after, null, 2) || "—"}
-                            </pre>
-                          </div>
-                        </div>
+                      <td className="px-4 py-3 text-sm text-gray-900">{log.entity_type}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 font-mono text-xs">
+                        {log.entity_id.slice(0, 8)}…
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-500 font-mono text-xs">
+                        {log.request_id?.slice(0, 12) || "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => toggleExpand(log.id)}
+                          className="p-1 text-gray-500 hover:text-gray-700"
+                          aria-label={expandedLogs.has(log.id) ? "Collapse" : "Expand"}
+                        >
+                          {expandedLogs.has(log.id) ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                        </button>
                       </td>
                     </tr>
-                  ) : null}
-              </React.Fragment>
-            );
-          })}
-        </tbody>
-      </table>
+                    {expandedLogs.has(log.id) ? (
+                      <tr className="bg-blue-50">
+                        <td colSpan={7} className="px-4 py-3">
+                          <div className="grid grid-cols-2 gap-4 p-3 bg-white rounded border">
+                            <div>
+                              <p className="text-xs font-medium text-gray-500 mb-1">Before</p>
+                              <pre
+                                className="text-xs bg-gray-50 p-2 rounded overflow-auto max-h-40"
+                                style={{ fontSize: "10px" }}
+                              >
+                                {JSON.stringify(log.before, null, 2) || "—"}
+                              </pre>
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium text-gray-500 mb-1">After</p>
+                              <pre
+                                className="text-xs bg-gray-50 p-2 rounded overflow-auto max-h-40"
+                                style={{ fontSize: "10px" }}
+                              >
+                                {JSON.stringify(log.after, null, 2) || "—"}
+                              </pre>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-        {logs.length === 0 && <div className="p-12 text-center text-gray-500">No audit logs found</div>}
+        {logs.length === 0 && (
+          <div className="p-12 text-center text-gray-500">No audit logs found</div>
+        )}
       </div>
 
       {/* Pagination */}
       <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between">
         <div className="text-sm text-gray-500">
-          Showing {((filters.page - 1) * filters.page_size) + 1} to {Math.min(filters.page * filters.page_size, totalCount)} of {totalCount} results
+          Showing {(filters.page - 1) * filters.page_size + 1} to{" "}
+          {Math.min(filters.page * filters.page_size, totalCount)} of {totalCount} results
         </div>
         <div className="flex items-center gap-2">
           <select
             value={filters.page_size}
-            onChange={(e) => setFilters(prev => ({ ...prev, page_size: parseInt(e.target.value), page: 1 }))}
+            onChange={(e) =>
+              setFilters((prev) => ({ ...prev, page_size: parseInt(e.target.value), page: 1 }))
+            }
             className="px-3 py-1 border border-gray-300 rounded-md text-sm"
           >
             <option value="25">25 per page</option>

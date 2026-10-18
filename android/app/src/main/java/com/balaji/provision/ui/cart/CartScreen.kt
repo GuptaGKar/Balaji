@@ -1,47 +1,42 @@
 package com.balaji.provision.ui.cart
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.compose.NavController
-import androidx.compose.material3.IconButton
-import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.Remove
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material3.TextField
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.ui.unit.dp
+import com.balaji.provision.domain.model.CartItem
+import com.balaji.provision.domain.model.QuoteBreakdown
 
 @Composable
 fun CartScreen(
@@ -50,7 +45,6 @@ fun CartScreen(
 ) {
     val cart by viewModel.cart.collectAsState()
     val quote by viewModel.quote.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
     
     Column(
@@ -58,7 +52,6 @@ fun CartScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         if (cart.items.isEmpty()) {
-            // Empty cart state
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -67,20 +60,21 @@ fun CartScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    androidx.compose.material.icons.outlined.ShoppingCart
-                        .let { Icon(it, contentDescription = "Empty cart", tint = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant, size = 64.dp) }
+                    Icon(
+                        imageVector = Icons.Default.ShoppingCart,
+                        contentDescription = "Empty cart",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(64.dp)
+                    )
                     Text("Your cart is empty", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    Text("Add some delicious products to get started", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
-                    Button(onClick = { /* Navigate to catalog */ }) {
-                        Text("Browse Products")
-                    }
+                    Text("Add some items to get started", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         } else {
-            // Cart items
             LazyColumn(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .weight(1f)
+                    .fillMaxWidth()
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -97,88 +91,63 @@ fun CartScreen(
                 }
             }
             
-            // Order summary
-            quote?.let { quote ->
+            quote?.let { q ->
                 OrderSummaryCard(
-                    quote = quote,
+                    quote = q,
                     onCheckoutClick = onNavigateToCheckout
                 )
             }
         }
         
-        // Error message
         error?.let { errorMsg ->
-            androidx.compose.material3.Snackbar(
-                modifier = Modifier.fillMaxWidth(),
-                action = { Text("Dismiss", onClick = { viewModel.clearError() }) }
-            ) {
-                Text(errorMsg)
-            }
+            Text(
+                text = errorMsg,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(16.dp)
+            )
         }
     }
 }
 
 @Composable
 fun CartItemCard(
-    item: CartItemView,
+    item: CartItem,
     onQuantityChange: (Long) -> Unit,
     onRemove: () -> Unit
 ) {
-    // This would map from the cart item to a display item
-    // For now, showing a placeholder
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.Top,
+                verticalAlignment = Alignment.Top,
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Product image placeholder
                 Box(
-                    modifier = Modifier.size(80.dp),
+                    modifier = Modifier
+                        .size(60.dp)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest),
                     contentAlignment = Alignment.Center
                 ) {
-                    androidx.compose.foundation.Background(
-                        modifier = Modifier.fillMaxSize(),
-                        color = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerHighest
-                    )
-                    Text("📦", fontSize = 32.sp)
+                    Text("📦", fontSize = 24.sp)
                 }
                 
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .weight(1f)
                         .padding(start = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text("Product Name", fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 2)
-                    Text("₹0.00", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = androidx.compose.material3.MaterialTheme.colorScheme.primary)
+                    Text(item.productId, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1)
+                    Text("Qty: ${item.qtyBase}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
                 }
-            }
-            
-            // Quantity & Remove
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                QuantitySelector(
-                    qty = 1,
-                    onIncrement = { },
-                    onDecrement = { },
-                    step = 1,
-                    minQty = 1
-                )
                 
-                IconButton(onClick = { }) {
-                    Icon(androidx.compose.material.icons.outlined.Delete, contentDescription = "Remove")
+                IconButton(onClick = onRemove) {
+                    Icon(Icons.Default.Delete, contentDescription = "Remove")
                 }
             }
         }
@@ -187,7 +156,7 @@ fun CartItemCard(
 
 @Composable
 fun OrderSummaryCard(
-    quote: QuoteBreakdownView,
+    quote: QuoteBreakdown,
     onCheckoutClick: () -> Unit
 ) {
     Card(
@@ -195,56 +164,38 @@ fun OrderSummaryCard(
             .fillMaxWidth()
             .padding(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
         Column(Modifier.padding(16.dp)) {
             Text("Order Summary", fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Divider(modifier = Modifier.padding(vertical = 12.dp))
             
-            // Items subtotal
             SummaryRow("Subtotal", formatPaise(quote.itemSubtotalPaise))
-            
-            // Delivery fee
             if (quote.deliveryFeePaise > 0) {
                 SummaryRow("Delivery Fee", formatPaise(quote.deliveryFeePaise))
             }
-            
-            // Tax
             if (quote.taxPaise > 0) {
                 SummaryRow("Tax", formatPaise(quote.taxPaise))
             }
-            
             Divider(modifier = Modifier.padding(vertical = 12.dp))
-            
-            // Grand total
             SummaryRow("Total", formatPaise(quote.grandTotalPaise), isTotal = true)
             
-            // Fee note
-            quote.feeRuleNote?.let { note ->
-                if (note.isNotBlank()) {
-                    androidx.compose.foundation.layout.Spacer(Modifier.size(8.dp))
-                    Text(note, fontSize = 12.sp, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            
-            // Below threshold message
             if (quote.belowChargeThreshold && quote.amountToFreeDelivery > 0) {
-                androidx.compose.foundation.layout.Spacer(Modifier.size(8.dp))
+                Spacer(Modifier.size(8.dp))
                 Text(
                     "Add ${formatPaise(quote.amountToFreeDelivery)} more for free delivery!",
                     fontSize = 12.sp,
-                    color = androidx.compose.material3.MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
             
-            // Checkout button
-            androidx.compose.foundation.layout.Spacer(Modifier.size(16.dp))
+            Spacer(Modifier.size(16.dp))
             Button(
-                onClick = { /* onCheckoutClick */ },
+                onClick = onCheckoutClick,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primary
+                    containerColor = MaterialTheme.colorScheme.primary
                 )
             ) {
                 Text("Proceed to Checkout", fontWeight = FontWeight.Medium, fontSize = 16.sp)
@@ -273,27 +224,6 @@ fun SummaryRow(label: String, value: String, isTotal: Boolean = false) {
         )
     }
 }
-
-// View model types for UI
-data class CartItemView(
-    val productId: String,
-    val name: String,
-    val qtyBase: Long,
-    val displayQty: String,
-    val unitPricePaise: Long,
-    val lineTotalPaise: Long
-)
-
-data class QuoteBreakdownView(
-    val itemSubtotalPaise: Long = 0,
-    val discountPaise: Long = 0,
-    val deliveryFeePaise: Long = 0,
-    val feeRuleNote: String = "",
-    val taxPaise: Long = 0,
-    val grandTotalPaise: Long = 0,
-    val belowChargeThreshold: Boolean = false,
-    val amountToFreeDelivery: Long = 0
-)
 
 fun formatPaise(paise: Long): String {
     val rupees = paise / 100.0

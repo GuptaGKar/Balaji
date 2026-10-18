@@ -39,7 +39,8 @@ INSERT INTO categories (name, slug, sort_order) VALUES
   ('Beverages',         'beverages',       5),
   ('Personal Care',     'personal-care',   6),
   ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),
+  ('Dairy & Eggs',      'dairy-eggs',      8),Failed to run sql query: ERROR:  23505: duplicate key value violates unique constraint "users_email_partial_key"
+DETAIL:  Key (email)=(manager-1@balaji-test.invalid) already exists.
   ('Fresh Produce',     'fresh-produce',   9)
 ON CONFLICT (slug) DO NOTHING;
 

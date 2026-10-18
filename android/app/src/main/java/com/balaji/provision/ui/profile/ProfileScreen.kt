@@ -1,5 +1,7 @@
 package com.balaji.provision.ui.profile
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,39 +10,34 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Button
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LocalShipping
+import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.Logout
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.ui.unit.dp
 
 @Composable
-fun ProfileScreen(
-    viewModel: ProfileViewModel = viewModel()
-) {
+fun ProfileScreen() {
     val user by remember { mutableStateOf<UserProfileView?>(null) }
-    val isLoading by remember { mutableStateOf(false) }
     
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -52,7 +49,7 @@ fun ProfileScreen(
                 .fillMaxWidth()
                 .padding(16.dp),
             colors = CardDefaults.cardColors(
-                containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer
+                containerColor = MaterialTheme.colorScheme.primaryContainer
             )
         ) {
             Row(
@@ -61,31 +58,40 @@ fun ProfileScreen(
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Box(
-                    modifier = Modifier.size(80.dp),
+                    modifier = Modifier
+                        .size(80.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f),
+                            shape = CircleShape
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
-                    androidx.compose.foundation.Background(
-                        modifier = Modifier.fillMaxSize(),
-                        color = androidx.compose.material3.MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f),
-                        shape = androidx.compose.foundation.shape.CircleShape
-                    )
                     Text(
-                        user?.displayName?.substring(0, 1).uppercase() ?? "?",
+                        user?.displayName?.take(1)?.uppercase() ?: "?",
                         fontSize = 32.sp,
                         fontWeight = FontWeight.Bold,
-                        color = androidx.compose.material3.MaterialTheme.colorScheme.onPrimaryContainer
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
                 
                 Column {
-                    Text(user?.displayName ?? "Guest User", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    Text(user?.phone ?? "", color = androidx.compose.material3.MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
-                    Text(user?.role?.name ?? "Customer", fontSize = 12.sp)
-                        .padding(8.dp, 4.dp)
-                        .background(
-                            color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
-                        )
+                    Text(user?.displayName ?: "Guest User", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        user?.phone ?: "",
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                    )
+                    Text(
+                        text = user?.role ?: "Customer",
+                        fontSize = 12.sp,
+                        modifier = Modifier
+                            .padding(top = 4.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.primary,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
                 }
             }
         }
@@ -96,30 +102,30 @@ fun ProfileScreen(
                 .fillMaxWidth()
                 .padding(16.dp),
             colors = CardDefaults.cardColors(
-                containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
             )
         ) {
             Column {
                 ProfileMenuItem(
-                    icon = androidx.compose.material.icons.outlined.Person,
+                    icon = Icons.Default.Person,
                     title = "Edit Profile",
                     onClick = { }
                 )
                 Divider(modifier = Modifier.padding(start = 16.dp))
                 ProfileMenuItem(
-                    icon = androidx.compose.material.icons.outlined.LocalShipping,
+                    icon = Icons.Default.LocalShipping,
                     title = "My Addresses",
                     onClick = { }
                 )
                 Divider(modifier = Modifier.padding(start = 16.dp))
                 ProfileMenuItem(
-                    icon = androidx.compose.material.icons.outlined.Settings,
+                    icon = Icons.Default.Settings,
                     title = "Settings",
                     onClick = { }
                 )
                 Divider(modifier = Modifier.padding(start = 16.dp))
                 ProfileMenuItem(
-                    icon = androidx.compose.material.icons.outlined.Logout,
+                    icon = Icons.Default.Logout,
                     title = "Sign Out",
                     onClick = { },
                     isDestructive = true
@@ -133,7 +139,7 @@ fun ProfileScreen(
                 .fillMaxWidth()
                 .padding(16.dp),
             colors = CardDefaults.cardColors(
-                containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
             )
         ) {
             Column(Modifier.padding(16.dp)) {
@@ -149,19 +155,27 @@ fun ProfileScreen(
 
 @Composable
 fun ProfileMenuItem(
-    icon: androidx.compose.ui.res.Painter,
+    icon: ImageVector,
     title: String,
     onClick: () -> Unit,
     isDestructive: Boolean = false
 ) {
-    androidx.compose.material3.ListItem(
-        modifier = Modifier.fillMaxWidth(),
-        onClick = onClick,
-        headContent = {
-            Icon(icon, contentDescription = null, tint = if (isDestructive) androidx.compose.material3.MaterialTheme.colorScheme.error else androidx.compose.material3.MaterialTheme.colorScheme.primary)
+    ListItem(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        leadingContent = {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+            )
         },
         headlineContent = {
-            Text(title, color = if (isDestructive) androidx.compose.material3.MaterialTheme.colorScheme.error else androidx.compose.material3.MaterialTheme.colorScheme.onSurface)
+            Text(
+                title,
+                color = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+            )
         }
     )
 }
@@ -174,7 +188,7 @@ fun InfoRow(label: String, value: String) {
             .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(label, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, fontWeight = FontWeight.Medium)
     }
 }
@@ -184,7 +198,3 @@ data class UserProfileView(
     val phone: String,
     val role: String
 )
-
-class ProfileViewModel : androidx.lifecycle.ViewModel() {
-    // Implementation would go here
-}

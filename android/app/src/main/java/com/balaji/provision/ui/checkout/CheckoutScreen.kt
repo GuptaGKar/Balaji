@@ -1,80 +1,92 @@
 package com.balaji.provision.ui.checkout
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
-import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.compose.NavController
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.TextAlign
+import kotlinx.coroutines.launch
 
 @Composable
 fun CheckoutScreen(
-    viewModel: CheckoutViewModel = viewModel(),
     onOrderPlaced: () -> Unit
 ) {
-    val name by remember { mutableStateOf("") }
-    val phone by remember { mutableStateOf("") }
-    val addressLines by remember { mutableStateOf("") }
-    val landmark by remember { mutableStateOf("") }
-    val area by remember { mutableStateOf("") }
-    val city by remember { mutableStateOf("") }
-    val state by remember { mutableStateOf("") }
-    val postalCode by remember { mutableStateOf("") }
-    val customerNote by remember { mutableStateOf("") }
-    val selectedAddressId by remember { mutableStateOf<String?>(null) }
+    var name by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    var addressLines by remember { mutableStateOf("") }
+    var landmark by remember { mutableStateOf("") }
+    var area by remember { mutableStateOf("") }
+    var city by remember { mutableStateOf("") }
+    var state by remember { mutableStateOf("") }
+    var postalCode by remember { mutableStateOf("") }
+    var customerNote by remember { mutableStateOf("") }
+    var selectedAddressId by remember { mutableStateOf<String?>(null) }
     
-    val isLoading by remember { mutableStateOf(false) }
-    val error by remember { mutableStateOf<String?>(null) }
-    val showSavedAddresses by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    var showSavedAddresses by remember { mutableStateOf(false) }
     
     val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
+
+    fun validateForm(): Boolean {
+        return name.isNotBlank() && phone.isNotBlank() &&
+               addressLines.isNotBlank() && city.isNotBlank() &&
+               state.isNotBlank() && postalCode.isNotBlank()
+    }
     
     Column(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scrollState),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         SnackbarHost(snackbarHostState)
         
-        Text("Checkout", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            .padding(16.dp)
+        Text(
+            text = "Checkout",
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(16.dp)
+        )
         
-        // Address section - either form or saved address selector
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = 16.dp),
             colors = CardDefaults.cardColors(
-                containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
             )
         ) {
             Column(Modifier.padding(16.dp)) {
@@ -121,13 +133,12 @@ fun CheckoutScreen(
             }
         }
         
-        // Order notes
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = 16.dp),
             colors = CardDefaults.cardColors(
-                containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
             )
         ) {
             Column(Modifier.padding(16.dp)) {
@@ -144,19 +155,19 @@ fun CheckoutScreen(
             }
         }
         
-        // Order summary - would be connected to ViewModel quote
         OrderSummaryPlaceholder()
         
         Spacer(Modifier.size(16.dp))
         
-        // Place order button
         Button(
             onClick = {
-                // Validate and place order
                 if (validateForm()) {
-                    placeOrder()
+                    isLoading = true
+                    onOrderPlaced()
                 } else {
-                    snackbarHostState.showSnackbar("Please fill all required fields")
+                    coroutineScope.launch {
+                        snackbarHostState.showSnackbar("Please fill all required fields")
+                    }
                 }
             },
             modifier = Modifier
@@ -164,33 +175,18 @@ fun CheckoutScreen(
                 .padding(16.dp),
             enabled = !isLoading,
             colors = ButtonDefaults.buttonColors(
-                containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primary
+                containerColor = MaterialTheme.colorScheme.primary
             )
         ) {
             if (isLoading) {
                 CircularProgressIndicator(
-                    color = androidx.compose.material3.MaterialTheme.colorScheme.onPrimary,
+                    color = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(24.dp)
                 )
             } else {
                 Text("Place Order (COD)", fontWeight = FontWeight.Medium, fontSize = 16.sp)
             }
         }
-    }
-    
-    private fun validateForm(): Boolean {
-        return name.isNotBlank() && phone.isNotBlank() && 
-               addressLines.isNotBlank() && city.isNotBlank() && 
-               state.isNotBlank() && postalCode.isNotBlank()
-    }
-    
-    private fun placeOrder() {
-        // TODO: Call ViewModel placeOrder with idempotency key
-        isLoading = true
-        // TODO: Call viewModel.placeOrder(...)
-        // On success: onOrderPlaced()
-        // On error: snackbarHostState.showSnackbar(error)
-        // Finally: isLoading = false
     }
 }
 
@@ -206,9 +202,6 @@ fun AddressForm(
     postalCode: String, onPostalCodeChange: (String) -> Unit
 ) {
     Column(Modifier.padding(vertical = 12.dp)) {
-        Text("Delivery Address", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        Divider(modifier = Modifier.padding(vertical = 12.dp))
-        
         TextField(
             value = name,
             onValueChange = onNameChange,
@@ -225,7 +218,7 @@ fun AddressForm(
             label = { Text("Phone Number *") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone)
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
         )
         
         Spacer(Modifier.size(12.dp))
@@ -248,13 +241,13 @@ fun AddressForm(
                 value = area,
                 onValueChange = onAreaChange,
                 label = { Text("Area") },
-                modifier = Modifier.fillMaxWidth().weight(1f)
+                modifier = Modifier.weight(1f)
             )
             TextField(
                 value = city,
                 onValueChange = onCityChange,
                 label = { Text("City *") },
-                modifier = Modifier.fillMaxWidth().weight(1f)
+                modifier = Modifier.weight(1f)
             )
         }
         
@@ -268,13 +261,13 @@ fun AddressForm(
                 value = state,
                 onValueChange = onStateChange,
                 label = { Text("State *") },
-                modifier = Modifier.fillMaxWidth().weight(1f)
+                modifier = Modifier.weight(1f)
             )
             TextField(
                 value = postalCode,
                 onValueChange = onPostalCodeChange,
                 label = { Text("PIN Code *") },
-                modifier = Modifier.fillMaxWidth().weight(1f)
+                modifier = Modifier.weight(1f)
             )
         }
         
@@ -291,9 +284,8 @@ fun AddressForm(
 
 @Composable
 fun SavedAddressesList(onAddressSelected: (SavedAddress) -> Unit) {
-    // Placeholder - would load from ViewModel
     Column(Modifier.padding(16.dp)) {
-        Text("No saved addresses yet", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("No saved addresses yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.size(16.dp))
     }
 }
@@ -315,9 +307,9 @@ fun OrderSummaryPlaceholder() {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
+            .padding(horizontal = 16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
         Column(Modifier.padding(16.dp)) {
@@ -351,9 +343,4 @@ fun SummaryRow(label: String, value: String, isTotal: Boolean = false) {
             fontWeight = if (isTotal) FontWeight.Bold else FontWeight.Normal
         )
     }
-}
-
-// Placeholder for CheckoutViewModel - will be implemented properly
-class CheckoutViewModel : androidx.lifecycle.ViewModel() {
-    // Implementation will be added in the next iteration
 }

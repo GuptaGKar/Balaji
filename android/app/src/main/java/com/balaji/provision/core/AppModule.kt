@@ -1,19 +1,20 @@
 package com.balaji.provision.core
 
+import android.content.Context
+import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.preferencesKey
-import androidx.datastore.preferences.rxjava3.RxDataStore
-import com.google.inject.Inject
-import dagger.hilt.android.qualifiers.ApplicationContext
-import dagger.hilt.android.scopes.Singleton
-import dagger.hilt.android.scopes.ActivityScoped
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import io.reactivex.rxjava3.core.Flowable
-import io.reactivex.rxjava3.core.Single
-import java.io.File
+import javax.inject.Named
+import javax.inject.Singleton
+
+private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "app_prefs")
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -21,18 +22,21 @@ object AppModule {
     
     @Provides
     @Singleton
-    fun provideAppDataStore(@ApplicationContext context: Context): RxDataStore<Preferences> =
-        RxDataStoreBuilder(context, "app_prefs").build()
+    fun provideAppDataStore(@ApplicationContext context: Context): DataStore<Preferences> =
+        context.dataStore
     
     @Provides
     @Singleton
-    fun provideCartVersionKey(): Preferences.Key<Int> = preferencesKey("cart_version")
+    @Named("cartVersionKey")
+    fun provideCartVersionKey(): Preferences.Key<Int> = intPreferencesKey("cart_version")
     
     @Provides
     @Singleton
-    fun provideUserSessionKey(): Preferences.Key<String?> = preferencesKey("user_session")
+    @Named("userSessionKey")
+    fun provideUserSessionKey(): Preferences.Key<String> = stringPreferencesKey("user_session")
     
     @Provides
     @Singleton
-    fun provideAuthTokenKey(): Preferences.Key<String?> = preferencesKey("auth_token")
+    @Named("authTokenKey")
+    fun provideAuthTokenKey(): Preferences.Key<String> = stringPreferencesKey("auth_token")
 }

@@ -13,9 +13,18 @@ import { Toaster, toast } from "sonner";
 const defaultSettings: StoreSettings = {
   store_open: true,
   timezone: "Asia/Kolkata",
-  weekly_hours: { mon: ["08:00", "22:00"], tue: ["08:00", "22:00"], wed: ["08:00", "22:00"], thu: ["08:00", "22:00"], fri: ["08:00", "22:00"], sat: ["08:00", "22:00"], sun: ["08:00", "22:00"] },
+  weekly_hours: {
+    mon: ["08:00", "22:00"],
+    tue: ["08:00", "22:00"],
+    wed: ["08:00", "22:00"],
+    thu: ["08:00", "22:00"],
+    fri: ["08:00", "22:00"],
+    sat: ["08:00", "22:00"],
+    sun: ["08:00", "22:00"],
+  },
   contact_phone: "9837803293",
-  estimated_window_text: "Same-day delivery; the exact window is confirmed when the store accepts the order.",
+  estimated_window_text:
+    "Same-day delivery; the exact window is confirmed when the store accepts the order.",
   delivery_fee_paise: 0,
   delivery_charge_threshold_paise: 0,
   free_delivery_threshold_paise: null,
@@ -77,7 +86,11 @@ export default function SettingsPage() {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-indigo-600" /></div>;
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+      </div>
+    );
   }
 
   return (
@@ -93,85 +106,133 @@ export default function SettingsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Store Open</label>
-              <select {...form.register("store_open")} className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500">
+              <select
+                {...form.register("store_open")}
+                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
+              >
                 <option value="true">Open</option>
                 <option value="false">Closed (Pause)</option>
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Timezone</label>
-              <input {...form.register("timezone")} className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500" />
+              <input
+                {...form.register("timezone")}
+                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Contact Phone</label>
-              <input {...form.register("contact_phone")} className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500" />
+              <input
+                {...form.register("contact_phone")}
+                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
+              />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Estimated Delivery Window Text</label>
-              <textarea {...form.register("estimated_window_text")} rows={2} className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Estimated Delivery Window Text
+              </label>
+              <textarea
+                {...form.register("estimated_window_text")}
+                rows={2}
+                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
+              />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Weekly Hours (JSON)</label>
-              <textarea {...form.register("weekly_hours")} rows={4} className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500 font-mono text-sm" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Weekly Hours (JSON)
+              </label>
+              <textarea
+                {...form.register("weekly_hours")}
+                rows={4}
+                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500 font-mono text-sm"
+              />
             </div>
           </div>
         </Section>
 
         {/* Delivery Fee Configuration */}
-        <Section title="Delivery Fee Configuration" description="Set thresholds and fees. Changes take effect immediately.">
+        <Section
+          title="Delivery Fee Configuration"
+          description="Set thresholds and fees. Changes take effect immediately."
+        >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Fee Below Threshold (F1) *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Delivery Fee Below Threshold (F1) *
+              </label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">₹</span>
                 <input
                   {...form.register("delivery_fee_paise", { valueAsNumber: true })}
-                  type="number" min="0" step="1"
+                  type="number"
+                  min="0"
+                  step="1"
                   className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
-              <p className="mt-1 text-xs text-gray-500">Fee charged when order subtotal is below delivery-charge threshold</p>
+              <p className="mt-1 text-xs text-gray-500">
+                Fee charged when order subtotal is below delivery-charge threshold
+              </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Delivery-Charge Threshold (T1) *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Delivery-Charge Threshold (T1) *
+              </label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">₹</span>
                 <input
                   {...form.register("delivery_charge_threshold_paise", { valueAsNumber: true })}
-                  type="number" min="0" step="1"
+                  type="number"
+                  min="0"
+                  step="1"
                   className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
-              <p className="mt-1 text-xs text-gray-500">Orders below this subtotal pay F1; at/above this get free delivery (if T2 not set)</p>
+              <p className="mt-1 text-xs text-gray-500">
+                Orders below this subtotal pay F1; at/above this get free delivery (if T2 not set)
+              </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Free-Delivery Threshold (T2) — Optional</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Free-Delivery Threshold (T2) — Optional
+              </label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">₹</span>
                 <input
                   {...form.register("free_delivery_threshold_paise", { valueAsNumber: true })}
-                  type="number" min="0" step="1"
+                  type="number"
+                  min="0"
+                  step="1"
                   className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
                   placeholder="Optional"
                 />
               </div>
-              <p className="mt-1 text-xs text-gray-500">If set, F1 applies below T2; free at/above T2. T1 becomes inert.</p>
+              <p className="mt-1 text-xs text-gray-500">
+                If set, F1 applies below T2; free at/above T2. T1 becomes inert.
+              </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Mid-Tier Fee (F2) — Optional</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Mid-Tier Fee (F2) — Optional
+              </label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">₹</span>
                 <input
                   {...form.register("mid_tier_fee_paise", { valueAsNumber: true })}
-                  type="number" min="0" step="1"
+                  type="number"
+                  min="0"
+                  step="1"
                   className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
                   placeholder="Optional"
                 />
               </div>
-              <p className="mt-1 text-xs text-gray-500">Fee between T1 and T2 (requires T2). If T2 set but F2 empty, F1 applies.</p>
+              <p className="mt-1 text-xs text-gray-500">
+                Fee between T1 and T2 (requires T2). If T2 set but F2 empty, F1 applies.
+              </p>
             </div>
           </div>
 
@@ -186,48 +247,84 @@ export default function SettingsPage() {
         <Section title="Advanced Settings" description="Additional store configuration">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Max Order Value (Optional)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Max Order Value (Optional)
+              </label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">₹</span>
                 <input
                   {...form.register("max_order_paise", { valueAsNumber: true })}
-                  type="number" min="0" step="1"
+                  type="number"
+                  min="0"
+                  step="1"
                   className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
                   placeholder="No limit"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Cancellation Policy Text</label>
-              <textarea {...form.register("cancellation_policy_text")} rows={2} className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Cancellation Policy Text
+              </label>
+              <textarea
+                {...form.register("cancellation_policy_text")}
+                rows={2}
+                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Tax Mode</label>
-              <select {...form.register("tax_mode")} className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500">
+              <select
+                {...form.register("tax_mode")}
+                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
+              >
                 <option value="none">None</option>
                 <option value="inclusive">Inclusive (GST included in prices)</option>
                 <option value="exclusive">Exclusive (GST added on top)</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tax Rate (basis points)</label>
-              <input {...form.register("tax_rate_bps", { valueAsNumber: true })} type="number" min="0" max="10000" className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500" placeholder="e.g., 1800 for 18%" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Tax Rate (basis points)
+              </label>
+              <input
+                {...form.register("tax_rate_bps", { valueAsNumber: true })}
+                type="number"
+                min="0"
+                max="10000"
+                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
+                placeholder="e.g., 1800 for 18%"
+              />
             </div>
             <div className="md:col-span-2 flex items-center gap-4">
               <label className="flex items-center gap-2 cursor-pointer">
-                <input {...form.register("online_payment_enabled")} type="checkbox" className="h-4 w-4 text-indigo-600 rounded border-gray-300" />
+                <input
+                  {...form.register("online_payment_enabled")}
+                  type="checkbox"
+                  className="h-4 w-4 text-indigo-600 rounded border-gray-300"
+                />
                 <span className="text-sm text-gray-700">Enable Online Payments</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
-                <input {...form.register("pos_price_override_enabled")} type="checkbox" className="h-4 w-4 text-indigo-600 rounded border-gray-300" />
-                <span className="text-sm text-gray-700">Enable POS Price Override (Manager only)</span>
+                <input
+                  {...form.register("pos_price_override_enabled")}
+                  type="checkbox"
+                  className="h-4 w-4 text-indigo-600 rounded border-gray-300"
+                />
+                <span className="text-sm text-gray-700">
+                  Enable POS Price Override (Manager only)
+                </span>
               </label>
             </div>
           </div>
         </Section>
 
         <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-          <button type="button" onClick={() => form.reset(defaultSettings)} className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => form.reset(defaultSettings)}
+            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 flex items-center gap-2"
+          >
             <RotateCcw className="h-4 w-4" /> Reset to Defaults
           </button>
           <button type="submit" disabled={saving} className="btn-primary flex items-center gap-2">
@@ -242,7 +339,15 @@ export default function SettingsPage() {
   );
 }
 
-function Section({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
+function Section({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-6">
       <div className="mb-4">
@@ -255,7 +360,7 @@ function Section({ title, description, children }: { title: string; description:
 }
 
 function computeFeeRule(T1: number, F1: number, T2: number | null, F2: number | null): string {
-  const fmt = (p: number | null) => p ? formatRupees(p) : "—";
+  const fmt = (p: number | null) => (p ? formatRupees(p) : "—");
   const lines = [
     `F1 (Delivery fee) = ${fmt(F1)}`,
     `T1 (Delivery-charge threshold) = ${fmt(T1)}`,

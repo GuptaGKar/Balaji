@@ -7,14 +7,12 @@ import com.balaji.provision.domain.model.Category
 import com.balaji.provision.domain.model.Product
 import com.balaji.provision.domain.model.QuantityType
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.scopes.ActivityRetainedScoped
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
-@ActivityRetainedScoped
 class ProductViewModel @Inject constructor(
     private val api: SupabaseApi
 ) : ViewModel() {
