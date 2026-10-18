@@ -8,6 +8,7 @@ import com.balaji.provision.domain.model.CartItem
 import com.balaji.provision.domain.model.QuoteBreakdown
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -17,49 +18,19 @@ class CartViewModel @Inject constructor(
     private val cartRepository: CartRepository
 ) : ViewModel() {
     
-    private val _cart = MutableStateFlow<Cart>(Cart.empty())
-    val cart = _cart.asStateFlow()
-    
-    private val _quote = MutableStateFlow<QuoteBreakdown?>(null)
-    val quote = _quote.asStateFlow()
+    val cart: StateFlow<Cart> = cartRepository.cartFlow
+    val quote: StateFlow<QuoteBreakdown?> = cartRepository.quoteFlow
     
     private val _isLoading = MutableStateFlow(false)
-    val isLoading = _quote.asStateFlow()
+    val isLoading = _isLoading.asStateFlow()
     
     private val _error = MutableStateFlow<String?>(null)
     val error = _error.asStateFlow()
     
-    init {
-        loadCart()
-    }
-    
-    fun loadCart() {
-        viewModelScope.launch {
-            try {
-                _isLoading.value = true
-                val cart = cartRepository.getCart()
-                _cart.value = cart
-                if (cart.items.isNotEmpty()) {
-                    val quote = cartRepository.getQuote(cart.items)
-                    _quote.value = quote
-                }
-            } catch (e: Exception) {
-                _error.value = e.message
-            } finally {
-                _isLoading.value = false
-            }
-        }
-    }
-    
     fun addItem(productId: String, qtyBase: Long = 1) {
         viewModelScope.launch {
             try {
-                _isLoading.value = true
-                val item = CartItem(productId, qtyBase)
-                val updatedCart = cartRepository.addItem(item)
-                _cart.value = updatedCart
-                val quote = cartRepository.getQuote(updatedCart.items)
-                _quote.value = quote
+                cartRepository.addItem(CartItem(productId, qtyBase))
             } catch (e: Exception) {
                 _error.value = e.message
             }
@@ -69,14 +40,10 @@ class CartViewModel @Inject constructor(
     fun updateQuantity(productId: String, qtyBase: Long) {
         viewModelScope.launch {
             try {
-                _isLoading.value = true
-                val updatedCart = cartRepository.updateQuantity(productId, qtyBase)
-                _cart.value = updatedCart
-                if (updatedCart.items.isNotEmpty()) {
-                    val quote = cartRepository.getQuote(updatedCart.items)
-                    _quote.value = quote
+                if (qtyBase <= 0) {
+                    cartRepository.removeItem(productId)
                 } else {
-                    _quote.value = null
+                    cartRepository.updateQuantity(productId, qtyBase)
                 }
             } catch (e: Exception) {
                 _error.value = e.message
@@ -87,15 +54,7 @@ class CartViewModel @Inject constructor(
     fun removeItem(productId: String) {
         viewModelScope.launch {
             try {
-                _isLoading.value = true
-                val updatedCart = cartRepository.removeItem(productId)
-                _cart.value = updatedCart
-                if (updatedCart.items.isNotEmpty()) {
-                    val quote = cartRepository.getQuote(updatedCart.items)
-                    _quote.value = quote
-                } else {
-                    _quote.value = null
-                }
+                cartRepository.removeItem(productId)
             } catch (e: Exception) {
                 _error.value = e.message
             }
@@ -109,8 +68,6 @@ class CartViewModel @Inject constructor(
     fun clearCart() {
         viewModelScope.launch {
             cartRepository.clearCart()
-            _cart.value = Cart.empty()
-            _quote.value = null
         }
     }
 }

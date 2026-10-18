@@ -3,23 +3,29 @@ package com.balaji.provision
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.ListAlt
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Store
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Surface
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -33,6 +39,7 @@ import com.balaji.provision.ui.checkout.CheckoutScreen
 import com.balaji.provision.ui.home.HomeScreen
 import com.balaji.provision.ui.orders.OrdersScreen
 import com.balaji.provision.ui.profile.ProfileScreen
+import com.balaji.provision.ui.theme.BalajiTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -40,16 +47,38 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    val navController = rememberNavController()
-                    AppNavHost(navController)
-                }
+            BalajiTheme {
+                MainAppScreen()
             }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MainAppScreen() {
+    val navController = rememberNavController()
+    
+    Scaffold(
+        bottomBar = { BottomNavigationBar(navController) }
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            AppNavHost(navController)
+        }
+    }
+}
+
+fun navigateToTab(navController: NavHostController, route: String) {
+    navController.navigate(route) {
+        popUpTo(navController.graph.findStartDestination().id) {
+            saveState = true
+        }
+        launchSingleTop = true
+        restoreState = true
     }
 }
 
@@ -57,16 +86,26 @@ class MainActivity : ComponentActivity() {
 fun AppNavHost(navController: NavHostController) {
     NavHost(navController = navController, startDestination = "home") {
         composable("home") {
-            HomeScreen(onNavigateToCatalog = { navController.navigate("catalog") })
+            HomeScreen(
+                onNavigateToCatalog = { navigateToTab(navController, "catalog") },
+                onNavigateToCart = { navigateToTab(navController, "cart") },
+                onNavigateToOrders = { navigateToTab(navController, "orders") }
+            )
         }
         composable("catalog") {
-            CatalogScreen(onNavigateToCart = { navController.navigate("cart") })
+            CatalogScreen(
+                onNavigateToCart = { navigateToTab(navController, "cart") }
+            )
         }
         composable("cart") {
-            CartScreen(onNavigateToCheckout = { navController.navigate("checkout") })
+            CartScreen(
+                onNavigateToCheckout = { navController.navigate("checkout") }
+            )
         }
         composable("checkout") {
-            CheckoutScreen(onOrderPlaced = { navController.navigate("orders") })
+            CheckoutScreen(
+                onOrderPlaced = { navigateToTab(navController, "orders") }
+            )
         }
         composable("orders") {
             OrdersScreen()
@@ -90,19 +129,34 @@ fun BottomNavigationBar(navController: NavHostController) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    NavigationBar {
+    NavigationBar(
+        tonalElevation = 8.dp,
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
         destinations.forEach { item ->
-            val selected = currentRoute?.startsWith(item.route) == true
+            val selected = currentRoute == item.route
             NavigationBarItem(
-                icon = { Icon(item.icon, contentDescription = item.label) },
-                label = { Text(item.label, fontSize = 12.sp) },
+                icon = {
+                    Icon(
+                        item.icon,
+                        contentDescription = item.label
+                    )
+                },
+                label = {
+                    Text(
+                        item.label,
+                        fontSize = 11.sp,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                    )
+                },
                 selected = selected,
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                    indicatorColor = MaterialTheme.colorScheme.primaryContainer
+                ),
                 onClick = {
-                    navController.navigate(item.route) {
-                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
+                    navigateToTab(navController, item.route)
                 }
             )
         }

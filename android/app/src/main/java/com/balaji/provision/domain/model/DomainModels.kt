@@ -1,7 +1,9 @@
 package com.balaji.provision.domain.model
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 
+@Immutable
 @Serializable
 data class Cart(
     val items: List<CartItem> = emptyList()
@@ -11,12 +13,13 @@ data class Cart(
     }
     
     val itemCount: Int
-        get() = items.sumOf { it.qtyBase.toInt() }
+        get() = items.size
     
     val isEmpty: Boolean
         get() = items.isEmpty()
 }
 
+@Immutable
 @Serializable
 data class CartItem(
     val productId: String,
@@ -31,6 +34,7 @@ data class CartItem(
     override fun hashCode(): Int = productId.hashCode()
 }
 
+@Immutable
 @Serializable
 data class QuoteBreakdown(
     val lines: List<Line> = emptyList(),
@@ -43,6 +47,7 @@ data class QuoteBreakdown(
     val belowChargeThreshold: Boolean = false,
     val amountToFreeDelivery: Long = 0
 ) {
+    @Immutable
     @Serializable
     data class Line(
         val productId: String,
@@ -56,6 +61,7 @@ data class QuoteBreakdown(
     )
 }
 
+@Immutable
 @Serializable
 data class Product(
     val id: String,
@@ -103,6 +109,7 @@ enum class QuantityType {
     WEIGHTED, PACKED
 }
 
+@Immutable
 @Serializable
 data class Category(
     val id: String,
@@ -112,6 +119,7 @@ data class Category(
     val active: Boolean
 )
 
+@Immutable
 @Serializable
 data class Order(
     val id: String,
@@ -147,6 +155,7 @@ enum class PaymentStatus {
     UNPAID, PENDING, PAID, FAILED, REFUND_PENDING, PARTIALLY_REFUNDED, REFUNDED
 }
 
+@Immutable
 @Serializable
 data class OrderItem(
     val id: String,
@@ -159,6 +168,7 @@ data class OrderItem(
     val lineTotalPaise: Long
 )
 
+@Immutable
 @Serializable
 data class Address(
     val id: String,
@@ -173,9 +183,10 @@ data class Address(
     val isDefault: Boolean
 ) {
     val fullAddress: String
-        get() = "$addressLines${landmark?.let { ", $it" } ?? ""}${area?.let { ", $it" } ?? ""}, $city - $postalCode"
+        get() = "$addressLines${landmark?.let { ", $it" } ?: ""}${area?.let { ", $it" } ?: ""}, $city - $postalCode"
 }
 
+@Immutable
 @Serializable
 data class UserProfile(
     val id: String,
@@ -201,8 +212,8 @@ fun formatPrice(pricePaise: Long, priceBasisQty: Long, quantityType: QuantityTyp
         QuantityType.PACKED -> formatPaise(pricePaise) + " / pack"
         QuantityType.WEIGHTED -> {
             val perUnit = when (priceBasisQty) {
-                1000 -> "kg"
-                100 -> "100g"
+                1000L -> "kg"
+                100L -> "100g"
                 else -> "g"
             }
             formatPaise(pricePaise) + " / $perUnit"

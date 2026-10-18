@@ -1,5 +1,8 @@
 package com.balaji.provision.data.network
 
+import com.balaji.provision.domain.model.Category
+import com.balaji.provision.domain.model.Product
+import com.balaji.provision.domain.model.QuantityType
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 import retrofit2.Response
@@ -241,4 +244,33 @@ data class AddressResponse(
     val state: String?,
     val postal_code: String,
     val is_default: Boolean
+)
+
+fun CategoryResponse.toDomain(): Category = Category(
+    id = id,
+    name = name,
+    slug = slug,
+    sortOrder = sort_order,
+    active = active
+)
+
+fun ProductResponse.toDomain(): Product = Product(
+    id = id,
+    sku = sku,
+    name = name,
+    description = description,
+    categoryId = category_id,
+    imagePath = image_path,
+    quantityType = try { QuantityType.valueOf(quantity_type.uppercase()) } catch (e: Exception) { QuantityType.PACKED },
+    pricePaise = price_paise,
+    priceBasisQty = price_basis_qty,
+    unitLabel = unit_label,
+    packSizeLabel = pack_size_label,
+    stepQty = step_qty,
+    minQty = min_qty,
+    maxQty = max_qty,
+    stockQty = stock_qty,
+    lowStockThreshold = low_stock_threshold,
+    active = active,
+    available = available
 )
