@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build output
+.next/
+out/
+dist/
+build/
+
+# Environment files — NEVER commit secrets
+.env
+.env.*
+!.env.example
+
+# Supabase CLI local state
+supabase/.temp/
+
+# Android
+android/.gradle/
+android/**/build/
+android/local.properties
+*.keystore
+*.jks
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+*.swp
