@@ -12,7 +12,7 @@ INSERT INTO store_settings (
   cancellation_policy_text, tax_mode, tax_rate_bps,
   online_payment_enabled, pos_price_override_enabled
 ) VALUES (
-  '00000000-0000-0000-0000-000000000001',
+  true,
   true,
   'Asia/Kolkata',
   '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
