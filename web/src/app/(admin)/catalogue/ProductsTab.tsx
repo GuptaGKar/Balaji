@@ -60,6 +60,25 @@ export default function ProductsTab() {
 
   const watchedQuantityType = form.watch("quantity_type");
 
+  // Keep form fields synced when Quantity Type changes
+  useEffect(() => {
+    const isWeighted = watchedQuantityType?.toLowerCase() === "weighted";
+    if (isWeighted) {
+      form.setValue("price_basis_qty", 1000);
+      form.setValue("unit_label", "kg");
+      form.setValue("step_qty", 10);
+      form.setValue("min_qty", 100);
+      form.setValue("pack_size_label", null);
+      form.setValue("low_stock_threshold", 5000);
+    } else {
+      form.setValue("price_basis_qty", 1);
+      form.setValue("unit_label", "pack");
+      form.setValue("step_qty", 1);
+      form.setValue("min_qty", 1);
+      form.setValue("low_stock_threshold", 5);
+    }
+  }, [watchedQuantityType, form]);
+
   const fetchData = async () => {
     const supabase = createClient();
     const [productsRes, categoriesRes] = await Promise.all([
@@ -87,7 +106,7 @@ export default function ProductsTab() {
     const supabase = createClient();
     try {
       const isWeighted = data.quantity_type?.toLowerCase() === "weighted";
-      const generatedSku = data.sku.trim() || `SKU-${Math.floor(100000 + Math.random() * 900000)}`;
+      const generatedSku = (data.sku && data.sku.trim()) ? data.sku.trim() : `SKU-${Math.floor(100000 + Math.random() * 900000)}`;
       const calculatedPricePaise = Math.round((priceRupees || 0) * 100);
       const selectedCategoryId = data.category_id || (categories.length > 0 ? categories[0].id : null);
 
@@ -107,7 +126,7 @@ export default function ProductsTab() {
         price_paise: calculatedPricePaise > 0 ? calculatedPricePaise : 10000,
         price_basis_qty: isWeighted ? 1000 : 1,
         unit_label: isWeighted ? "kg" : "pack",
-        pack_size_label: isWeighted ? "1 kg" : (data.pack_size_label || "1 pc"),
+        pack_size_label: isWeighted ? null : (data.pack_size_label || "1 pc"),
         step_qty: isWeighted ? 10 : 1,
         min_qty: isWeighted ? 100 : 1,
         stock_qty: finalStockQty,
@@ -186,8 +205,8 @@ export default function ProductsTab() {
 
   const filteredProducts = products.filter(
     (p) =>
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.sku.toLowerCase().includes(search.toLowerCase()),
+      (p.name || "").toLowerCase().includes(search.toLowerCase()) ||
+      (p.sku || "").toLowerCase().includes(search.toLowerCase()),
   );
 
   if (loading) {
@@ -470,7 +489,7 @@ function ProductFormCard({
       </div>
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-        {/* Step 1: Select Quantity Type FIRST */}
+        {/* Step 1: Select Quantity Type First */}
         <div className="p-4 bg-emerald-50/60 border border-emerald-200 rounded-2xl space-y-2">
           <label className="block text-xs font-bold text-emerald-900 uppercase tracking-wider">
             Step 1: Select Quantity Type First *
@@ -518,7 +537,7 @@ function ProductFormCard({
           </div>
         </div>
 
-        {/* Step 2: Product Name, Category & Pricing */}
+        {/* Step 2: Product Name, Category & Dynamic Pricing */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">Product Name *</label>
@@ -559,7 +578,7 @@ function ProductFormCard({
               placeholder={isWeighted ? "e.g. 60.00 per kg" : "e.g. 120.00 per pack"}
             />
             <span className="text-[11px] text-slate-500 mt-1 block">
-              {isWeighted ? "Set price for 1 kilogram (1000g)" : "Set price for 1 pack / piece"}
+              {isWeighted ? "Price entered is for 1 kilogram (1000g)" : "Price entered is for 1 unit / pack"}
             </span>
           </div>
 
@@ -580,14 +599,18 @@ function ProductFormCard({
             </span>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Pack / Unit Size Label</label>
-            <input
-              {...form.register("pack_size_label")}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm focus:ring-2 focus:ring-emerald-500"
-              placeholder={isWeighted ? "1 kg" : "1 pc / 500g pack"}
-            />
-          </div>
+          {/* Only shown for PACKED items */}
+          {!isWeighted && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Weight / Volume Per Pack</label>
+              <input
+                {...form.register("pack_size_label")}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm focus:ring-2 focus:ring-emerald-500"
+                placeholder="e.g. 5 kg, 1 L, 200 g"
+              />
+              <span className="text-[11px] text-slate-500 mt-1 block">Specify weight or volume per single unit pack</span>
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">SKU (Auto-Generated if Blank)</label>

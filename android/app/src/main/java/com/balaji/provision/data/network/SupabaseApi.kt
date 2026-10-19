@@ -17,7 +17,7 @@ import retrofit2.http.Query
 interface SupabaseApi {
     
     // Catalogue
-    @GET("rest/v1/catalog_products")
+    @GET("rest/v1/products")
     suspend fun getProducts(
         @Header("apikey") apiKey: String,
         @Header("Authorization") auth: String,
@@ -26,7 +26,7 @@ interface SupabaseApi {
         @Query("limit") limit: Int = 100
     ): Response<List<ProductResponse>>
     
-    @GET("rest/v1/catalog_categories")
+    @GET("rest/v1/categories")
     suspend fun getCategories(
         @Header("apikey") apiKey: String,
         @Header("Authorization") auth: String,

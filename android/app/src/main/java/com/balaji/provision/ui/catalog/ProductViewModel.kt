@@ -58,16 +58,12 @@ class ProductViewModel @Inject constructor(
                     auth = "Bearer ${BuildConfig.SUPABASE_ANON_KEY}"
                 )
                 
-                if (catResponse.isSuccessful && prodResponse.isSuccessful) {
+                if (catResponse.isSuccessful || prodResponse.isSuccessful) {
                     val catList = catResponse.body()?.filter { it.active }?.map { it.toDomain() } ?: emptyList()
                     val prodList = prodResponse.body()?.filter { it.active && it.available }?.map { it.toDomain() } ?: emptyList()
                     
-                    if (catList.isNotEmpty() && prodList.isNotEmpty()) {
-                        _categories.value = catList
-                        _allProducts.value = prodList
-                    } else {
-                        loadFallbackData()
-                    }
+                    _categories.value = catList
+                    _allProducts.value = prodList
                 } else {
                     loadFallbackData()
                 }

@@ -108,66 +108,62 @@ export type CategoryWithId = z.infer<typeof categoryWithIdSchema>;
 
 export const productSchema = z
   .object({
-    sku: z.string().min(1).max(50),
-    name: z.string().min(1).max(200),
-    description: z.string().optional(),
-    category_id: z.string().uuid(),
-    image_path: z.string().optional(),
+    sku: z.string().optional(),
+    name: z.string().min(1, "Name is required").max(200),
+    description: z.string().optional().nullable(),
+    category_id: z.string().min(1, "Category is required"),
+    image_path: z.string().optional().nullable(),
     quantity_type: quantityTypeEnum,
     price_paise: z.number().int().min(0),
     price_basis_qty: z.number().int().positive(),
     unit_label: z.string().min(1).max(20),
-    pack_size_label: z.string().max(50).nullable(),
+    pack_size_label: z.string().max(50).optional().nullable(),
     step_qty: z.number().int().positive(),
     min_qty: z.number().int().positive(),
-    max_qty: z.number().int().positive().nullable(),
+    max_qty: z.number().int().positive().optional().nullable(),
     stock_qty: z.number().int().min(0),
     low_stock_threshold: z.number().int().min(0),
     active: z.boolean().default(true),
     available: z.boolean().default(true),
   })
   .refine(
-    (data) =>
-      data.quantity_type === "PACKED"
+    (data) => {
+      const qType = data.quantity_type.toUpperCase();
+      return qType === "PACKED"
         ? data.price_basis_qty === 1 && data.step_qty === 1
-        : data.price_basis_qty === 100 || data.price_basis_qty === 1000,
+        : data.price_basis_qty === 100 || data.price_basis_qty === 1000;
+    },
     {
       message:
         "PACKED: price_basis_qty must be 1 and step_qty must be 1. WEIGHTED: price_basis_qty must be 100 or 1000.",
       path: ["quantity_type"],
     },
   )
-  .refine((data) => data.max_qty === null || data.max_qty >= data.min_qty, {
+  .refine((data) => data.max_qty === null || data.max_qty === undefined || data.max_qty >= data.min_qty, {
     message: "max_qty must be ≥ min_qty",
     path: ["max_qty"],
   });
 
 export type Product = z.infer<typeof productSchema>;
 
-export const serviceAreaSchema = z.object({
-  kind: serviceAreaKindEnum,
-  value: z.string().min(1).max(50),
-  active: z.boolean().default(true),
-});
-
-export type ServiceArea = z.infer<typeof serviceAreaSchema>;
-
 export const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;
 
-export const createStaffSchema = z.object({
-  login_id: z
-    .string()
-    .min(3)
-    .max(20)
-    .regex(/^[A-Z0-9-]+$/),
-  display_name: z.string().min(1).max(100),
-  phone: z.string().min(10).max(15),
-  role: z.enum(["staff", "delivery"]),
+export const serviceAreaSchema = z.object({
+  kind: serviceAreaKindEnum,
+  value: z.string().min(1, "Value is required"),
+  active: z.boolean().default(true),
 });
+export type ServiceArea = z.infer<typeof serviceAreaSchema>;
 
+export const createStaffSchema = z.object({
+  display_name: z.string().min(1, "Name is required"),
+  phone: z.string().min(10, "Valid phone required"),
+  role: z.enum(["staff", "manager", "delivery"]),
+  login_id: z.string().min(3, "Login ID required"),
+});
 export type CreateStaffInput = z.infer<typeof createStaffSchema>;
