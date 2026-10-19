@@ -66,7 +66,8 @@ export default function Dashboard() {
         try {
           const productsRes = await supabase
             .from("catalog_products")
-            .select("id, stock_qty, low_stock_threshold, active", { count: "exact" });
+            .select("id, stock_qty, low_stock_threshold, active", { count: "exact" })
+            .limit(200);
 
           if (!productsRes.error && productsRes.data && productsRes.data.length > 0) {
             totalProducts = productsRes.count || productsRes.data.length;

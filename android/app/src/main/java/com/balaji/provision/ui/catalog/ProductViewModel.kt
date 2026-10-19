@@ -92,24 +92,26 @@ class ProductViewModel @Inject constructor(
     }
     
     private fun filterProducts() {
-        val catId = _selectedCategory.value
-        val query = _searchQuery.value.trim().lowercase()
-        
-        var filtered = _allProducts.value
-        
-        if (!catId.isNullOrBlank()) {
-            filtered = filtered.filter { it.categoryId == catId }
-        }
-        
-        if (query.isNotEmpty()) {
-            filtered = filtered.filter { 
-                it.name.lowercase().contains(query) || 
-                (it.description?.lowercase()?.contains(query) == true) ||
-                it.sku.lowercase().contains(query)
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            val catId = _selectedCategory.value
+            val query = _searchQuery.value.trim().lowercase()
+            
+            var filtered = _allProducts.value
+            
+            if (!catId.isNullOrBlank()) {
+                filtered = filtered.filter { it.categoryId == catId }
             }
+            
+            if (query.isNotEmpty()) {
+                filtered = filtered.filter { 
+                    it.name.lowercase().contains(query) || 
+                    (it.description?.lowercase()?.contains(query) == true) ||
+                    it.sku.lowercase().contains(query)
+                }
+            }
+            
+            _products.value = filtered
         }
-        
-        _products.value = filtered
     }
     
     fun clearError() {

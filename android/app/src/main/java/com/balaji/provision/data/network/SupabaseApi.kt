@@ -16,12 +16,12 @@ import retrofit2.http.Query
 
 interface SupabaseApi {
     
-    // Catalogue
+    // Catalogue (Optimized Column Selection)
     @GET("rest/v1/products")
     suspend fun getProducts(
         @Header("apikey") apiKey: String,
         @Header("Authorization") auth: String,
-        @Query("select") select: String = "*",
+        @Query("select") select: String = "id,sku,name,description,category_id,image_path,quantity_type,price_paise,price_basis_qty,unit_label,pack_size_label,step_qty,min_qty,max_qty,stock_qty,low_stock_threshold,active,available",
         @Query("order") order: String = "name.asc",
         @Query("limit") limit: Int = 100
     ): Response<List<ProductResponse>>
@@ -30,7 +30,7 @@ interface SupabaseApi {
     suspend fun getCategories(
         @Header("apikey") apiKey: String,
         @Header("Authorization") auth: String,
-        @Query("select") select: String = "*",
+        @Query("select") select: String = "id,name,slug,sort_order,active",
         @Query("order") order: String = "sort_order.asc"
     ): Response<List<CategoryResponse>>
     
