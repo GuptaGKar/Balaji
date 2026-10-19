@@ -36,8 +36,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -45,7 +43,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,14 +58,13 @@ import com.balaji.provision.domain.model.Product
 import com.balaji.provision.domain.model.QuantityType
 import com.balaji.provision.ui.cart.CartViewModel
 import com.balaji.provision.ui.components.WeightedQuantityDialog
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CatalogScreen(
     viewModel: ProductViewModel = hiltViewModel(),
     cartViewModel: CartViewModel = hiltViewModel(),
-    onNavigateToCart: () -> Unit
+    onNavigateToCart: () -> Unit = {}
 ) {
     val categories by viewModel.categories.collectAsState()
     val products by viewModel.products.collectAsState()
@@ -77,9 +73,6 @@ fun CatalogScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     
     val cart by cartViewModel.cart.collectAsState()
-    
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
     
     var weightedProductDialog by remember { mutableStateOf<Pair<Product, Long>?>(null) }
     
@@ -90,10 +83,6 @@ fun CatalogScreen(
             onDismiss = { weightedProductDialog = null },
             onConfirmQtyGrams = { qtyGrams ->
                 cartViewModel.updateQuantity(prod.id, qtyGrams)
-                scope.launch {
-                    val label = if (qtyGrams >= 1000) "${qtyGrams / 1000.0} kg" else "${qtyGrams} g"
-                    snackbarHostState.showSnackbar("Updated ${prod.name} ($label) in basket!")
-                }
             }
         )
     }
@@ -208,7 +197,10 @@ fun CatalogScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(products, key = { it.id }) { product ->
-                        val cartItem = cart.items.find { it.productId == product.id }
+                        val cartItem = remember(cart.items, product.id) {
+                            cart.items.find { it.productId == product.id }
+                        }
+                        
                         ProductCard(
                             product = product,
                             cartItem = cartItem,
@@ -217,16 +209,10 @@ fun CatalogScreen(
                             },
                             onAddToCart = { qty ->
                                 cartViewModel.addItem(product.id, qty)
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("Added ${product.name} to basket!")
-                                }
                             },
                             onUpdateQuantity = { newQty ->
                                 if (newQty <= 0) {
                                     cartViewModel.removeItem(product.id)
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar("Removed ${product.name} from basket")
-                                    }
                                 } else {
                                     cartViewModel.updateQuantity(product.id, newQty)
                                 }
@@ -236,11 +222,6 @@ fun CatalogScreen(
                 }
             }
         }
-        
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
     }
 }
 
@@ -270,7 +251,7 @@ fun ProductCard(
                 verticalAlignment = Alignment.Top,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Product avatar emoji / thumbnail box
+                // Product avatar thumbnail
                 Box(
                     modifier = Modifier
                         .size(72.dp)
