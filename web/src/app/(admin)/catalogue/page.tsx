@@ -10,7 +10,7 @@ export default function CataloguePage() {
   const [activeTab, setActiveTab] = useState<"products" | "categories">("products");
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto px-2 sm:px-4 pb-12">
+    <div className="w-full space-y-6 pb-12">
       {/* Header & Tab Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
         <div>
@@ -48,7 +48,9 @@ export default function CataloguePage() {
       </div>
 
       {/* Active View */}
-      {activeTab === "products" ? <ProductsTab /> : <CategoriesTab />}
+      <div className="w-full">
+        {activeTab === "products" ? <ProductsTab /> : <CategoriesTab />}
+      </div>
     </div>
   );
 }
