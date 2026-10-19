@@ -1,7 +1,7 @@
 -- ===========================================================================
--- Balaji Provision Store — Fix Catalogue & Store Settings RLS Policies
--- Run this in Supabase SQL Editor to allow adding products and categories
--- from the Web Admin Portal without RLS 42501 permission errors.
+-- Balaji Provision Store — Fix Catalogue, Orders & Realtime Sync
+-- Run this in Supabase SQL Editor to enable real-time synchronization between
+-- Web Admin Portal and Android Mobile App.
 -- ===========================================================================
 
 -- 1. Enable RLS
@@ -71,3 +71,13 @@ DROP POLICY IF EXISTS "order_items_read_staff" ON order_items;
 
 CREATE POLICY "order_items_all_public" ON order_items
   FOR ALL TO public USING (true) WITH CHECK (true);
+
+-- 6. Add Tables to Realtime Publication
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE categories, products, orders, store_settings;
+    END IF;
+EXCEPTION
+    WHEN OTHERS THEN NULL;
+END $$;

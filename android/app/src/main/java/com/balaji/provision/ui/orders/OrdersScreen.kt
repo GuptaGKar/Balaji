@@ -5,10 +5,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -20,58 +18,34 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ListAlt
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.PendingActions
-import androidx.compose.material3.AssistChip
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.balaji.provision.domain.model.formatPaise
 
 @Composable
-fun OrdersScreen() {
-    val sampleOrders = remember {
-        listOf(
-            OrderView(
-                id = "ord-1",
-                publicOrderNumber = "BALAJI-1082",
-                status = "out_for_delivery",
-                grandTotalPaise = 54500,
-                createdAt = "Today, 10:15 AM",
-                items = listOf(
-                    OrderItemView("Aashirvaad Shudh Chakki Atta (5kg)", 1, 24000),
-                    OrderItemView("Fortune Sunlite Sunflower Oil (1L)", 2, 29000),
-                    OrderItemView("Tata Salt Iodized Salt (1kg)", 1, 2800)
-                )
-            ),
-            OrderView(
-                id = "ord-2",
-                publicOrderNumber = "BALAJI-1075",
-                status = "delivered",
-                grandTotalPaise = 31800,
-                createdAt = "Yesterday, 04:30 PM",
-                items = listOf(
-                    OrderItemView("Fortune Everyday Basmati Rice (2 kg)", 1, 24000),
-                    OrderItemView("Amul Pasteurised Butter (100g)", 1, 5800),
-                    OrderItemView("Everest Turmeric Powder (100g)", 2, 7200)
-                )
-            )
-        )
-    }
-    
-    val orders by remember { mutableStateOf(sampleOrders) }
+fun OrdersScreen(
+    viewModel: OrdersViewModel = hiltViewModel()
+) {
+    val orders by viewModel.orders.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
     
     Column(
         modifier = Modifier.fillMaxSize()
@@ -83,21 +57,41 @@ fun OrdersScreen() {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Icon(
-                    Icons.Default.ListAlt,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(28.dp)
-                )
-                Text("Your Orders & Deliveries", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        Icons.Default.ListAlt,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Text("Your Orders & Deliveries", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                }
+                
+                IconButton(onClick = { viewModel.fetchOrders() }) {
+                    Icon(
+                        Icons.Default.Refresh,
+                        contentDescription = "Refresh",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
         
-        if (orders.isEmpty()) {
+        if (isLoading) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+            }
+        } else if (orders.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -194,7 +188,7 @@ fun OrderCard(order: OrderView) {
 
 @Composable
 fun OrderStatusChip(status: String) {
-    val (color, label, icon) = when (status) {
+    val (color, label, icon) = when (status.lowercase()) {
         "pending_review" -> Triple(Color(0xFFD97706), "PENDING REVIEW", Icons.Default.PendingActions)
         "accepted" -> Triple(Color(0xFF2563EB), "ACCEPTED", Icons.Default.CheckCircle)
         "preparing" -> Triple(Color(0xFF7C3AED), "PREPARING", Icons.Default.LocalShipping)
