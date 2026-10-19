@@ -71,7 +71,7 @@ export default function OrdersPage() {
     setLoading(false);
   }, [statusFilter, supabase]);
 
-  // Realtime subscription to auto-fetch when new orders arrive from Mobile App
+  // Realtime subscription with channel cleanup and visibilitychange refetching
   useEffect(() => {
     fetchOrders();
 
@@ -81,13 +81,25 @@ export default function OrdersPage() {
         "postgres_changes",
         { event: "*", schema: "public", table: "orders" },
         () => {
-          toast.info("🔔 New order / status update received!");
           fetchOrders();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          fetchOrders();
+        }
+      });
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchOrders();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       supabase.removeChannel(channel);
     };
   }, [fetchOrders, supabase]);
@@ -103,29 +115,29 @@ export default function OrdersPage() {
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
     setUpdatingId(orderId);
     try {
-      const updateData: any = {
-        status: newStatus,
-        ...(newStatus === "accepted" ? { accepted_at: new Date().toISOString() } : {}),
-        ...(newStatus === "delivered" ? { delivered_at: new Date().toISOString(), payment_status: "paid" } : {}),
-      };
-
-      const { error } = await supabase.from("orders").update(updateData).eq("id", orderId);
-      if (error) throw error;
-
-      // Add timeline event
-      await supabase.from("order_status_events").insert({
-        order_id: orderId,
-        to_status: newStatus,
-        reason: "Updated by Store Admin",
+      const { error: rpcError } = await supabase.rpc("transition_order", {
+        p_order_id: orderId,
+        p_to_status: newStatus,
+        p_reason: "Updated by Store Admin"
       });
 
-      toast.success(`Order #${orders.find((o) => o.id === orderId)?.public_order_number} status changed to ${newStatus.replace("_", " ").toUpperCase()}`);
+      if (rpcError) {
+        const updateData: any = {
+          status: newStatus,
+          ...(newStatus === "accepted" ? { accepted_at: new Date().toISOString() } : {}),
+          ...(newStatus === "delivered" ? { delivered_at: new Date().toISOString(), payment_status: "paid" } : {}),
+        };
+        const { error: directError } = await supabase.from("orders").update(updateData).eq("id", orderId);
+        if (directError) throw new Error(`${directError.code}: ${directError.message}`);
+      }
+
+      toast.success(`Order status changed to ${newStatus.replace("_", " ").toUpperCase()}`);
       if (selectedOrder?.id === orderId) {
         setSelectedOrder((prev) => (prev ? { ...prev, status: newStatus } : null));
       }
       fetchOrders();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update status");
+      toast.error(err instanceof Error ? err.message : "Failed to update order status");
     } finally {
       setUpdatingId(null);
     }

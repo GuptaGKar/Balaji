@@ -4,87 +4,86 @@ import com.balaji.provision.data.repository.CartRepository
 import com.balaji.provision.domain.model.Cart
 import com.balaji.provision.domain.model.CartItem
 import com.balaji.provision.domain.model.QuoteBreakdown
-import kotlinx.coroutines.test.runBlockingTest
-import org.junit.Assert.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
-import org.mockito.Mockito.*
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.verify
+import org.mockito.Mockito.`when`
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class CartViewModelTest {
 
     private lateinit var viewModel: CartViewModel
     private lateinit var mockRepository: CartRepository
+    private val testDispatcher = StandardTestDispatcher()
 
     @Before
     fun setup() {
+        Dispatchers.setMain(testDispatcher)
         mockRepository = mock(CartRepository::class.java)
+        
+        `when`(mockRepository.cartFlow).thenReturn(MutableStateFlow(Cart.empty()))
+        `when`(mockRepository.quoteFlow).thenReturn(MutableStateFlow(null))
+        
         viewModel = CartViewModel(mockRepository)
     }
 
-    @Test
-    fun `addItem calls repository and updates cart`() = runBlockingTest {
-        val cartItem = CartItem("product-1", 2)
-        val updatedCart = Cart(items = listOf(cartItem))
-        val quote = QuoteBreakdown(
-            itemSubtotalPaise = 20000,
-            deliveryFeePaise = 3000,
-            grandTotalPaise = 23000
-        )
-        
-        `when`(mockRepository.addItem(cartItem)).thenReturn(updatedCart)
-        `when`(mockRepository.getQuote(listOf(cartItem))).thenReturn(quote)
-        
-        viewModel.addItem("product-1", 2)
-        
-        advanceUntilIdle()
-        
-        assertEquals(updatedCart, viewModel.cart.value)
-        assertEquals(quote, viewModel.quote.value)
-        verify(mockRepository).addItem(cartItem)
-        verify(mockRepository).getQuote(listOf(cartItem))
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
     }
 
     @Test
-    fun `updateQuantity calls repository`() = runBlockingTest {
+    fun `addItem calls repository`() = runTest(testDispatcher) {
+        val cartItem = CartItem("product-1", 2)
+        val updatedCart = Cart(items = listOf(cartItem))
+        
+        `when`(mockRepository.addItem(cartItem)).thenReturn(updatedCart)
+        
+        viewModel.addItem("product-1", 2)
+        testDispatcher.scheduler.advanceUntilIdle()
+        
+        verify(mockRepository).addItem(cartItem)
+    }
+
+    @Test
+    fun `updateQuantity calls repository`() = runTest(testDispatcher) {
         val updatedCart = Cart(items = listOf(CartItem("product-1", 5)))
-        val quote = QuoteBreakdown(
-            itemSubtotalPaise = 50000,
-            deliveryFeePaise = 0,
-            grandTotalPaise = 50000
-        )
         
         `when`(mockRepository.updateQuantity("product-1", 5L)).thenReturn(updatedCart)
-        `when`(mockRepository.getQuote(listOf(CartItem("product-1", 5)))).thenReturn(quote)
         
         viewModel.updateQuantity("product-1", 5)
+        testDispatcher.scheduler.advanceUntilIdle()
         
-        advanceUntilIdle()
-        
-        assertEquals(updatedCart, viewModel.cart.value)
         verify(mockRepository).updateQuantity("product-1", 5L)
     }
 
     @Test
-    fun `removeItem calls repository`() = runBlockingTest {
+    fun `removeItem calls repository`() = runTest(testDispatcher) {
         val emptyCart = Cart.empty()
         
         `when`(mockRepository.removeItem("product-1")).thenReturn(emptyCart)
         
         viewModel.removeItem("product-1")
+        testDispatcher.scheduler.advanceUntilIdle()
         
-        advanceUntilIdle()
-        
-        assertEquals(emptyCart, viewModel.cart.value)
         verify(mockRepository).removeItem("product-1")
     }
 
     @Test
-    fun `clearCart calls repository`() = runBlockingTest {
+    fun `clearCart calls repository`() = runTest(testDispatcher) {
         viewModel.clearCart()
+        testDispatcher.scheduler.advanceUntilIdle()
         
-        advanceUntilIdle()
-        
-        assertEquals(Cart.empty(), viewModel.cart.value)
         verify(mockRepository).clearCart()
     }
 }

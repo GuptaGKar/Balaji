@@ -13,7 +13,7 @@ data class Cart(
     }
     
     val itemCount: Int
-        get() = items.size
+        get() = items.sumOf { it.qtyBase.toInt() }
     
     val isEmpty: Boolean
         get() = items.isEmpty()
@@ -204,7 +204,7 @@ enum class UserRole {
 
 fun formatPaise(paise: Long): String {
     val rupees = paise / 100.0
-    return "₹${String.format("%.2f", rupees)}"
+    return "₹${String.format(java.util.Locale.US, "%,.2f", rupees)}"
 }
 
 fun formatPrice(pricePaise: Long, priceBasisQty: Long, quantityType: QuantityType): String {
