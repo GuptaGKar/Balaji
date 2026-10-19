@@ -51,31 +51,31 @@ CREATE TYPE tax_mode AS ENUM ('none', 'inclusive', 'exclusive');
 
 
 
--- Synthetic seed data for local development and tests (IMPLEMENTATION_PLAN.md §11, M1).
--- All values are PROVISIONAL placeholders for development — NOT owner policy
--- (see docs/DECISIONS.md). Thresholds/fees are manager-editable in the dashboard (M3).
--- Never use real customer data.
+-- ===========================================================================
+-- Balaji Provision Store — Synthetic Seed Data
+-- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- store_settings singleton. Seed placeholders: delivery-charge threshold T1 and
--- delivery fee F1 are dev values; free-delivery threshold T2 is unset (NULL),
--- which means "fee F1 below T1, free at/above T1" (plan §4.4).
+-- Store settings — default single row
 -- ---------------------------------------------------------------------------
 INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone, estimated_window_text,
-  delivery_fee_paise, delivery_charge_threshold_paise, free_delivery_threshold_paise,
-  mid_tier_fee_paise, max_order_paise, cancellation_policy_text,
-  tax_mode, tax_rate_bps, online_payment_enabled, pos_price_override_enabled
+  id, store_open, timezone, weekly_hours, contact_phone,
+  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
+  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
+  cancellation_policy_text, tax_mode, tax_rate_bps,
+  online_payment_enabled, pos_price_override_enabled
 ) VALUES (
-  true, true, 'Asia/Kolkata',
+  '00000000-0000-0000-0000-000000000001',
+  true,
+  'Asia/Kolkata',
   '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
   '9837803293',
   'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,    -- F1: delivery fee below the delivery-charge threshold (placeholder)
-  25000,   -- T1: delivery-charge threshold (placeholder seed value)
-  NULL,    -- T2: free-delivery threshold (unset)
-  NULL,    -- F2: mid-tier fee (unset)
-  NULL,    -- max order value (unset)
+  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
+  25000,  -- ₹250 threshold
+  25000,  -- ₹250 free delivery threshold
+  NULL,
+  NULL,
   'Cancellation is allowed until the store accepts the order.',
   'none', 0, false, false
 )
@@ -84,7 +84,7 @@ ON CONFLICT (id) DO NOTHING;
 -- ---------------------------------------------------------------------------
 -- Categories
 -- ---------------------------------------------------------------------------
-INSERT INTO categories (name, slug, sort_order) VALUES
+INSERT INTO catalog_categories (name, slug, sort_order) VALUES
   ('Grains & Staples',  'grains-staples',  1),
   ('Spices & Masalas',  'spices-masalas',  2),
   ('Oils & Ghee',       'oils-ghee',       3),
@@ -92,53 +92,41 @@ INSERT INTO categories (name, slug, sort_order) VALUES
   ('Beverages',         'beverages',       5),
   ('Personal Care',     'personal-care',   6),
   ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),Failed to run sql query: ERROR:  23505: duplicate key value violates unique constraint "users_email_partial_key"
-DETAIL:  Key (email)=(manager-1@balaji-test.invalid) already exists.
+  ('Dairy & Eggs',      'dairy-eggs',      8),
   ('Fresh Produce',     'fresh-produce',   9)
 ON CONFLICT (slug) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Products — PACKED (price per pack; integer quantities only)
--- Includes items priced below / at / above the seeded delivery-charge
--- threshold so the threshold rules can be tested end-to-end (plan §12 TH-*).
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
--- Exactly at the seeded delivery-charge threshold (cart with just this item = at-threshold case).
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
--- One paisa below the seeded delivery-charge threshold (below-threshold case).
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true),
--- Unavailable item (active but not purchasable).
-('INSTANT-NOODLES-4PK',   'Instant Noodles (pack of 4)',  'Masala noodles, pack of 4',        (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5600, 1, 'pack', '4 pack', 1, 1,  0, 10, true, false),
--- Low-stock item (stock below the low-stock threshold).
-('HANDWASH-500ML',        'Hand Wash Refill 500 ml',      'Gentle hand wash refill',          (SELECT id FROM categories WHERE slug='household'),       'PACKED',  4500, 1, 'pack', '500 ml', 1, 1,  2, 10, true, true),
--- Archived item (not purchasable, not listed).
-('LEGACY-DEMO-ITEM',      'Legacy Demo Item (archived)',  'Archived demo product',            (SELECT id FROM categories WHERE slug='household'),       'PACKED',  3000, 1, 'pack', '1 pack', 1, 1,  3,  0, false, false);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
+('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
+('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
+('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
+('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
+('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
+('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
+('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
+('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
+('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
+('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
+('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
+('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
+('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
 
 -- ---------------------------------------------------------------------------
 -- Products — WEIGHTED (price per kg unless noted; quantities in grams)
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
--- Priced per 100 g to exercise the second allowed WEIGHTED price basis.
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
+('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
+('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
+('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
+('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
 
 -- ---------------------------------------------------------------------------
--- Service areas — two synthetic PIN codes (real list is a BLOCKED owner decision)
+-- Service areas
 -- ---------------------------------------------------------------------------
 INSERT INTO service_areas (kind, value, active) VALUES
   ('pincode', '122001', true),
@@ -147,8 +135,6 @@ ON CONFLICT (kind, lower(value)) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Synthetic test identities (auth.users + profiles)
--- Emails are .invalid by design; passwords are placeholders — these accounts
--- exist only for local RLS and integration tests (M2+).
 -- ---------------------------------------------------------------------------
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
 ('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
@@ -168,14 +154,8 @@ INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_c
 ('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
 ON CONFLICT (id) DO NOTHING;
 
--- ---------------------------------------------------------------------------
--- Bill counter for the current financial year (April–March). D-BILLNO:
--- gapless numbering BPS/<FY>/<6-digit>; the counter row is created here and
--- incremented row-locked inside each sale transaction (M9).
--- ---------------------------------------------------------------------------
 INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;
--- M1: shared helper functions (IMPLEMENTATION_PLAN.md §4.1 conventions)
+ON CONFLICT (fy) DO NOTHING;-- M1: shared helper functions (IMPLEMENTATION_PLAN.md §4.1 conventions)
 
 -- Keeps updated_at current on every UPDATE for tables that carry the column.
 -- Attached by trigger in the table migrations below.
@@ -192,31 +172,31 @@ $$;
 
 
 
--- Synthetic seed data for local development and tests (IMPLEMENTATION_PLAN.md §11, M1).
--- All values are PROVISIONAL placeholders for development — NOT owner policy
--- (see docs/DECISIONS.md). Thresholds/fees are manager-editable in the dashboard (M3).
--- Never use real customer data.
+-- ===========================================================================
+-- Balaji Provision Store — Synthetic Seed Data
+-- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- store_settings singleton. Seed placeholders: delivery-charge threshold T1 and
--- delivery fee F1 are dev values; free-delivery threshold T2 is unset (NULL),
--- which means "fee F1 below T1, free at/above T1" (plan §4.4).
+-- Store settings — default single row
 -- ---------------------------------------------------------------------------
 INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone, estimated_window_text,
-  delivery_fee_paise, delivery_charge_threshold_paise, free_delivery_threshold_paise,
-  mid_tier_fee_paise, max_order_paise, cancellation_policy_text,
-  tax_mode, tax_rate_bps, online_payment_enabled, pos_price_override_enabled
+  id, store_open, timezone, weekly_hours, contact_phone,
+  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
+  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
+  cancellation_policy_text, tax_mode, tax_rate_bps,
+  online_payment_enabled, pos_price_override_enabled
 ) VALUES (
-  true, true, 'Asia/Kolkata',
+  '00000000-0000-0000-0000-000000000001',
+  true,
+  'Asia/Kolkata',
   '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
   '9837803293',
   'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,    -- F1: delivery fee below the delivery-charge threshold (placeholder)
-  25000,   -- T1: delivery-charge threshold (placeholder seed value)
-  NULL,    -- T2: free-delivery threshold (unset)
-  NULL,    -- F2: mid-tier fee (unset)
-  NULL,    -- max order value (unset)
+  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
+  25000,  -- ₹250 threshold
+  25000,  -- ₹250 free delivery threshold
+  NULL,
+  NULL,
   'Cancellation is allowed until the store accepts the order.',
   'none', 0, false, false
 )
@@ -225,7 +205,7 @@ ON CONFLICT (id) DO NOTHING;
 -- ---------------------------------------------------------------------------
 -- Categories
 -- ---------------------------------------------------------------------------
-INSERT INTO categories (name, slug, sort_order) VALUES
+INSERT INTO catalog_categories (name, slug, sort_order) VALUES
   ('Grains & Staples',  'grains-staples',  1),
   ('Spices & Masalas',  'spices-masalas',  2),
   ('Oils & Ghee',       'oils-ghee',       3),
@@ -233,53 +213,41 @@ INSERT INTO categories (name, slug, sort_order) VALUES
   ('Beverages',         'beverages',       5),
   ('Personal Care',     'personal-care',   6),
   ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),Failed to run sql query: ERROR:  23505: duplicate key value violates unique constraint "users_email_partial_key"
-DETAIL:  Key (email)=(manager-1@balaji-test.invalid) already exists.
+  ('Dairy & Eggs',      'dairy-eggs',      8),
   ('Fresh Produce',     'fresh-produce',   9)
 ON CONFLICT (slug) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Products — PACKED (price per pack; integer quantities only)
--- Includes items priced below / at / above the seeded delivery-charge
--- threshold so the threshold rules can be tested end-to-end (plan §12 TH-*).
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
--- Exactly at the seeded delivery-charge threshold (cart with just this item = at-threshold case).
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
--- One paisa below the seeded delivery-charge threshold (below-threshold case).
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true),
--- Unavailable item (active but not purchasable).
-('INSTANT-NOODLES-4PK',   'Instant Noodles (pack of 4)',  'Masala noodles, pack of 4',        (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5600, 1, 'pack', '4 pack', 1, 1,  0, 10, true, false),
--- Low-stock item (stock below the low-stock threshold).
-('HANDWASH-500ML',        'Hand Wash Refill 500 ml',      'Gentle hand wash refill',          (SELECT id FROM categories WHERE slug='household'),       'PACKED',  4500, 1, 'pack', '500 ml', 1, 1,  2, 10, true, true),
--- Archived item (not purchasable, not listed).
-('LEGACY-DEMO-ITEM',      'Legacy Demo Item (archived)',  'Archived demo product',            (SELECT id FROM categories WHERE slug='household'),       'PACKED',  3000, 1, 'pack', '1 pack', 1, 1,  3,  0, false, false);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
+('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
+('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
+('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
+('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
+('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
+('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
+('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
+('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
+('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
+('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
+('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
+('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
+('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
 
 -- ---------------------------------------------------------------------------
 -- Products — WEIGHTED (price per kg unless noted; quantities in grams)
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
--- Priced per 100 g to exercise the second allowed WEIGHTED price basis.
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
+('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
+('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
+('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
+('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
 
 -- ---------------------------------------------------------------------------
--- Service areas — two synthetic PIN codes (real list is a BLOCKED owner decision)
+-- Service areas
 -- ---------------------------------------------------------------------------
 INSERT INTO service_areas (kind, value, active) VALUES
   ('pincode', '122001', true),
@@ -288,8 +256,6 @@ ON CONFLICT (kind, lower(value)) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Synthetic test identities (auth.users + profiles)
--- Emails are .invalid by design; passwords are placeholders — these accounts
--- exist only for local RLS and integration tests (M2+).
 -- ---------------------------------------------------------------------------
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
 ('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
@@ -309,14 +275,8 @@ INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_c
 ('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
 ON CONFLICT (id) DO NOTHING;
 
--- ---------------------------------------------------------------------------
--- Bill counter for the current financial year (April–March). D-BILLNO:
--- gapless numbering BPS/<FY>/<6-digit>; the counter row is created here and
--- incremented row-locked inside each sale transaction (M9).
--- ---------------------------------------------------------------------------
 INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;
--- M1: identity and configuration tables (IMPLEMENTATION_PLAN.md §4.2)
+ON CONFLICT (fy) DO NOTHING;-- M1: identity and configuration tables (IMPLEMENTATION_PLAN.md §4.2)
 
 -- profiles extends auth.users. Role and is_active change only via manager RPC (M2/M7).
 -- login_id: unique staff/rider user ID (riders log in with it; M7 provisioning).
@@ -379,31 +339,31 @@ CREATE INDEX idx_service_areas_active ON service_areas(active);
 
 
 
--- Synthetic seed data for local development and tests (IMPLEMENTATION_PLAN.md §11, M1).
--- All values are PROVISIONAL placeholders for development — NOT owner policy
--- (see docs/DECISIONS.md). Thresholds/fees are manager-editable in the dashboard (M3).
--- Never use real customer data.
+-- ===========================================================================
+-- Balaji Provision Store — Synthetic Seed Data
+-- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- store_settings singleton. Seed placeholders: delivery-charge threshold T1 and
--- delivery fee F1 are dev values; free-delivery threshold T2 is unset (NULL),
--- which means "fee F1 below T1, free at/above T1" (plan §4.4).
+-- Store settings — default single row
 -- ---------------------------------------------------------------------------
 INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone, estimated_window_text,
-  delivery_fee_paise, delivery_charge_threshold_paise, free_delivery_threshold_paise,
-  mid_tier_fee_paise, max_order_paise, cancellation_policy_text,
-  tax_mode, tax_rate_bps, online_payment_enabled, pos_price_override_enabled
+  id, store_open, timezone, weekly_hours, contact_phone,
+  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
+  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
+  cancellation_policy_text, tax_mode, tax_rate_bps,
+  online_payment_enabled, pos_price_override_enabled
 ) VALUES (
-  true, true, 'Asia/Kolkata',
+  '00000000-0000-0000-0000-000000000001',
+  true,
+  'Asia/Kolkata',
   '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
   '9837803293',
   'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,    -- F1: delivery fee below the delivery-charge threshold (placeholder)
-  25000,   -- T1: delivery-charge threshold (placeholder seed value)
-  NULL,    -- T2: free-delivery threshold (unset)
-  NULL,    -- F2: mid-tier fee (unset)
-  NULL,    -- max order value (unset)
+  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
+  25000,  -- ₹250 threshold
+  25000,  -- ₹250 free delivery threshold
+  NULL,
+  NULL,
   'Cancellation is allowed until the store accepts the order.',
   'none', 0, false, false
 )
@@ -412,7 +372,7 @@ ON CONFLICT (id) DO NOTHING;
 -- ---------------------------------------------------------------------------
 -- Categories
 -- ---------------------------------------------------------------------------
-INSERT INTO categories (name, slug, sort_order) VALUES
+INSERT INTO catalog_categories (name, slug, sort_order) VALUES
   ('Grains & Staples',  'grains-staples',  1),
   ('Spices & Masalas',  'spices-masalas',  2),
   ('Oils & Ghee',       'oils-ghee',       3),
@@ -420,53 +380,41 @@ INSERT INTO categories (name, slug, sort_order) VALUES
   ('Beverages',         'beverages',       5),
   ('Personal Care',     'personal-care',   6),
   ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),Failed to run sql query: ERROR:  23505: duplicate key value violates unique constraint "users_email_partial_key"
-DETAIL:  Key (email)=(manager-1@balaji-test.invalid) already exists.
+  ('Dairy & Eggs',      'dairy-eggs',      8),
   ('Fresh Produce',     'fresh-produce',   9)
 ON CONFLICT (slug) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Products — PACKED (price per pack; integer quantities only)
--- Includes items priced below / at / above the seeded delivery-charge
--- threshold so the threshold rules can be tested end-to-end (plan §12 TH-*).
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
--- Exactly at the seeded delivery-charge threshold (cart with just this item = at-threshold case).
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
--- One paisa below the seeded delivery-charge threshold (below-threshold case).
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true),
--- Unavailable item (active but not purchasable).
-('INSTANT-NOODLES-4PK',   'Instant Noodles (pack of 4)',  'Masala noodles, pack of 4',        (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5600, 1, 'pack', '4 pack', 1, 1,  0, 10, true, false),
--- Low-stock item (stock below the low-stock threshold).
-('HANDWASH-500ML',        'Hand Wash Refill 500 ml',      'Gentle hand wash refill',          (SELECT id FROM categories WHERE slug='household'),       'PACKED',  4500, 1, 'pack', '500 ml', 1, 1,  2, 10, true, true),
--- Archived item (not purchasable, not listed).
-('LEGACY-DEMO-ITEM',      'Legacy Demo Item (archived)',  'Archived demo product',            (SELECT id FROM categories WHERE slug='household'),       'PACKED',  3000, 1, 'pack', '1 pack', 1, 1,  3,  0, false, false);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
+('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
+('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
+('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
+('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
+('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
+('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
+('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
+('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
+('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
+('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
+('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
+('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
+('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
 
 -- ---------------------------------------------------------------------------
 -- Products — WEIGHTED (price per kg unless noted; quantities in grams)
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
--- Priced per 100 g to exercise the second allowed WEIGHTED price basis.
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
+('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
+('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
+('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
+('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
 
 -- ---------------------------------------------------------------------------
--- Service areas — two synthetic PIN codes (real list is a BLOCKED owner decision)
+-- Service areas
 -- ---------------------------------------------------------------------------
 INSERT INTO service_areas (kind, value, active) VALUES
   ('pincode', '122001', true),
@@ -475,8 +423,6 @@ ON CONFLICT (kind, lower(value)) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Synthetic test identities (auth.users + profiles)
--- Emails are .invalid by design; passwords are placeholders — these accounts
--- exist only for local RLS and integration tests (M2+).
 -- ---------------------------------------------------------------------------
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
 ('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
@@ -496,14 +442,8 @@ INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_c
 ('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
 ON CONFLICT (id) DO NOTHING;
 
--- ---------------------------------------------------------------------------
--- Bill counter for the current financial year (April–March). D-BILLNO:
--- gapless numbering BPS/<FY>/<6-digit>; the counter row is created here and
--- incremented row-locked inside each sale transaction (M9).
--- ---------------------------------------------------------------------------
 INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;
--- M1: catalogue tables (IMPLEMENTATION_PLAN.md §4.2)
+ON CONFLICT (fy) DO NOTHING;-- M1: catalogue tables (IMPLEMENTATION_PLAN.md §4.2)
 
 CREATE TABLE categories (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -583,31 +523,31 @@ CREATE TRIGGER trg_products_prevent_delete BEFORE DELETE ON products
 
 
 
--- Synthetic seed data for local development and tests (IMPLEMENTATION_PLAN.md §11, M1).
--- All values are PROVISIONAL placeholders for development — NOT owner policy
--- (see docs/DECISIONS.md). Thresholds/fees are manager-editable in the dashboard (M3).
--- Never use real customer data.
+-- ===========================================================================
+-- Balaji Provision Store — Synthetic Seed Data
+-- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- store_settings singleton. Seed placeholders: delivery-charge threshold T1 and
--- delivery fee F1 are dev values; free-delivery threshold T2 is unset (NULL),
--- which means "fee F1 below T1, free at/above T1" (plan §4.4).
+-- Store settings — default single row
 -- ---------------------------------------------------------------------------
 INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone, estimated_window_text,
-  delivery_fee_paise, delivery_charge_threshold_paise, free_delivery_threshold_paise,
-  mid_tier_fee_paise, max_order_paise, cancellation_policy_text,
-  tax_mode, tax_rate_bps, online_payment_enabled, pos_price_override_enabled
+  id, store_open, timezone, weekly_hours, contact_phone,
+  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
+  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
+  cancellation_policy_text, tax_mode, tax_rate_bps,
+  online_payment_enabled, pos_price_override_enabled
 ) VALUES (
-  true, true, 'Asia/Kolkata',
+  '00000000-0000-0000-0000-000000000001',
+  true,
+  'Asia/Kolkata',
   '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
   '9837803293',
   'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,    -- F1: delivery fee below the delivery-charge threshold (placeholder)
-  25000,   -- T1: delivery-charge threshold (placeholder seed value)
-  NULL,    -- T2: free-delivery threshold (unset)
-  NULL,    -- F2: mid-tier fee (unset)
-  NULL,    -- max order value (unset)
+  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
+  25000,  -- ₹250 threshold
+  25000,  -- ₹250 free delivery threshold
+  NULL,
+  NULL,
   'Cancellation is allowed until the store accepts the order.',
   'none', 0, false, false
 )
@@ -616,7 +556,7 @@ ON CONFLICT (id) DO NOTHING;
 -- ---------------------------------------------------------------------------
 -- Categories
 -- ---------------------------------------------------------------------------
-INSERT INTO categories (name, slug, sort_order) VALUES
+INSERT INTO catalog_categories (name, slug, sort_order) VALUES
   ('Grains & Staples',  'grains-staples',  1),
   ('Spices & Masalas',  'spices-masalas',  2),
   ('Oils & Ghee',       'oils-ghee',       3),
@@ -624,53 +564,41 @@ INSERT INTO categories (name, slug, sort_order) VALUES
   ('Beverages',         'beverages',       5),
   ('Personal Care',     'personal-care',   6),
   ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),Failed to run sql query: ERROR:  23505: duplicate key value violates unique constraint "users_email_partial_key"
-DETAIL:  Key (email)=(manager-1@balaji-test.invalid) already exists.
+  ('Dairy & Eggs',      'dairy-eggs',      8),
   ('Fresh Produce',     'fresh-produce',   9)
 ON CONFLICT (slug) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Products — PACKED (price per pack; integer quantities only)
--- Includes items priced below / at / above the seeded delivery-charge
--- threshold so the threshold rules can be tested end-to-end (plan §12 TH-*).
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
--- Exactly at the seeded delivery-charge threshold (cart with just this item = at-threshold case).
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
--- One paisa below the seeded delivery-charge threshold (below-threshold case).
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true),
--- Unavailable item (active but not purchasable).
-('INSTANT-NOODLES-4PK',   'Instant Noodles (pack of 4)',  'Masala noodles, pack of 4',        (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5600, 1, 'pack', '4 pack', 1, 1,  0, 10, true, false),
--- Low-stock item (stock below the low-stock threshold).
-('HANDWASH-500ML',        'Hand Wash Refill 500 ml',      'Gentle hand wash refill',          (SELECT id FROM categories WHERE slug='household'),       'PACKED',  4500, 1, 'pack', '500 ml', 1, 1,  2, 10, true, true),
--- Archived item (not purchasable, not listed).
-('LEGACY-DEMO-ITEM',      'Legacy Demo Item (archived)',  'Archived demo product',            (SELECT id FROM categories WHERE slug='household'),       'PACKED',  3000, 1, 'pack', '1 pack', 1, 1,  3,  0, false, false);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
+('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
+('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
+('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
+('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
+('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
+('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
+('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
+('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
+('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
+('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
+('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
+('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
+('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
 
 -- ---------------------------------------------------------------------------
 -- Products — WEIGHTED (price per kg unless noted; quantities in grams)
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
--- Priced per 100 g to exercise the second allowed WEIGHTED price basis.
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
+('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
+('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
+('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
+('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
 
 -- ---------------------------------------------------------------------------
--- Service areas — two synthetic PIN codes (real list is a BLOCKED owner decision)
+-- Service areas
 -- ---------------------------------------------------------------------------
 INSERT INTO service_areas (kind, value, active) VALUES
   ('pincode', '122001', true),
@@ -679,8 +607,6 @@ ON CONFLICT (kind, lower(value)) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Synthetic test identities (auth.users + profiles)
--- Emails are .invalid by design; passwords are placeholders — these accounts
--- exist only for local RLS and integration tests (M2+).
 -- ---------------------------------------------------------------------------
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
 ('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
@@ -700,14 +626,8 @@ INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_c
 ('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
 ON CONFLICT (id) DO NOTHING;
 
--- ---------------------------------------------------------------------------
--- Bill counter for the current financial year (April–March). D-BILLNO:
--- gapless numbering BPS/<FY>/<6-digit>; the counter row is created here and
--- incremented row-locked inside each sale transaction (M9).
--- ---------------------------------------------------------------------------
 INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;
--- M1: customer addresses, orders, order items, status events, assignments,
+ON CONFLICT (fy) DO NOTHING;-- M1: customer addresses, orders, order items, status events, assignments,
 --     and the order state machine (IMPLEMENTATION_PLAN.md §4.2, §4.3)
 
 CREATE TABLE addresses (
@@ -839,31 +759,31 @@ INSERT INTO order_transitions (from_status, to_status, allowed_roles) VALUES
 
 
 
--- Synthetic seed data for local development and tests (IMPLEMENTATION_PLAN.md §11, M1).
--- All values are PROVISIONAL placeholders for development — NOT owner policy
--- (see docs/DECISIONS.md). Thresholds/fees are manager-editable in the dashboard (M3).
--- Never use real customer data.
+-- ===========================================================================
+-- Balaji Provision Store — Synthetic Seed Data
+-- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- store_settings singleton. Seed placeholders: delivery-charge threshold T1 and
--- delivery fee F1 are dev values; free-delivery threshold T2 is unset (NULL),
--- which means "fee F1 below T1, free at/above T1" (plan §4.4).
+-- Store settings — default single row
 -- ---------------------------------------------------------------------------
 INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone, estimated_window_text,
-  delivery_fee_paise, delivery_charge_threshold_paise, free_delivery_threshold_paise,
-  mid_tier_fee_paise, max_order_paise, cancellation_policy_text,
-  tax_mode, tax_rate_bps, online_payment_enabled, pos_price_override_enabled
+  id, store_open, timezone, weekly_hours, contact_phone,
+  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
+  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
+  cancellation_policy_text, tax_mode, tax_rate_bps,
+  online_payment_enabled, pos_price_override_enabled
 ) VALUES (
-  true, true, 'Asia/Kolkata',
+  '00000000-0000-0000-0000-000000000001',
+  true,
+  'Asia/Kolkata',
   '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
   '9837803293',
   'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,    -- F1: delivery fee below the delivery-charge threshold (placeholder)
-  25000,   -- T1: delivery-charge threshold (placeholder seed value)
-  NULL,    -- T2: free-delivery threshold (unset)
-  NULL,    -- F2: mid-tier fee (unset)
-  NULL,    -- max order value (unset)
+  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
+  25000,  -- ₹250 threshold
+  25000,  -- ₹250 free delivery threshold
+  NULL,
+  NULL,
   'Cancellation is allowed until the store accepts the order.',
   'none', 0, false, false
 )
@@ -872,7 +792,7 @@ ON CONFLICT (id) DO NOTHING;
 -- ---------------------------------------------------------------------------
 -- Categories
 -- ---------------------------------------------------------------------------
-INSERT INTO categories (name, slug, sort_order) VALUES
+INSERT INTO catalog_categories (name, slug, sort_order) VALUES
   ('Grains & Staples',  'grains-staples',  1),
   ('Spices & Masalas',  'spices-masalas',  2),
   ('Oils & Ghee',       'oils-ghee',       3),
@@ -880,53 +800,41 @@ INSERT INTO categories (name, slug, sort_order) VALUES
   ('Beverages',         'beverages',       5),
   ('Personal Care',     'personal-care',   6),
   ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),Failed to run sql query: ERROR:  23505: duplicate key value violates unique constraint "users_email_partial_key"
-DETAIL:  Key (email)=(manager-1@balaji-test.invalid) already exists.
+  ('Dairy & Eggs',      'dairy-eggs',      8),
   ('Fresh Produce',     'fresh-produce',   9)
 ON CONFLICT (slug) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Products — PACKED (price per pack; integer quantities only)
--- Includes items priced below / at / above the seeded delivery-charge
--- threshold so the threshold rules can be tested end-to-end (plan §12 TH-*).
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
--- Exactly at the seeded delivery-charge threshold (cart with just this item = at-threshold case).
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
--- One paisa below the seeded delivery-charge threshold (below-threshold case).
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true),
--- Unavailable item (active but not purchasable).
-('INSTANT-NOODLES-4PK',   'Instant Noodles (pack of 4)',  'Masala noodles, pack of 4',        (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5600, 1, 'pack', '4 pack', 1, 1,  0, 10, true, false),
--- Low-stock item (stock below the low-stock threshold).
-('HANDWASH-500ML',        'Hand Wash Refill 500 ml',      'Gentle hand wash refill',          (SELECT id FROM categories WHERE slug='household'),       'PACKED',  4500, 1, 'pack', '500 ml', 1, 1,  2, 10, true, true),
--- Archived item (not purchasable, not listed).
-('LEGACY-DEMO-ITEM',      'Legacy Demo Item (archived)',  'Archived demo product',            (SELECT id FROM categories WHERE slug='household'),       'PACKED',  3000, 1, 'pack', '1 pack', 1, 1,  3,  0, false, false);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
+('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
+('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
+('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
+('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
+('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
+('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
+('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
+('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
+('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
+('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
+('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
+('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
+('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
 
 -- ---------------------------------------------------------------------------
 -- Products — WEIGHTED (price per kg unless noted; quantities in grams)
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
--- Priced per 100 g to exercise the second allowed WEIGHTED price basis.
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
+('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
+('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
+('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
+('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
 
 -- ---------------------------------------------------------------------------
--- Service areas — two synthetic PIN codes (real list is a BLOCKED owner decision)
+-- Service areas
 -- ---------------------------------------------------------------------------
 INSERT INTO service_areas (kind, value, active) VALUES
   ('pincode', '122001', true),
@@ -935,8 +843,6 @@ ON CONFLICT (kind, lower(value)) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Synthetic test identities (auth.users + profiles)
--- Emails are .invalid by design; passwords are placeholders — these accounts
--- exist only for local RLS and integration tests (M2+).
 -- ---------------------------------------------------------------------------
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
 ('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
@@ -956,14 +862,8 @@ INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_c
 ('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
 ON CONFLICT (id) DO NOTHING;
 
--- ---------------------------------------------------------------------------
--- Bill counter for the current financial year (April–March). D-BILLNO:
--- gapless numbering BPS/<FY>/<6-digit>; the counter row is created here and
--- incremented row-locked inside each sale transaction (M9).
--- ---------------------------------------------------------------------------
 INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;
--- M1: inventory movements and billing/POS tables (IMPLEMENTATION_PLAN.md §4.2)
+ON CONFLICT (fy) DO NOTHING;-- M1: inventory movements and billing/POS tables (IMPLEMENTATION_PLAN.md §4.2)
 
 -- Append-only stock audit trail. products.stock_qty must always equal the sum of
 -- movements for that product; a reconciliation test runs in CI and nightly (§12).
@@ -1048,31 +948,31 @@ CREATE INDEX idx_bill_items_bill ON bill_items(bill_id);
 
 
 
--- Synthetic seed data for local development and tests (IMPLEMENTATION_PLAN.md §11, M1).
--- All values are PROVISIONAL placeholders for development — NOT owner policy
--- (see docs/DECISIONS.md). Thresholds/fees are manager-editable in the dashboard (M3).
--- Never use real customer data.
+-- ===========================================================================
+-- Balaji Provision Store — Synthetic Seed Data
+-- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- store_settings singleton. Seed placeholders: delivery-charge threshold T1 and
--- delivery fee F1 are dev values; free-delivery threshold T2 is unset (NULL),
--- which means "fee F1 below T1, free at/above T1" (plan §4.4).
+-- Store settings — default single row
 -- ---------------------------------------------------------------------------
 INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone, estimated_window_text,
-  delivery_fee_paise, delivery_charge_threshold_paise, free_delivery_threshold_paise,
-  mid_tier_fee_paise, max_order_paise, cancellation_policy_text,
-  tax_mode, tax_rate_bps, online_payment_enabled, pos_price_override_enabled
+  id, store_open, timezone, weekly_hours, contact_phone,
+  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
+  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
+  cancellation_policy_text, tax_mode, tax_rate_bps,
+  online_payment_enabled, pos_price_override_enabled
 ) VALUES (
-  true, true, 'Asia/Kolkata',
+  '00000000-0000-0000-0000-000000000001',
+  true,
+  'Asia/Kolkata',
   '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
   '9837803293',
   'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,    -- F1: delivery fee below the delivery-charge threshold (placeholder)
-  25000,   -- T1: delivery-charge threshold (placeholder seed value)
-  NULL,    -- T2: free-delivery threshold (unset)
-  NULL,    -- F2: mid-tier fee (unset)
-  NULL,    -- max order value (unset)
+  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
+  25000,  -- ₹250 threshold
+  25000,  -- ₹250 free delivery threshold
+  NULL,
+  NULL,
   'Cancellation is allowed until the store accepts the order.',
   'none', 0, false, false
 )
@@ -1081,7 +981,7 @@ ON CONFLICT (id) DO NOTHING;
 -- ---------------------------------------------------------------------------
 -- Categories
 -- ---------------------------------------------------------------------------
-INSERT INTO categories (name, slug, sort_order) VALUES
+INSERT INTO catalog_categories (name, slug, sort_order) VALUES
   ('Grains & Staples',  'grains-staples',  1),
   ('Spices & Masalas',  'spices-masalas',  2),
   ('Oils & Ghee',       'oils-ghee',       3),
@@ -1089,53 +989,41 @@ INSERT INTO categories (name, slug, sort_order) VALUES
   ('Beverages',         'beverages',       5),
   ('Personal Care',     'personal-care',   6),
   ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),Failed to run sql query: ERROR:  23505: duplicate key value violates unique constraint "users_email_partial_key"
-DETAIL:  Key (email)=(manager-1@balaji-test.invalid) already exists.
+  ('Dairy & Eggs',      'dairy-eggs',      8),
   ('Fresh Produce',     'fresh-produce',   9)
 ON CONFLICT (slug) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Products — PACKED (price per pack; integer quantities only)
--- Includes items priced below / at / above the seeded delivery-charge
--- threshold so the threshold rules can be tested end-to-end (plan §12 TH-*).
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
--- Exactly at the seeded delivery-charge threshold (cart with just this item = at-threshold case).
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
--- One paisa below the seeded delivery-charge threshold (below-threshold case).
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true),
--- Unavailable item (active but not purchasable).
-('INSTANT-NOODLES-4PK',   'Instant Noodles (pack of 4)',  'Masala noodles, pack of 4',        (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5600, 1, 'pack', '4 pack', 1, 1,  0, 10, true, false),
--- Low-stock item (stock below the low-stock threshold).
-('HANDWASH-500ML',        'Hand Wash Refill 500 ml',      'Gentle hand wash refill',          (SELECT id FROM categories WHERE slug='household'),       'PACKED',  4500, 1, 'pack', '500 ml', 1, 1,  2, 10, true, true),
--- Archived item (not purchasable, not listed).
-('LEGACY-DEMO-ITEM',      'Legacy Demo Item (archived)',  'Archived demo product',            (SELECT id FROM categories WHERE slug='household'),       'PACKED',  3000, 1, 'pack', '1 pack', 1, 1,  3,  0, false, false);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
+('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
+('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
+('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
+('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
+('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
+('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
+('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
+('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
+('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
+('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
+('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
+('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
+('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
 
 -- ---------------------------------------------------------------------------
 -- Products — WEIGHTED (price per kg unless noted; quantities in grams)
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
--- Priced per 100 g to exercise the second allowed WEIGHTED price basis.
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
+('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
+('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
+('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
+('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
 
 -- ---------------------------------------------------------------------------
--- Service areas — two synthetic PIN codes (real list is a BLOCKED owner decision)
+-- Service areas
 -- ---------------------------------------------------------------------------
 INSERT INTO service_areas (kind, value, active) VALUES
   ('pincode', '122001', true),
@@ -1144,8 +1032,6 @@ ON CONFLICT (kind, lower(value)) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Synthetic test identities (auth.users + profiles)
--- Emails are .invalid by design; passwords are placeholders — these accounts
--- exist only for local RLS and integration tests (M2+).
 -- ---------------------------------------------------------------------------
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
 ('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
@@ -1165,14 +1051,8 @@ INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_c
 ('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
 ON CONFLICT (id) DO NOTHING;
 
--- ---------------------------------------------------------------------------
--- Bill counter for the current financial year (April–March). D-BILLNO:
--- gapless numbering BPS/<FY>/<6-digit>; the counter row is created here and
--- incremented row-locked inside each sale transaction (M9).
--- ---------------------------------------------------------------------------
 INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;
--- M1: gated payment tables and cross-cutting tables (IMPLEMENTATION_PLAN.md §4.2)
+ON CONFLICT (fy) DO NOTHING;-- M1: gated payment tables and cross-cutting tables (IMPLEMENTATION_PLAN.md §4.2)
 
 -- payments: only populated when online payments are enabled (M11 gate).
 -- Never store payment secrets or full card data.
@@ -1250,31 +1130,31 @@ CREATE TABLE notification_outbox (
 
 
 
--- Synthetic seed data for local development and tests (IMPLEMENTATION_PLAN.md §11, M1).
--- All values are PROVISIONAL placeholders for development — NOT owner policy
--- (see docs/DECISIONS.md). Thresholds/fees are manager-editable in the dashboard (M3).
--- Never use real customer data.
+-- ===========================================================================
+-- Balaji Provision Store — Synthetic Seed Data
+-- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- store_settings singleton. Seed placeholders: delivery-charge threshold T1 and
--- delivery fee F1 are dev values; free-delivery threshold T2 is unset (NULL),
--- which means "fee F1 below T1, free at/above T1" (plan §4.4).
+-- Store settings — default single row
 -- ---------------------------------------------------------------------------
 INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone, estimated_window_text,
-  delivery_fee_paise, delivery_charge_threshold_paise, free_delivery_threshold_paise,
-  mid_tier_fee_paise, max_order_paise, cancellation_policy_text,
-  tax_mode, tax_rate_bps, online_payment_enabled, pos_price_override_enabled
+  id, store_open, timezone, weekly_hours, contact_phone,
+  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
+  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
+  cancellation_policy_text, tax_mode, tax_rate_bps,
+  online_payment_enabled, pos_price_override_enabled
 ) VALUES (
-  true, true, 'Asia/Kolkata',
+  '00000000-0000-0000-0000-000000000001',
+  true,
+  'Asia/Kolkata',
   '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
   '9837803293',
   'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,    -- F1: delivery fee below the delivery-charge threshold (placeholder)
-  25000,   -- T1: delivery-charge threshold (placeholder seed value)
-  NULL,    -- T2: free-delivery threshold (unset)
-  NULL,    -- F2: mid-tier fee (unset)
-  NULL,    -- max order value (unset)
+  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
+  25000,  -- ₹250 threshold
+  25000,  -- ₹250 free delivery threshold
+  NULL,
+  NULL,
   'Cancellation is allowed until the store accepts the order.',
   'none', 0, false, false
 )
@@ -1283,7 +1163,7 @@ ON CONFLICT (id) DO NOTHING;
 -- ---------------------------------------------------------------------------
 -- Categories
 -- ---------------------------------------------------------------------------
-INSERT INTO categories (name, slug, sort_order) VALUES
+INSERT INTO catalog_categories (name, slug, sort_order) VALUES
   ('Grains & Staples',  'grains-staples',  1),
   ('Spices & Masalas',  'spices-masalas',  2),
   ('Oils & Ghee',       'oils-ghee',       3),
@@ -1291,53 +1171,41 @@ INSERT INTO categories (name, slug, sort_order) VALUES
   ('Beverages',         'beverages',       5),
   ('Personal Care',     'personal-care',   6),
   ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),Failed to run sql query: ERROR:  23505: duplicate key value violates unique constraint "users_email_partial_key"
-DETAIL:  Key (email)=(manager-1@balaji-test.invalid) already exists.
+  ('Dairy & Eggs',      'dairy-eggs',      8),
   ('Fresh Produce',     'fresh-produce',   9)
 ON CONFLICT (slug) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Products — PACKED (price per pack; integer quantities only)
--- Includes items priced below / at / above the seeded delivery-charge
--- threshold so the threshold rules can be tested end-to-end (plan §12 TH-*).
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
--- Exactly at the seeded delivery-charge threshold (cart with just this item = at-threshold case).
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
--- One paisa below the seeded delivery-charge threshold (below-threshold case).
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true),
--- Unavailable item (active but not purchasable).
-('INSTANT-NOODLES-4PK',   'Instant Noodles (pack of 4)',  'Masala noodles, pack of 4',        (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5600, 1, 'pack', '4 pack', 1, 1,  0, 10, true, false),
--- Low-stock item (stock below the low-stock threshold).
-('HANDWASH-500ML',        'Hand Wash Refill 500 ml',      'Gentle hand wash refill',          (SELECT id FROM categories WHERE slug='household'),       'PACKED',  4500, 1, 'pack', '500 ml', 1, 1,  2, 10, true, true),
--- Archived item (not purchasable, not listed).
-('LEGACY-DEMO-ITEM',      'Legacy Demo Item (archived)',  'Archived demo product',            (SELECT id FROM categories WHERE slug='household'),       'PACKED',  3000, 1, 'pack', '1 pack', 1, 1,  3,  0, false, false);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
+('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
+('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
+('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
+('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
+('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
+('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
+('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
+('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
+('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
+('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
+('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
+('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
+('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
 
 -- ---------------------------------------------------------------------------
 -- Products — WEIGHTED (price per kg unless noted; quantities in grams)
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
--- Priced per 100 g to exercise the second allowed WEIGHTED price basis.
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
+('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
+('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
+('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
+('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
 
 -- ---------------------------------------------------------------------------
--- Service areas — two synthetic PIN codes (real list is a BLOCKED owner decision)
+-- Service areas
 -- ---------------------------------------------------------------------------
 INSERT INTO service_areas (kind, value, active) VALUES
   ('pincode', '122001', true),
@@ -1346,8 +1214,6 @@ ON CONFLICT (kind, lower(value)) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Synthetic test identities (auth.users + profiles)
--- Emails are .invalid by design; passwords are placeholders — these accounts
--- exist only for local RLS and integration tests (M2+).
 -- ---------------------------------------------------------------------------
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
 ('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
@@ -1367,14 +1233,8 @@ INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_c
 ('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
 ON CONFLICT (id) DO NOTHING;
 
--- ---------------------------------------------------------------------------
--- Bill counter for the current financial year (April–March). D-BILLNO:
--- gapless numbering BPS/<FY>/<6-digit>; the counter row is created here and
--- incremented row-locked inside each sale transaction (M9).
--- ---------------------------------------------------------------------------
 INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;
--- M1: enable Row Level Security on every table (IMPLEMENTATION_PLAN.md §4.1, §5.2)
+ON CONFLICT (fy) DO NOTHING;-- M1: enable Row Level Security on every table (IMPLEMENTATION_PLAN.md §4.1, §5.2)
 -- Deny-all default. Per-role policies and the catalogue read views are added in M2.
 -- Local development and migrations run as the database owner, which bypasses RLS,
 -- so seed and maintenance operations still work.
@@ -1408,31 +1268,31 @@ REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC;
 
 
 
--- Synthetic seed data for local development and tests (IMPLEMENTATION_PLAN.md §11, M1).
--- All values are PROVISIONAL placeholders for development — NOT owner policy
--- (see docs/DECISIONS.md). Thresholds/fees are manager-editable in the dashboard (M3).
--- Never use real customer data.
+-- ===========================================================================
+-- Balaji Provision Store — Synthetic Seed Data
+-- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- store_settings singleton. Seed placeholders: delivery-charge threshold T1 and
--- delivery fee F1 are dev values; free-delivery threshold T2 is unset (NULL),
--- which means "fee F1 below T1, free at/above T1" (plan §4.4).
+-- Store settings — default single row
 -- ---------------------------------------------------------------------------
 INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone, estimated_window_text,
-  delivery_fee_paise, delivery_charge_threshold_paise, free_delivery_threshold_paise,
-  mid_tier_fee_paise, max_order_paise, cancellation_policy_text,
-  tax_mode, tax_rate_bps, online_payment_enabled, pos_price_override_enabled
+  id, store_open, timezone, weekly_hours, contact_phone,
+  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
+  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
+  cancellation_policy_text, tax_mode, tax_rate_bps,
+  online_payment_enabled, pos_price_override_enabled
 ) VALUES (
-  true, true, 'Asia/Kolkata',
+  '00000000-0000-0000-0000-000000000001',
+  true,
+  'Asia/Kolkata',
   '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
   '9837803293',
   'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,    -- F1: delivery fee below the delivery-charge threshold (placeholder)
-  25000,   -- T1: delivery-charge threshold (placeholder seed value)
-  NULL,    -- T2: free-delivery threshold (unset)
-  NULL,    -- F2: mid-tier fee (unset)
-  NULL,    -- max order value (unset)
+  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
+  25000,  -- ₹250 threshold
+  25000,  -- ₹250 free delivery threshold
+  NULL,
+  NULL,
   'Cancellation is allowed until the store accepts the order.',
   'none', 0, false, false
 )
@@ -1441,7 +1301,7 @@ ON CONFLICT (id) DO NOTHING;
 -- ---------------------------------------------------------------------------
 -- Categories
 -- ---------------------------------------------------------------------------
-INSERT INTO categories (name, slug, sort_order) VALUES
+INSERT INTO catalog_categories (name, slug, sort_order) VALUES
   ('Grains & Staples',  'grains-staples',  1),
   ('Spices & Masalas',  'spices-masalas',  2),
   ('Oils & Ghee',       'oils-ghee',       3),
@@ -1449,53 +1309,41 @@ INSERT INTO categories (name, slug, sort_order) VALUES
   ('Beverages',         'beverages',       5),
   ('Personal Care',     'personal-care',   6),
   ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),Failed to run sql query: ERROR:  23505: duplicate key value violates unique constraint "users_email_partial_key"
-DETAIL:  Key (email)=(manager-1@balaji-test.invalid) already exists.
+  ('Dairy & Eggs',      'dairy-eggs',      8),
   ('Fresh Produce',     'fresh-produce',   9)
 ON CONFLICT (slug) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Products — PACKED (price per pack; integer quantities only)
--- Includes items priced below / at / above the seeded delivery-charge
--- threshold so the threshold rules can be tested end-to-end (plan §12 TH-*).
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
--- Exactly at the seeded delivery-charge threshold (cart with just this item = at-threshold case).
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
--- One paisa below the seeded delivery-charge threshold (below-threshold case).
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true),
--- Unavailable item (active but not purchasable).
-('INSTANT-NOODLES-4PK',   'Instant Noodles (pack of 4)',  'Masala noodles, pack of 4',        (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5600, 1, 'pack', '4 pack', 1, 1,  0, 10, true, false),
--- Low-stock item (stock below the low-stock threshold).
-('HANDWASH-500ML',        'Hand Wash Refill 500 ml',      'Gentle hand wash refill',          (SELECT id FROM categories WHERE slug='household'),       'PACKED',  4500, 1, 'pack', '500 ml', 1, 1,  2, 10, true, true),
--- Archived item (not purchasable, not listed).
-('LEGACY-DEMO-ITEM',      'Legacy Demo Item (archived)',  'Archived demo product',            (SELECT id FROM categories WHERE slug='household'),       'PACKED',  3000, 1, 'pack', '1 pack', 1, 1,  3,  0, false, false);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
+('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
+('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
+('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
+('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
+('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
+('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
+('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
+('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
+('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
+('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
+('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
+('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
+('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
 
 -- ---------------------------------------------------------------------------
 -- Products — WEIGHTED (price per kg unless noted; quantities in grams)
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
--- Priced per 100 g to exercise the second allowed WEIGHTED price basis.
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
+('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
+('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
+('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
+('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
 
 -- ---------------------------------------------------------------------------
--- Service areas — two synthetic PIN codes (real list is a BLOCKED owner decision)
+-- Service areas
 -- ---------------------------------------------------------------------------
 INSERT INTO service_areas (kind, value, active) VALUES
   ('pincode', '122001', true),
@@ -1504,8 +1352,6 @@ ON CONFLICT (kind, lower(value)) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Synthetic test identities (auth.users + profiles)
--- Emails are .invalid by design; passwords are placeholders — these accounts
--- exist only for local RLS and integration tests (M2+).
 -- ---------------------------------------------------------------------------
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
 ('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
@@ -1525,14 +1371,8 @@ INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_c
 ('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
 ON CONFLICT (id) DO NOTHING;
 
--- ---------------------------------------------------------------------------
--- Bill counter for the current financial year (April–March). D-BILLNO:
--- gapless numbering BPS/<FY>/<6-digit>; the counter row is created here and
--- incremented row-locked inside each sale transaction (M9).
--- ---------------------------------------------------------------------------
 INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;
--- M2: auth wiring, current_role(), audit redaction helper, profiles trigger
+ON CONFLICT (fy) DO NOTHING;-- M2: auth wiring, current_role(), audit redaction helper, profiles trigger
 -- IMPLEMENTATION_PLAN.md §5.2, §5.4, §4.9
 
 -- 1) current_role() — stable, SECURITY DEFINER, used in RLS policies
@@ -1610,31 +1450,31 @@ GRANT EXECUTE ON FUNCTION public.redact_for_audit(jsonb) TO authenticated;
 
 
 
--- Synthetic seed data for local development and tests (IMPLEMENTATION_PLAN.md §11, M1).
--- All values are PROVISIONAL placeholders for development — NOT owner policy
--- (see docs/DECISIONS.md). Thresholds/fees are manager-editable in the dashboard (M3).
--- Never use real customer data.
+-- ===========================================================================
+-- Balaji Provision Store — Synthetic Seed Data
+-- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- store_settings singleton. Seed placeholders: delivery-charge threshold T1 and
--- delivery fee F1 are dev values; free-delivery threshold T2 is unset (NULL),
--- which means "fee F1 below T1, free at/above T1" (plan §4.4).
+-- Store settings — default single row
 -- ---------------------------------------------------------------------------
 INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone, estimated_window_text,
-  delivery_fee_paise, delivery_charge_threshold_paise, free_delivery_threshold_paise,
-  mid_tier_fee_paise, max_order_paise, cancellation_policy_text,
-  tax_mode, tax_rate_bps, online_payment_enabled, pos_price_override_enabled
+  id, store_open, timezone, weekly_hours, contact_phone,
+  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
+  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
+  cancellation_policy_text, tax_mode, tax_rate_bps,
+  online_payment_enabled, pos_price_override_enabled
 ) VALUES (
-  true, true, 'Asia/Kolkata',
+  '00000000-0000-0000-0000-000000000001',
+  true,
+  'Asia/Kolkata',
   '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
   '9837803293',
   'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,    -- F1: delivery fee below the delivery-charge threshold (placeholder)
-  25000,   -- T1: delivery-charge threshold (placeholder seed value)
-  NULL,    -- T2: free-delivery threshold (unset)
-  NULL,    -- F2: mid-tier fee (unset)
-  NULL,    -- max order value (unset)
+  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
+  25000,  -- ₹250 threshold
+  25000,  -- ₹250 free delivery threshold
+  NULL,
+  NULL,
   'Cancellation is allowed until the store accepts the order.',
   'none', 0, false, false
 )
@@ -1643,7 +1483,7 @@ ON CONFLICT (id) DO NOTHING;
 -- ---------------------------------------------------------------------------
 -- Categories
 -- ---------------------------------------------------------------------------
-INSERT INTO categories (name, slug, sort_order) VALUES
+INSERT INTO catalog_categories (name, slug, sort_order) VALUES
   ('Grains & Staples',  'grains-staples',  1),
   ('Spices & Masalas',  'spices-masalas',  2),
   ('Oils & Ghee',       'oils-ghee',       3),
@@ -1651,53 +1491,41 @@ INSERT INTO categories (name, slug, sort_order) VALUES
   ('Beverages',         'beverages',       5),
   ('Personal Care',     'personal-care',   6),
   ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),Failed to run sql query: ERROR:  23505: duplicate key value violates unique constraint "users_email_partial_key"
-DETAIL:  Key (email)=(manager-1@balaji-test.invalid) already exists.
+  ('Dairy & Eggs',      'dairy-eggs',      8),
   ('Fresh Produce',     'fresh-produce',   9)
 ON CONFLICT (slug) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Products — PACKED (price per pack; integer quantities only)
--- Includes items priced below / at / above the seeded delivery-charge
--- threshold so the threshold rules can be tested end-to-end (plan §12 TH-*).
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
--- Exactly at the seeded delivery-charge threshold (cart with just this item = at-threshold case).
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
--- One paisa below the seeded delivery-charge threshold (below-threshold case).
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true),
--- Unavailable item (active but not purchasable).
-('INSTANT-NOODLES-4PK',   'Instant Noodles (pack of 4)',  'Masala noodles, pack of 4',        (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5600, 1, 'pack', '4 pack', 1, 1,  0, 10, true, false),
--- Low-stock item (stock below the low-stock threshold).
-('HANDWASH-500ML',        'Hand Wash Refill 500 ml',      'Gentle hand wash refill',          (SELECT id FROM categories WHERE slug='household'),       'PACKED',  4500, 1, 'pack', '500 ml', 1, 1,  2, 10, true, true),
--- Archived item (not purchasable, not listed).
-('LEGACY-DEMO-ITEM',      'Legacy Demo Item (archived)',  'Archived demo product',            (SELECT id FROM categories WHERE slug='household'),       'PACKED',  3000, 1, 'pack', '1 pack', 1, 1,  3,  0, false, false);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
+('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
+('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
+('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
+('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
+('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
+('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
+('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
+('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
+('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
+('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
+('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
+('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
+('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
 
 -- ---------------------------------------------------------------------------
 -- Products — WEIGHTED (price per kg unless noted; quantities in grams)
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
--- Priced per 100 g to exercise the second allowed WEIGHTED price basis.
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
+('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
+('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
+('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
+('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
 
 -- ---------------------------------------------------------------------------
--- Service areas — two synthetic PIN codes (real list is a BLOCKED owner decision)
+-- Service areas
 -- ---------------------------------------------------------------------------
 INSERT INTO service_areas (kind, value, active) VALUES
   ('pincode', '122001', true),
@@ -1706,8 +1534,6 @@ ON CONFLICT (kind, lower(value)) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Synthetic test identities (auth.users + profiles)
--- Emails are .invalid by design; passwords are placeholders — these accounts
--- exist only for local RLS and integration tests (M2+).
 -- ---------------------------------------------------------------------------
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
 ('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
@@ -1727,14 +1553,8 @@ INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_c
 ('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
 ON CONFLICT (id) DO NOTHING;
 
--- ---------------------------------------------------------------------------
--- Bill counter for the current financial year (April–March). D-BILLNO:
--- gapless numbering BPS/<FY>/<6-digit>; the counter row is created here and
--- incremented row-locked inside each sale transaction (M9).
--- ---------------------------------------------------------------------------
 INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;
--- M2: RLS policies for all tables (IMPLEMENTATION_PLAN.md §5.1, §5.2)
+ON CONFLICT (fy) DO NOTHING;-- M2: RLS policies for all tables (IMPLEMENTATION_PLAN.md §5.1, §5.2)
 -- Default deny already set in M1 (migration 008). Policies grant minimum required access.
 
 -- ============================================================
@@ -1983,31 +1803,31 @@ GRANT SELECT ON public.catalog_products TO anon, authenticated;
 
 
 
--- Synthetic seed data for local development and tests (IMPLEMENTATION_PLAN.md §11, M1).
--- All values are PROVISIONAL placeholders for development — NOT owner policy
--- (see docs/DECISIONS.md). Thresholds/fees are manager-editable in the dashboard (M3).
--- Never use real customer data.
+-- ===========================================================================
+-- Balaji Provision Store — Synthetic Seed Data
+-- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- store_settings singleton. Seed placeholders: delivery-charge threshold T1 and
--- delivery fee F1 are dev values; free-delivery threshold T2 is unset (NULL),
--- which means "fee F1 below T1, free at/above T1" (plan §4.4).
+-- Store settings — default single row
 -- ---------------------------------------------------------------------------
 INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone, estimated_window_text,
-  delivery_fee_paise, delivery_charge_threshold_paise, free_delivery_threshold_paise,
-  mid_tier_fee_paise, max_order_paise, cancellation_policy_text,
-  tax_mode, tax_rate_bps, online_payment_enabled, pos_price_override_enabled
+  id, store_open, timezone, weekly_hours, contact_phone,
+  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
+  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
+  cancellation_policy_text, tax_mode, tax_rate_bps,
+  online_payment_enabled, pos_price_override_enabled
 ) VALUES (
-  true, true, 'Asia/Kolkata',
+  '00000000-0000-0000-0000-000000000001',
+  true,
+  'Asia/Kolkata',
   '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
   '9837803293',
   'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,    -- F1: delivery fee below the delivery-charge threshold (placeholder)
-  25000,   -- T1: delivery-charge threshold (placeholder seed value)
-  NULL,    -- T2: free-delivery threshold (unset)
-  NULL,    -- F2: mid-tier fee (unset)
-  NULL,    -- max order value (unset)
+  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
+  25000,  -- ₹250 threshold
+  25000,  -- ₹250 free delivery threshold
+  NULL,
+  NULL,
   'Cancellation is allowed until the store accepts the order.',
   'none', 0, false, false
 )
@@ -2016,7 +1836,7 @@ ON CONFLICT (id) DO NOTHING;
 -- ---------------------------------------------------------------------------
 -- Categories
 -- ---------------------------------------------------------------------------
-INSERT INTO categories (name, slug, sort_order) VALUES
+INSERT INTO catalog_categories (name, slug, sort_order) VALUES
   ('Grains & Staples',  'grains-staples',  1),
   ('Spices & Masalas',  'spices-masalas',  2),
   ('Oils & Ghee',       'oils-ghee',       3),
@@ -2024,53 +1844,41 @@ INSERT INTO categories (name, slug, sort_order) VALUES
   ('Beverages',         'beverages',       5),
   ('Personal Care',     'personal-care',   6),
   ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),Failed to run sql query: ERROR:  23505: duplicate key value violates unique constraint "users_email_partial_key"
-DETAIL:  Key (email)=(manager-1@balaji-test.invalid) already exists.
+  ('Dairy & Eggs',      'dairy-eggs',      8),
   ('Fresh Produce',     'fresh-produce',   9)
 ON CONFLICT (slug) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Products — PACKED (price per pack; integer quantities only)
--- Includes items priced below / at / above the seeded delivery-charge
--- threshold so the threshold rules can be tested end-to-end (plan §12 TH-*).
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
--- Exactly at the seeded delivery-charge threshold (cart with just this item = at-threshold case).
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
--- One paisa below the seeded delivery-charge threshold (below-threshold case).
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true),
--- Unavailable item (active but not purchasable).
-('INSTANT-NOODLES-4PK',   'Instant Noodles (pack of 4)',  'Masala noodles, pack of 4',        (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5600, 1, 'pack', '4 pack', 1, 1,  0, 10, true, false),
--- Low-stock item (stock below the low-stock threshold).
-('HANDWASH-500ML',        'Hand Wash Refill 500 ml',      'Gentle hand wash refill',          (SELECT id FROM categories WHERE slug='household'),       'PACKED',  4500, 1, 'pack', '500 ml', 1, 1,  2, 10, true, true),
--- Archived item (not purchasable, not listed).
-('LEGACY-DEMO-ITEM',      'Legacy Demo Item (archived)',  'Archived demo product',            (SELECT id FROM categories WHERE slug='household'),       'PACKED',  3000, 1, 'pack', '1 pack', 1, 1,  3,  0, false, false);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
+('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
+('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
+('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
+('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
+('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
+('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
+('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
+('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
+('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
+('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
+('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
+('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
+('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
 
 -- ---------------------------------------------------------------------------
 -- Products — WEIGHTED (price per kg unless noted; quantities in grams)
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
--- Priced per 100 g to exercise the second allowed WEIGHTED price basis.
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
+('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
+('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
+('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
+('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
 
 -- ---------------------------------------------------------------------------
--- Service areas — two synthetic PIN codes (real list is a BLOCKED owner decision)
+-- Service areas
 -- ---------------------------------------------------------------------------
 INSERT INTO service_areas (kind, value, active) VALUES
   ('pincode', '122001', true),
@@ -2079,8 +1887,6 @@ ON CONFLICT (kind, lower(value)) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Synthetic test identities (auth.users + profiles)
--- Emails are .invalid by design; passwords are placeholders — these accounts
--- exist only for local RLS and integration tests (M2+).
 -- ---------------------------------------------------------------------------
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
 ('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
@@ -2100,14 +1906,8 @@ INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_c
 ('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
 ON CONFLICT (id) DO NOTHING;
 
--- ---------------------------------------------------------------------------
--- Bill counter for the current financial year (April–March). D-BILLNO:
--- gapless numbering BPS/<FY>/<6-digit>; the counter row is created here and
--- incremented row-locked inside each sale transaction (M9).
--- ---------------------------------------------------------------------------
 INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;
--- M2: audit trigger infrastructure + table-specific triggers (IMPLEMENTATION_PLAN.md §4.9)
+ON CONFLICT (fy) DO NOTHING;-- M2: audit trigger infrastructure + table-specific triggers (IMPLEMENTATION_PLAN.md §4.9)
 -- Triggers are SECURITY DEFINER, set search_path='', capture actor from auth.uid().
 
 -- 1) Generic audit function
@@ -2203,31 +2003,31 @@ GRANT EXECUTE ON FUNCTION public.audit_trigger_fn() TO authenticated;
 
 
 
--- Synthetic seed data for local development and tests (IMPLEMENTATION_PLAN.md §11, M1).
--- All values are PROVISIONAL placeholders for development — NOT owner policy
--- (see docs/DECISIONS.md). Thresholds/fees are manager-editable in the dashboard (M3).
--- Never use real customer data.
+-- ===========================================================================
+-- Balaji Provision Store — Synthetic Seed Data
+-- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- store_settings singleton. Seed placeholders: delivery-charge threshold T1 and
--- delivery fee F1 are dev values; free-delivery threshold T2 is unset (NULL),
--- which means "fee F1 below T1, free at/above T1" (plan §4.4).
+-- Store settings — default single row
 -- ---------------------------------------------------------------------------
 INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone, estimated_window_text,
-  delivery_fee_paise, delivery_charge_threshold_paise, free_delivery_threshold_paise,
-  mid_tier_fee_paise, max_order_paise, cancellation_policy_text,
-  tax_mode, tax_rate_bps, online_payment_enabled, pos_price_override_enabled
+  id, store_open, timezone, weekly_hours, contact_phone,
+  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
+  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
+  cancellation_policy_text, tax_mode, tax_rate_bps,
+  online_payment_enabled, pos_price_override_enabled
 ) VALUES (
-  true, true, 'Asia/Kolkata',
+  '00000000-0000-0000-0000-000000000001',
+  true,
+  'Asia/Kolkata',
   '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
   '9837803293',
   'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,    -- F1: delivery fee below the delivery-charge threshold (placeholder)
-  25000,   -- T1: delivery-charge threshold (placeholder seed value)
-  NULL,    -- T2: free-delivery threshold (unset)
-  NULL,    -- F2: mid-tier fee (unset)
-  NULL,    -- max order value (unset)
+  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
+  25000,  -- ₹250 threshold
+  25000,  -- ₹250 free delivery threshold
+  NULL,
+  NULL,
   'Cancellation is allowed until the store accepts the order.',
   'none', 0, false, false
 )
@@ -2236,7 +2036,7 @@ ON CONFLICT (id) DO NOTHING;
 -- ---------------------------------------------------------------------------
 -- Categories
 -- ---------------------------------------------------------------------------
-INSERT INTO categories (name, slug, sort_order) VALUES
+INSERT INTO catalog_categories (name, slug, sort_order) VALUES
   ('Grains & Staples',  'grains-staples',  1),
   ('Spices & Masalas',  'spices-masalas',  2),
   ('Oils & Ghee',       'oils-ghee',       3),
@@ -2244,53 +2044,41 @@ INSERT INTO categories (name, slug, sort_order) VALUES
   ('Beverages',         'beverages',       5),
   ('Personal Care',     'personal-care',   6),
   ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),Failed to run sql query: ERROR:  23505: duplicate key value violates unique constraint "users_email_partial_key"
-DETAIL:  Key (email)=(manager-1@balaji-test.invalid) already exists.
+  ('Dairy & Eggs',      'dairy-eggs',      8),
   ('Fresh Produce',     'fresh-produce',   9)
 ON CONFLICT (slug) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Products — PACKED (price per pack; integer quantities only)
--- Includes items priced below / at / above the seeded delivery-charge
--- threshold so the threshold rules can be tested end-to-end (plan §12 TH-*).
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
--- Exactly at the seeded delivery-charge threshold (cart with just this item = at-threshold case).
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
--- One paisa below the seeded delivery-charge threshold (below-threshold case).
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true),
--- Unavailable item (active but not purchasable).
-('INSTANT-NOODLES-4PK',   'Instant Noodles (pack of 4)',  'Masala noodles, pack of 4',        (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5600, 1, 'pack', '4 pack', 1, 1,  0, 10, true, false),
--- Low-stock item (stock below the low-stock threshold).
-('HANDWASH-500ML',        'Hand Wash Refill 500 ml',      'Gentle hand wash refill',          (SELECT id FROM categories WHERE slug='household'),       'PACKED',  4500, 1, 'pack', '500 ml', 1, 1,  2, 10, true, true),
--- Archived item (not purchasable, not listed).
-('LEGACY-DEMO-ITEM',      'Legacy Demo Item (archived)',  'Archived demo product',            (SELECT id FROM categories WHERE slug='household'),       'PACKED',  3000, 1, 'pack', '1 pack', 1, 1,  3,  0, false, false);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
+('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
+('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
+('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
+('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
+('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
+('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
+('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
+('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
+('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
+('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
+('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
+('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
+('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
 
 -- ---------------------------------------------------------------------------
 -- Products — WEIGHTED (price per kg unless noted; quantities in grams)
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
--- Priced per 100 g to exercise the second allowed WEIGHTED price basis.
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
+('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
+('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
+('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
+('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
 
 -- ---------------------------------------------------------------------------
--- Service areas — two synthetic PIN codes (real list is a BLOCKED owner decision)
+-- Service areas
 -- ---------------------------------------------------------------------------
 INSERT INTO service_areas (kind, value, active) VALUES
   ('pincode', '122001', true),
@@ -2299,8 +2087,6 @@ ON CONFLICT (kind, lower(value)) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Synthetic test identities (auth.users + profiles)
--- Emails are .invalid by design; passwords are placeholders — these accounts
--- exist only for local RLS and integration tests (M2+).
 -- ---------------------------------------------------------------------------
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
 ('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
@@ -2320,14 +2106,8 @@ INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_c
 ('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
 ON CONFLICT (id) DO NOTHING;
 
--- ---------------------------------------------------------------------------
--- Bill counter for the current financial year (April–March). D-BILLNO:
--- gapless numbering BPS/<FY>/<6-digit>; the counter row is created here and
--- incremented row-locked inside each sale transaction (M9).
--- ---------------------------------------------------------------------------
 INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;
--- M2: rider limited view + status update RPC (IMPLEMENTATION_PLAN.md §5.2, §5.4, §6)
+ON CONFLICT (fy) DO NOTHING;-- M2: rider limited view + status update RPC (IMPLEMENTATION_PLAN.md §5.2, §5.4, §6)
 -- Riders see ONLY assigned orders, with only necessary fields.
 
 -- 1) Security-invoker view: filters to orders assigned to the current delivery user
@@ -2489,31 +2269,31 @@ GRANT EXECUTE ON FUNCTION public.assign_order(uuid, uuid) TO authenticated;
 
 
 
--- Synthetic seed data for local development and tests (IMPLEMENTATION_PLAN.md §11, M1).
--- All values are PROVISIONAL placeholders for development — NOT owner policy
--- (see docs/DECISIONS.md). Thresholds/fees are manager-editable in the dashboard (M3).
--- Never use real customer data.
+-- ===========================================================================
+-- Balaji Provision Store — Synthetic Seed Data
+-- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- store_settings singleton. Seed placeholders: delivery-charge threshold T1 and
--- delivery fee F1 are dev values; free-delivery threshold T2 is unset (NULL),
--- which means "fee F1 below T1, free at/above T1" (plan §4.4).
+-- Store settings — default single row
 -- ---------------------------------------------------------------------------
 INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone, estimated_window_text,
-  delivery_fee_paise, delivery_charge_threshold_paise, free_delivery_threshold_paise,
-  mid_tier_fee_paise, max_order_paise, cancellation_policy_text,
-  tax_mode, tax_rate_bps, online_payment_enabled, pos_price_override_enabled
+  id, store_open, timezone, weekly_hours, contact_phone,
+  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
+  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
+  cancellation_policy_text, tax_mode, tax_rate_bps,
+  online_payment_enabled, pos_price_override_enabled
 ) VALUES (
-  true, true, 'Asia/Kolkata',
+  '00000000-0000-0000-0000-000000000001',
+  true,
+  'Asia/Kolkata',
   '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
   '9837803293',
   'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,    -- F1: delivery fee below the delivery-charge threshold (placeholder)
-  25000,   -- T1: delivery-charge threshold (placeholder seed value)
-  NULL,    -- T2: free-delivery threshold (unset)
-  NULL,    -- F2: mid-tier fee (unset)
-  NULL,    -- max order value (unset)
+  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
+  25000,  -- ₹250 threshold
+  25000,  -- ₹250 free delivery threshold
+  NULL,
+  NULL,
   'Cancellation is allowed until the store accepts the order.',
   'none', 0, false, false
 )
@@ -2522,7 +2302,7 @@ ON CONFLICT (id) DO NOTHING;
 -- ---------------------------------------------------------------------------
 -- Categories
 -- ---------------------------------------------------------------------------
-INSERT INTO categories (name, slug, sort_order) VALUES
+INSERT INTO catalog_categories (name, slug, sort_order) VALUES
   ('Grains & Staples',  'grains-staples',  1),
   ('Spices & Masalas',  'spices-masalas',  2),
   ('Oils & Ghee',       'oils-ghee',       3),
@@ -2530,53 +2310,41 @@ INSERT INTO categories (name, slug, sort_order) VALUES
   ('Beverages',         'beverages',       5),
   ('Personal Care',     'personal-care',   6),
   ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),Failed to run sql query: ERROR:  23505: duplicate key value violates unique constraint "users_email_partial_key"
-DETAIL:  Key (email)=(manager-1@balaji-test.invalid) already exists.
+  ('Dairy & Eggs',      'dairy-eggs',      8),
   ('Fresh Produce',     'fresh-produce',   9)
 ON CONFLICT (slug) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Products — PACKED (price per pack; integer quantities only)
--- Includes items priced below / at / above the seeded delivery-charge
--- threshold so the threshold rules can be tested end-to-end (plan §12 TH-*).
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
--- Exactly at the seeded delivery-charge threshold (cart with just this item = at-threshold case).
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
--- One paisa below the seeded delivery-charge threshold (below-threshold case).
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true),
--- Unavailable item (active but not purchasable).
-('INSTANT-NOODLES-4PK',   'Instant Noodles (pack of 4)',  'Masala noodles, pack of 4',        (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5600, 1, 'pack', '4 pack', 1, 1,  0, 10, true, false),
--- Low-stock item (stock below the low-stock threshold).
-('HANDWASH-500ML',        'Hand Wash Refill 500 ml',      'Gentle hand wash refill',          (SELECT id FROM categories WHERE slug='household'),       'PACKED',  4500, 1, 'pack', '500 ml', 1, 1,  2, 10, true, true),
--- Archived item (not purchasable, not listed).
-('LEGACY-DEMO-ITEM',      'Legacy Demo Item (archived)',  'Archived demo product',            (SELECT id FROM categories WHERE slug='household'),       'PACKED',  3000, 1, 'pack', '1 pack', 1, 1,  3,  0, false, false);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
+('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
+('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
+('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
+('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
+('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
+('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
+('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
+('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
+('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
+('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
+('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
+('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
+('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
 
 -- ---------------------------------------------------------------------------
 -- Products — WEIGHTED (price per kg unless noted; quantities in grams)
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
--- Priced per 100 g to exercise the second allowed WEIGHTED price basis.
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
+('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
+('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
+('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
+('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
 
 -- ---------------------------------------------------------------------------
--- Service areas — two synthetic PIN codes (real list is a BLOCKED owner decision)
+-- Service areas
 -- ---------------------------------------------------------------------------
 INSERT INTO service_areas (kind, value, active) VALUES
   ('pincode', '122001', true),
@@ -2585,8 +2353,6 @@ ON CONFLICT (kind, lower(value)) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Synthetic test identities (auth.users + profiles)
--- Emails are .invalid by design; passwords are placeholders — these accounts
--- exist only for local RLS and integration tests (M2+).
 -- ---------------------------------------------------------------------------
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
 ('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
@@ -2606,14 +2372,8 @@ INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_c
 ('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
 ON CONFLICT (id) DO NOTHING;
 
--- ---------------------------------------------------------------------------
--- Bill counter for the current financial year (April–March). D-BILLNO:
--- gapless numbering BPS/<FY>/<6-digit>; the counter row is created here and
--- incremented row-locked inside each sale transaction (M9).
--- ---------------------------------------------------------------------------
 INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;
--- M4: Pricing engine, quote_cart, place_order, idempotency, stock locking, movements
+ON CONFLICT (fy) DO NOTHING;-- M4: Pricing engine, quote_cart, place_order, idempotency, stock locking, movements
 -- IMPLEMENTATION_PLAN.md §4.4, §4.5, §4.6, §4.7, §4.9
 
 -- 1) eligible_subtotal — merchandise subtotal before discount/tax, excl. delivery fee
@@ -2858,31 +2618,31 @@ GRANT EXECUTE ON FUNCTION public.eligible_subtotal(jsonb) TO authenticated, anon
 
 
 
--- Synthetic seed data for local development and tests (IMPLEMENTATION_PLAN.md §11, M1).
--- All values are PROVISIONAL placeholders for development — NOT owner policy
--- (see docs/DECISIONS.md). Thresholds/fees are manager-editable in the dashboard (M3).
--- Never use real customer data.
+-- ===========================================================================
+-- Balaji Provision Store — Synthetic Seed Data
+-- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- store_settings singleton. Seed placeholders: delivery-charge threshold T1 and
--- delivery fee F1 are dev values; free-delivery threshold T2 is unset (NULL),
--- which means "fee F1 below T1, free at/above T1" (plan §4.4).
+-- Store settings — default single row
 -- ---------------------------------------------------------------------------
 INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone, estimated_window_text,
-  delivery_fee_paise, delivery_charge_threshold_paise, free_delivery_threshold_paise,
-  mid_tier_fee_paise, max_order_paise, cancellation_policy_text,
-  tax_mode, tax_rate_bps, online_payment_enabled, pos_price_override_enabled
+  id, store_open, timezone, weekly_hours, contact_phone,
+  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
+  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
+  cancellation_policy_text, tax_mode, tax_rate_bps,
+  online_payment_enabled, pos_price_override_enabled
 ) VALUES (
-  true, true, 'Asia/Kolkata',
+  '00000000-0000-0000-0000-000000000001',
+  true,
+  'Asia/Kolkata',
   '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
   '9837803293',
   'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,    -- F1: delivery fee below the delivery-charge threshold (placeholder)
-  25000,   -- T1: delivery-charge threshold (placeholder seed value)
-  NULL,    -- T2: free-delivery threshold (unset)
-  NULL,    -- F2: mid-tier fee (unset)
-  NULL,    -- max order value (unset)
+  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
+  25000,  -- ₹250 threshold
+  25000,  -- ₹250 free delivery threshold
+  NULL,
+  NULL,
   'Cancellation is allowed until the store accepts the order.',
   'none', 0, false, false
 )
@@ -2891,7 +2651,7 @@ ON CONFLICT (id) DO NOTHING;
 -- ---------------------------------------------------------------------------
 -- Categories
 -- ---------------------------------------------------------------------------
-INSERT INTO categories (name, slug, sort_order) VALUES
+INSERT INTO catalog_categories (name, slug, sort_order) VALUES
   ('Grains & Staples',  'grains-staples',  1),
   ('Spices & Masalas',  'spices-masalas',  2),
   ('Oils & Ghee',       'oils-ghee',       3),
@@ -2899,53 +2659,41 @@ INSERT INTO categories (name, slug, sort_order) VALUES
   ('Beverages',         'beverages',       5),
   ('Personal Care',     'personal-care',   6),
   ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),Failed to run sql query: ERROR:  23505: duplicate key value violates unique constraint "users_email_partial_key"
-DETAIL:  Key (email)=(manager-1@balaji-test.invalid) already exists.
+  ('Dairy & Eggs',      'dairy-eggs',      8),
   ('Fresh Produce',     'fresh-produce',   9)
 ON CONFLICT (slug) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Products — PACKED (price per pack; integer quantities only)
--- Includes items priced below / at / above the seeded delivery-charge
--- threshold so the threshold rules can be tested end-to-end (plan §12 TH-*).
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
--- Exactly at the seeded delivery-charge threshold (cart with just this item = at-threshold case).
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
--- One paisa below the seeded delivery-charge threshold (below-threshold case).
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true),
--- Unavailable item (active but not purchasable).
-('INSTANT-NOODLES-4PK',   'Instant Noodles (pack of 4)',  'Masala noodles, pack of 4',        (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5600, 1, 'pack', '4 pack', 1, 1,  0, 10, true, false),
--- Low-stock item (stock below the low-stock threshold).
-('HANDWASH-500ML',        'Hand Wash Refill 500 ml',      'Gentle hand wash refill',          (SELECT id FROM categories WHERE slug='household'),       'PACKED',  4500, 1, 'pack', '500 ml', 1, 1,  2, 10, true, true),
--- Archived item (not purchasable, not listed).
-('LEGACY-DEMO-ITEM',      'Legacy Demo Item (archived)',  'Archived demo product',            (SELECT id FROM categories WHERE slug='household'),       'PACKED',  3000, 1, 'pack', '1 pack', 1, 1,  3,  0, false, false);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
+('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
+('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
+('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
+('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
+('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
+('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
+('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
+('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
+('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
+('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
+('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
+('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
+('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
 
 -- ---------------------------------------------------------------------------
 -- Products — WEIGHTED (price per kg unless noted; quantities in grams)
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
--- Priced per 100 g to exercise the second allowed WEIGHTED price basis.
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
+('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
+('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
+('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
+('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
 
 -- ---------------------------------------------------------------------------
--- Service areas — two synthetic PIN codes (real list is a BLOCKED owner decision)
+-- Service areas
 -- ---------------------------------------------------------------------------
 INSERT INTO service_areas (kind, value, active) VALUES
   ('pincode', '122001', true),
@@ -2954,8 +2702,6 @@ ON CONFLICT (kind, lower(value)) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Synthetic test identities (auth.users + profiles)
--- Emails are .invalid by design; passwords are placeholders — these accounts
--- exist only for local RLS and integration tests (M2+).
 -- ---------------------------------------------------------------------------
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
 ('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
@@ -2975,14 +2721,8 @@ INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_c
 ('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
 ON CONFLICT (id) DO NOTHING;
 
--- ---------------------------------------------------------------------------
--- Bill counter for the current financial year (April–March). D-BILLNO:
--- gapless numbering BPS/<FY>/<6-digit>; the counter row is created here and
--- incremented row-locked inside each sale transaction (M9).
--- ---------------------------------------------------------------------------
 INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;
--- M4 (cont): place_order with idempotency, stock locking, movements, status events
+ON CONFLICT (fy) DO NOTHING;-- M4 (cont): place_order with idempotency, stock locking, movements, status events
 -- IMPLEMENTATION_PLAN.md §4.7, §4.8, §4.9
 
 -- 1) place_order — single transaction, server-authoritative pricing
@@ -3254,31 +2994,31 @@ GRANT EXECUTE ON FUNCTION public.place_order(jsonb, text) TO authenticated;
 
 
 
--- Synthetic seed data for local development and tests (IMPLEMENTATION_PLAN.md §11, M1).
--- All values are PROVISIONAL placeholders for development — NOT owner policy
--- (see docs/DECISIONS.md). Thresholds/fees are manager-editable in the dashboard (M3).
--- Never use real customer data.
+-- ===========================================================================
+-- Balaji Provision Store — Synthetic Seed Data
+-- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- store_settings singleton. Seed placeholders: delivery-charge threshold T1 and
--- delivery fee F1 are dev values; free-delivery threshold T2 is unset (NULL),
--- which means "fee F1 below T1, free at/above T1" (plan §4.4).
+-- Store settings — default single row
 -- ---------------------------------------------------------------------------
 INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone, estimated_window_text,
-  delivery_fee_paise, delivery_charge_threshold_paise, free_delivery_threshold_paise,
-  mid_tier_fee_paise, max_order_paise, cancellation_policy_text,
-  tax_mode, tax_rate_bps, online_payment_enabled, pos_price_override_enabled
+  id, store_open, timezone, weekly_hours, contact_phone,
+  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
+  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
+  cancellation_policy_text, tax_mode, tax_rate_bps,
+  online_payment_enabled, pos_price_override_enabled
 ) VALUES (
-  true, true, 'Asia/Kolkata',
+  '00000000-0000-0000-0000-000000000001',
+  true,
+  'Asia/Kolkata',
   '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
   '9837803293',
   'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,    -- F1: delivery fee below the delivery-charge threshold (placeholder)
-  25000,   -- T1: delivery-charge threshold (placeholder seed value)
-  NULL,    -- T2: free-delivery threshold (unset)
-  NULL,    -- F2: mid-tier fee (unset)
-  NULL,    -- max order value (unset)
+  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
+  25000,  -- ₹250 threshold
+  25000,  -- ₹250 free delivery threshold
+  NULL,
+  NULL,
   'Cancellation is allowed until the store accepts the order.',
   'none', 0, false, false
 )
@@ -3287,7 +3027,7 @@ ON CONFLICT (id) DO NOTHING;
 -- ---------------------------------------------------------------------------
 -- Categories
 -- ---------------------------------------------------------------------------
-INSERT INTO categories (name, slug, sort_order) VALUES
+INSERT INTO catalog_categories (name, slug, sort_order) VALUES
   ('Grains & Staples',  'grains-staples',  1),
   ('Spices & Masalas',  'spices-masalas',  2),
   ('Oils & Ghee',       'oils-ghee',       3),
@@ -3295,53 +3035,41 @@ INSERT INTO categories (name, slug, sort_order) VALUES
   ('Beverages',         'beverages',       5),
   ('Personal Care',     'personal-care',   6),
   ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),Failed to run sql query: ERROR:  23505: duplicate key value violates unique constraint "users_email_partial_key"
-DETAIL:  Key (email)=(manager-1@balaji-test.invalid) already exists.
+  ('Dairy & Eggs',      'dairy-eggs',      8),
   ('Fresh Produce',     'fresh-produce',   9)
 ON CONFLICT (slug) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Products — PACKED (price per pack; integer quantities only)
--- Includes items priced below / at / above the seeded delivery-charge
--- threshold so the threshold rules can be tested end-to-end (plan §12 TH-*).
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
--- Exactly at the seeded delivery-charge threshold (cart with just this item = at-threshold case).
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
--- One paisa below the seeded delivery-charge threshold (below-threshold case).
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true),
--- Unavailable item (active but not purchasable).
-('INSTANT-NOODLES-4PK',   'Instant Noodles (pack of 4)',  'Masala noodles, pack of 4',        (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5600, 1, 'pack', '4 pack', 1, 1,  0, 10, true, false),
--- Low-stock item (stock below the low-stock threshold).
-('HANDWASH-500ML',        'Hand Wash Refill 500 ml',      'Gentle hand wash refill',          (SELECT id FROM categories WHERE slug='household'),       'PACKED',  4500, 1, 'pack', '500 ml', 1, 1,  2, 10, true, true),
--- Archived item (not purchasable, not listed).
-('LEGACY-DEMO-ITEM',      'Legacy Demo Item (archived)',  'Archived demo product',            (SELECT id FROM categories WHERE slug='household'),       'PACKED',  3000, 1, 'pack', '1 pack', 1, 1,  3,  0, false, false);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
+('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
+('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
+('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
+('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
+('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
+('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
+('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
+('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
+('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
+('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
+('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
+('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
+('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
 
 -- ---------------------------------------------------------------------------
 -- Products — WEIGHTED (price per kg unless noted; quantities in grams)
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
--- Priced per 100 g to exercise the second allowed WEIGHTED price basis.
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
+('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
+('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
+('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
+('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
 
 -- ---------------------------------------------------------------------------
--- Service areas — two synthetic PIN codes (real list is a BLOCKED owner decision)
+-- Service areas
 -- ---------------------------------------------------------------------------
 INSERT INTO service_areas (kind, value, active) VALUES
   ('pincode', '122001', true),
@@ -3350,8 +3078,6 @@ ON CONFLICT (kind, lower(value)) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Synthetic test identities (auth.users + profiles)
--- Emails are .invalid by design; passwords are placeholders — these accounts
--- exist only for local RLS and integration tests (M2+).
 -- ---------------------------------------------------------------------------
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
 ('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
@@ -3371,14 +3097,8 @@ INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_c
 ('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
 ON CONFLICT (id) DO NOTHING;
 
--- ---------------------------------------------------------------------------
--- Bill counter for the current financial year (April–March). D-BILLNO:
--- gapless numbering BPS/<FY>/<6-digit>; the counter row is created here and
--- incremented row-locked inside each sale transaction (M9).
--- ---------------------------------------------------------------------------
 INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;
--- M7: rider provisioning, order corrections, delivery workflow
+ON CONFLICT (fy) DO NOTHING;-- M7: rider provisioning, order corrections, delivery workflow
 -- IMPLEMENTATION_PLAN.md §4.7, §4.8, §5.4, §5.7
 
 -- 1) Rider provisioning RPC (manager only)
@@ -3904,31 +3624,31 @@ GRANT EXECUTE ON FUNCTION public.get_rider_orders() TO authenticated;
 
 
 
--- Synthetic seed data for local development and tests (IMPLEMENTATION_PLAN.md §11, M1).
--- All values are PROVISIONAL placeholders for development — NOT owner policy
--- (see docs/DECISIONS.md). Thresholds/fees are manager-editable in the dashboard (M3).
--- Never use real customer data.
+-- ===========================================================================
+-- Balaji Provision Store — Synthetic Seed Data
+-- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- store_settings singleton. Seed placeholders: delivery-charge threshold T1 and
--- delivery fee F1 are dev values; free-delivery threshold T2 is unset (NULL),
--- which means "fee F1 below T1, free at/above T1" (plan §4.4).
+-- Store settings — default single row
 -- ---------------------------------------------------------------------------
 INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone, estimated_window_text,
-  delivery_fee_paise, delivery_charge_threshold_paise, free_delivery_threshold_paise,
-  mid_tier_fee_paise, max_order_paise, cancellation_policy_text,
-  tax_mode, tax_rate_bps, online_payment_enabled, pos_price_override_enabled
+  id, store_open, timezone, weekly_hours, contact_phone,
+  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
+  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
+  cancellation_policy_text, tax_mode, tax_rate_bps,
+  online_payment_enabled, pos_price_override_enabled
 ) VALUES (
-  true, true, 'Asia/Kolkata',
+  '00000000-0000-0000-0000-000000000001',
+  true,
+  'Asia/Kolkata',
   '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
   '9837803293',
   'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,    -- F1: delivery fee below the delivery-charge threshold (placeholder)
-  25000,   -- T1: delivery-charge threshold (placeholder seed value)
-  NULL,    -- T2: free-delivery threshold (unset)
-  NULL,    -- F2: mid-tier fee (unset)
-  NULL,    -- max order value (unset)
+  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
+  25000,  -- ₹250 threshold
+  25000,  -- ₹250 free delivery threshold
+  NULL,
+  NULL,
   'Cancellation is allowed until the store accepts the order.',
   'none', 0, false, false
 )
@@ -3937,7 +3657,7 @@ ON CONFLICT (id) DO NOTHING;
 -- ---------------------------------------------------------------------------
 -- Categories
 -- ---------------------------------------------------------------------------
-INSERT INTO categories (name, slug, sort_order) VALUES
+INSERT INTO catalog_categories (name, slug, sort_order) VALUES
   ('Grains & Staples',  'grains-staples',  1),
   ('Spices & Masalas',  'spices-masalas',  2),
   ('Oils & Ghee',       'oils-ghee',       3),
@@ -3945,53 +3665,41 @@ INSERT INTO categories (name, slug, sort_order) VALUES
   ('Beverages',         'beverages',       5),
   ('Personal Care',     'personal-care',   6),
   ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),Failed to run sql query: ERROR:  23505: duplicate key value violates unique constraint "users_email_partial_key"
-DETAIL:  Key (email)=(manager-1@balaji-test.invalid) already exists.
+  ('Dairy & Eggs',      'dairy-eggs',      8),
   ('Fresh Produce',     'fresh-produce',   9)
 ON CONFLICT (slug) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Products — PACKED (price per pack; integer quantities only)
--- Includes items priced below / at / above the seeded delivery-charge
--- threshold so the threshold rules can be tested end-to-end (plan §12 TH-*).
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM categories WHERE slug='grains-staples'),  'PACKED', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM categories WHERE slug='oils-ghee'),       'PACKED', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM categories WHERE slug='spices-masalas'),  'PACKED',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM categories WHERE slug='beverages'),       'PACKED',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
--- Exactly at the seeded delivery-charge threshold (cart with just this item = at-threshold case).
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
--- One paisa below the seeded delivery-charge threshold (below-threshold case).
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true),
--- Unavailable item (active but not purchasable).
-('INSTANT-NOODLES-4PK',   'Instant Noodles (pack of 4)',  'Masala noodles, pack of 4',        (SELECT id FROM categories WHERE slug='snacks-namkeen'),  'PACKED',  5600, 1, 'pack', '4 pack', 1, 1,  0, 10, true, false),
--- Low-stock item (stock below the low-stock threshold).
-('HANDWASH-500ML',        'Hand Wash Refill 500 ml',      'Gentle hand wash refill',          (SELECT id FROM categories WHERE slug='household'),       'PACKED',  4500, 1, 'pack', '500 ml', 1, 1,  2, 10, true, true),
--- Archived item (not purchasable, not listed).
-('LEGACY-DEMO-ITEM',      'Legacy Demo Item (archived)',  'Archived demo product',            (SELECT id FROM categories WHERE slug='household'),       'PACKED',  3000, 1, 'pack', '1 pack', 1, 1,  3,  0, false, false);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
+('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
+('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
+('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
+('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
+('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
+('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
+('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
+('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
+('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
+('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
+('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
+('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
+('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
 
 -- ---------------------------------------------------------------------------
 -- Products — WEIGHTED (price per kg unless noted; quantities in grams)
 -- ---------------------------------------------------------------------------
-INSERT INTO products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
--- Priced per 100 g to exercise the second allowed WEIGHTED price basis.
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM categories WHERE slug='fresh-produce'), 'WEIGHTED', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
+('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
+('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
+('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
+('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
 
 -- ---------------------------------------------------------------------------
--- Service areas — two synthetic PIN codes (real list is a BLOCKED owner decision)
+-- Service areas
 -- ---------------------------------------------------------------------------
 INSERT INTO service_areas (kind, value, active) VALUES
   ('pincode', '122001', true),
@@ -4000,8 +3708,6 @@ ON CONFLICT (kind, lower(value)) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- Synthetic test identities (auth.users + profiles)
--- Emails are .invalid by design; passwords are placeholders — these accounts
--- exist only for local RLS and integration tests (M2+).
 -- ---------------------------------------------------------------------------
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
 ('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
@@ -4021,14 +3727,8 @@ INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_c
 ('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
 ON CONFLICT (id) DO NOTHING;
 
--- ---------------------------------------------------------------------------
--- Bill counter for the current financial year (April–March). D-BILLNO:
--- gapless numbering BPS/<FY>/<6-digit>; the counter row is created here and
--- incremented row-locked inside each sale transaction (M9).
--- ---------------------------------------------------------------------------
 INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;
--- M8: Inventory adjustments, reports, audit UI (IMPLEMENTATION_PLAN.md §8)
+ON CONFLICT (fy) DO NOTHING;-- M8: Inventory adjustments, reports, audit UI (IMPLEMENTATION_PLAN.md §8)
 -- adjust_stock, low-stock list, stock reconciliation, reports, audit viewer
 
 -- 1) adjust_stock RPC - manual stock adjustment with reason (staff/manager)
