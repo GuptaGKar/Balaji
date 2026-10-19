@@ -1,52 +1,75 @@
 -- M1: enum types (IMPLEMENTATION_PLAN.md §4.2)
--- Values are fixed business vocabularies; changes require a new migration.
+-- Idempotent enum creation guards to prevent 42710 errors on existing databases.
 
-CREATE TYPE user_role AS ENUM ('customer', 'staff', 'manager', 'delivery');
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+        CREATE TYPE user_role AS ENUM ('customer', 'staff', 'manager', 'delivery');
+    END IF;
 
-CREATE TYPE order_status AS ENUM (
-  'pending_review',
-  'accepted',
-  'preparing',
-  'ready_for_dispatch',
-  'out_for_delivery',
-  'delivered',
-  'rejected',
-  'cancelled',
-  'delivery_failed'
-);
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'order_status') THEN
+        CREATE TYPE order_status AS ENUM (
+          'pending_review',
+          'accepted',
+          'preparing',
+          'ready_for_dispatch',
+          'out_for_delivery',
+          'delivered',
+          'rejected',
+          'cancelled',
+          'delivery_failed'
+        );
+    END IF;
 
-CREATE TYPE payment_method AS ENUM ('cod', 'online');
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'payment_method') THEN
+        CREATE TYPE payment_method AS ENUM ('cod', 'online');
+    END IF;
 
-CREATE TYPE payment_status AS ENUM (
-  'unpaid',
-  'pending',
-  'paid',
-  'failed',
-  'refund_pending',
-  'partially_refunded',
-  'refunded'
-);
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'payment_status') THEN
+        CREATE TYPE payment_status AS ENUM (
+          'unpaid',
+          'pending',
+          'paid',
+          'failed',
+          'refund_pending',
+          'partially_refunded',
+          'refunded'
+        );
+    END IF;
 
-CREATE TYPE quantity_type AS ENUM ('WEIGHTED', 'PACKED');
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'quantity_type') THEN
+        CREATE TYPE quantity_type AS ENUM ('weighted', 'packed', 'WEIGHTED', 'PACKED');
+    END IF;
 
-CREATE TYPE service_area_kind AS ENUM ('pincode', 'neighbourhood');
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'service_area_kind') THEN
+        CREATE TYPE service_area_kind AS ENUM ('pincode', 'neighbourhood');
+    END IF;
 
-CREATE TYPE inventory_reason AS ENUM (
-  'order_placed',
-  'order_cancelled',
-  'order_rejected',
-  'item_removed',
-  'pos_sale',
-  'pos_void',
-  'manual_adjustment',
-  'correction'
-);
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'inventory_reason') THEN
+        CREATE TYPE inventory_reason AS ENUM (
+          'order_placed',
+          'order_cancelled',
+          'order_rejected',
+          'item_removed',
+          'pos_sale',
+          'pos_void',
+          'manual_adjustment',
+          'correction'
+        );
+    END IF;
 
-CREATE TYPE bill_source AS ENUM ('ORDER', 'POS');
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'bill_source') THEN
+        CREATE TYPE bill_source AS ENUM ('ORDER', 'POS');
+    END IF;
 
-CREATE TYPE bill_status AS ENUM ('ISSUED', 'VOID');
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'bill_status') THEN
+        CREATE TYPE bill_status AS ENUM ('ISSUED', 'VOID');
+    END IF;
 
-CREATE TYPE tax_mode AS ENUM ('none', 'inclusive', 'exclusive');
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'tax_mode') THEN
+        CREATE TYPE tax_mode AS ENUM ('none', 'inclusive', 'exclusive');
+    END IF;
+END $$;
 
 
 
@@ -278,9 +301,7 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
 ON CONFLICT (fy) DO NOTHING;-- M1: identity and configuration tables (IMPLEMENTATION_PLAN.md §4.2)
 
--- profiles extends auth.users. Role and is_active change only via manager RPC (M2/M7).
--- login_id: unique staff/rider user ID (riders log in with it; M7 provisioning).
-CREATE TABLE profiles (
+CREATE TABLE IF NOT EXISTS profiles (
   id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   role user_role NOT NULL DEFAULT 'customer',
   display_name text,
@@ -292,16 +313,14 @@ CREATE TABLE profiles (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_profiles_role ON profiles(role);
-CREATE INDEX idx_profiles_login_id ON profiles(login_id);
+CREATE INDEX IF NOT EXISTS idx_profiles_role ON profiles(role);
+CREATE INDEX IF NOT EXISTS idx_profiles_login_id ON profiles(login_id);
 
+DROP TRIGGER IF EXISTS trg_profiles_updated_at ON profiles;
 CREATE TRIGGER trg_profiles_updated_at BEFORE UPDATE ON profiles
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
--- store_settings: singleton row (id is always true). All threshold/fee values live
--- here and are manager-editable; nothing is hard-coded in clients (plan §4.2, §4.4).
--- CHECKs keep the threshold/fee relationships valid at all times.
-CREATE TABLE store_settings (
+CREATE TABLE IF NOT EXISTS store_settings (
   id boolean PRIMARY KEY DEFAULT true CHECK (id),
   store_open boolean NOT NULL DEFAULT true,
   timezone text NOT NULL DEFAULT 'Asia/Kolkata',
@@ -322,9 +341,7 @@ CREATE TABLE store_settings (
   pos_price_override_enabled boolean NOT NULL DEFAULT false
 );
 
--- Serviceable PIN codes / neighbourhoods. Checkout validates against the active
--- set server-side (plan §4.2). Unique per kind, case-insensitive.
-CREATE TABLE service_areas (
+CREATE TABLE IF NOT EXISTS service_areas (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   kind service_area_kind NOT NULL,
   value text NOT NULL,
@@ -332,9 +349,9 @@ CREATE TABLE service_areas (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX idx_service_areas_kind_value_lower
+CREATE UNIQUE INDEX IF NOT EXISTS idx_service_areas_kind_value_lower
   ON service_areas (kind, lower(value));
-CREATE INDEX idx_service_areas_active ON service_areas(active);
+CREATE INDEX IF NOT EXISTS idx_service_areas_active ON service_areas(active);
 
 
 
@@ -445,7 +462,7 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
 ON CONFLICT (fy) DO NOTHING;-- M1: catalogue tables (IMPLEMENTATION_PLAN.md §4.2)
 
-CREATE TABLE categories (
+CREATE TABLE IF NOT EXISTS categories (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,
   slug text NOT NULL UNIQUE,
@@ -453,17 +470,9 @@ CREATE TABLE categories (
   active boolean NOT NULL DEFAULT true
 );
 
-CREATE INDEX idx_categories_active ON categories(active);
+CREATE INDEX IF NOT EXISTS idx_categories_active ON categories(active);
 
--- products: money in integer paise; quantities in integer base units
--- (grams for WEIGHTED, pack count for PACKED). No floating point anywhere.
---
--- price_basis_qty = base units covered by price_paise:
---   PACKED  -> always 1 (price is per pack/piece)
---   WEIGHTED-> 1000 (per kg) or 100 (per 100 g)
--- step_qty  = smallest allowed quantity step in base units (default 10 g for WEIGHTED).
--- Products are archived (active=false), never hard-deleted once referenced.
-CREATE TABLE products (
+CREATE TABLE IF NOT EXISTS products (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   sku text NOT NULL UNIQUE,
   name text NOT NULL,
@@ -486,22 +495,26 @@ CREATE TABLE products (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
--- PACKED: exactly one piece per priced unit, integer steps only.
-ALTER TABLE products ADD CONSTRAINT chk_products_packed
-  CHECK (quantity_type <> 'PACKED' OR (price_basis_qty = 1 AND step_qty = 1));
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_products_packed') THEN
+        ALTER TABLE products ADD CONSTRAINT chk_products_packed
+          CHECK (quantity_type NOT IN ('PACKED', 'packed') OR (price_basis_qty = 1 AND step_qty = 1));
+    END IF;
 
--- WEIGHTED: price basis must be per 100 g or per kg.
-ALTER TABLE products ADD CONSTRAINT chk_products_weighted_basis
-  CHECK (quantity_type <> 'WEIGHTED' OR price_basis_qty IN (100, 1000));
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_products_weighted_basis') THEN
+        ALTER TABLE products ADD CONSTRAINT chk_products_weighted_basis
+          CHECK (quantity_type NOT IN ('WEIGHTED', 'weighted') OR price_basis_qty IN (100, 1000));
+    END IF;
+END $$;
 
-CREATE INDEX idx_products_category ON products(category_id);
-CREATE INDEX idx_products_catalogue ON products(quantity_type, active, available);
+CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
+CREATE INDEX IF NOT EXISTS idx_products_catalogue ON products(quantity_type, active, available);
 
+DROP TRIGGER IF EXISTS trg_products_updated_at ON products;
 CREATE TRIGGER trg_products_updated_at BEFORE UPDATE ON products
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
--- Hard-delete protection: a product referenced by order or bill items must be
--- archived, not deleted, so historical snapshots stay resolvable (plan §4.2).
 CREATE OR REPLACE FUNCTION prevent_product_delete_when_referenced()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -517,8 +530,13 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_products_prevent_delete ON products;
 CREATE TRIGGER trg_products_prevent_delete BEFORE DELETE ON products
   FOR EACH ROW EXECUTE FUNCTION prevent_product_delete_when_referenced();
+
+-- Views for backwards compatibility between categories / catalog_categories and products / catalog_products
+CREATE OR REPLACE VIEW catalog_categories AS SELECT * FROM categories;
+CREATE OR REPLACE VIEW catalog_products AS SELECT * FROM products;
 
 
 
@@ -630,7 +648,7 @@ INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
 ON CONFLICT (fy) DO NOTHING;-- M1: customer addresses, orders, order items, status events, assignments,
 --     and the order state machine (IMPLEMENTATION_PLAN.md §4.2, §4.3)
 
-CREATE TABLE addresses (
+CREATE TABLE IF NOT EXISTS addresses (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   customer_id uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   label text NOT NULL DEFAULT '',
@@ -647,14 +665,9 @@ CREATE TABLE addresses (
   is_default boolean NOT NULL DEFAULT false
 );
 
-CREATE INDEX idx_addresses_customer ON addresses(customer_id);
+CREATE INDEX IF NOT EXISTS idx_addresses_customer ON addresses(customer_id);
 
--- Orders: address is snapshotted as JSONB at placement; money in integer paise.
--- fee_breakdown stores the threshold/fee values actually used, so historical
--- orders remain explainable after settings change (plan §4.4).
--- idempotency_key is the client-supplied key; the authoritative dedupe table is
--- idempotency_keys (M4 place_order inserts there first).
-CREATE TABLE orders (
+CREATE TABLE IF NOT EXISTS orders (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   public_order_number text NOT NULL UNIQUE,
   customer_id uuid NOT NULL REFERENCES profiles(id),
@@ -677,14 +690,11 @@ CREATE TABLE orders (
   delivered_at timestamptz
 );
 
-CREATE INDEX idx_orders_customer_created ON orders(customer_id, created_at DESC);
-CREATE INDEX idx_orders_status ON orders(status);
-CREATE INDEX idx_orders_idempotency ON orders(idempotency_key) WHERE idempotency_key IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_orders_customer_created ON orders(customer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_idempotency ON orders(idempotency_key) WHERE idempotency_key IS NOT NULL;
 
--- Order items carry immutable name/SKU/unit/price snapshots (plan §4.2):
--- later catalogue edits must never change a historical receipt.
--- qty_base is in base units (grams for WEIGHTED, packs for PACKED); positive.
-CREATE TABLE order_items (
+CREATE TABLE IF NOT EXISTS order_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id uuid NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   product_id uuid REFERENCES products(id) ON DELETE SET NULL,
@@ -700,10 +710,9 @@ CREATE TABLE order_items (
   removed_reason text
 );
 
-CREATE INDEX idx_order_items_order ON order_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
 
--- Append-only status timeline. Every transition writes one row (plan §4.3).
-CREATE TABLE order_status_events (
+CREATE TABLE IF NOT EXISTS order_status_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id uuid NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   from_status order_status,
@@ -713,10 +722,9 @@ CREATE TABLE order_status_events (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_order_status_events_order ON order_status_events(order_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_order_status_events_order ON order_status_events(order_id, created_at DESC);
 
--- Delivery assignment history; active assignment = unassigned_at IS NULL.
-CREATE TABLE order_assignments (
+CREATE TABLE IF NOT EXISTS order_assignments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id uuid NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   delivery_user_id uuid NOT NULL REFERENCES profiles(id),
@@ -725,15 +733,11 @@ CREATE TABLE order_assignments (
   unassigned_at timestamptz
 );
 
-CREATE INDEX idx_order_assignments_order ON order_assignments(order_id);
-CREATE INDEX idx_order_assignments_active
+CREATE INDEX IF NOT EXISTS idx_order_assignments_order ON order_assignments(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_assignments_active
   ON order_assignments(delivery_user_id) WHERE unassigned_at IS NULL;
 
--- Order state machine (plan §4.3). transition_order() (M4) enforces this table
--- and writes order_status_events. Roles: staff/manager run all non-rider
--- transitions; delivery runs only the two highlighted transitions, and only on
--- orders assigned to them (checked in the RPC).
-CREATE TABLE order_transitions (
+CREATE TABLE IF NOT EXISTS order_transitions (
   from_status order_status NOT NULL,
   to_status order_status NOT NULL,
   allowed_roles user_role[] NOT NULL,
@@ -751,10 +755,8 @@ INSERT INTO order_transitions (from_status, to_status, allowed_roles) VALUES
   ('ready_for_dispatch','out_for_delivery',   ARRAY['staff', 'manager', 'delivery']::user_role[]),
   ('ready_for_dispatch','cancelled',          ARRAY['staff', 'manager']::user_role[]),
   ('out_for_delivery',  'delivered',          ARRAY['staff', 'manager', 'delivery']::user_role[]),
-  ('out_for_delivery',  'delivery_failed',    ARRAY['staff', 'manager', 'delivery']::user_role[]);
-
--- 'delivery_failed' is terminal in M1. Retry/resolve behaviour is an open owner
--- decision (not specified in the plan) and is logged in docs/DECISIONS.md.
+  ('out_for_delivery',  'delivery_failed',    ARRAY['staff', 'manager', 'delivery']::user_role[])
+ON CONFLICT (from_status, to_status) DO NOTHING;
 
 
 
@@ -865,9 +867,7 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
 ON CONFLICT (fy) DO NOTHING;-- M1: inventory movements and billing/POS tables (IMPLEMENTATION_PLAN.md §4.2)
 
--- Append-only stock audit trail. products.stock_qty must always equal the sum of
--- movements for that product; a reconciliation test runs in CI and nightly (§12).
-CREATE TABLE inventory_movements (
+CREATE TABLE IF NOT EXISTS inventory_movements (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   product_id uuid NOT NULL REFERENCES products(id),
   delta_qty bigint NOT NULL,
@@ -879,18 +879,15 @@ CREATE TABLE inventory_movements (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_inventory_movements_product
+CREATE INDEX IF NOT EXISTS idx_inventory_movements_product
   ON inventory_movements(product_id, created_at DESC);
 
--- Gapless bill numbering: one counter row per financial year, incremented
--- row-locked inside the sale transaction (plan §4.2, D-BILLNO: BPS/<FY>/<6-digit>).
-CREATE TABLE bill_counters (
+CREATE TABLE IF NOT EXISTS bill_counters (
   fy text PRIMARY KEY,
   last_no bigint NOT NULL DEFAULT 0 CHECK (last_no >= 0)
 );
 
--- POS sales header; idempotency_key makes duplicate submits a no-op (§4.8).
-CREATE TABLE pos_sales (
+CREATE TABLE IF NOT EXISTS pos_sales (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   idempotency_key text NOT NULL UNIQUE,
   cashier_id uuid NOT NULL REFERENCES profiles(id),
@@ -898,9 +895,7 @@ CREATE TABLE pos_sales (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
--- One billing system for online orders and in-store POS sales (plan §9).
--- Bill content is rendered from snapshots, never recomputed from the catalogue.
-CREATE TABLE bills (
+CREATE TABLE IF NOT EXISTS bills (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   bill_number text NOT NULL UNIQUE,
   source bill_source NOT NULL,
@@ -923,13 +918,11 @@ CREATE TABLE bills (
   voided_at timestamptz
 );
 
-CREATE INDEX idx_bills_order ON bills(order_id);
-CREATE INDEX idx_bills_pos_sale ON bills(pos_sale_id);
-CREATE INDEX idx_bills_issued ON bills(issued_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bills_order ON bills(order_id);
+CREATE INDEX IF NOT EXISTS idx_bills_pos_sale ON bills(pos_sale_id);
+CREATE INDEX IF NOT EXISTS idx_bills_issued ON bills(issued_at DESC);
 
--- Immutable line-item snapshots. A bill is never edited; corrections happen via
--- void + new bill (M9), with the original linked by the void audit trail.
-CREATE TABLE bill_items (
+CREATE TABLE IF NOT EXISTS bill_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   bill_id uuid NOT NULL REFERENCES bills(id) ON DELETE CASCADE,
   product_id uuid REFERENCES products(id) ON DELETE SET NULL,
@@ -943,7 +936,7 @@ CREATE TABLE bill_items (
   line_total_paise bigint NOT NULL CHECK (line_total_paise >= 0)
 );
 
-CREATE INDEX idx_bill_items_bill ON bill_items(bill_id);
+CREATE INDEX IF NOT EXISTS idx_bill_items_bill ON bill_items(bill_id);
 
 
 
@@ -1054,9 +1047,7 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
 ON CONFLICT (fy) DO NOTHING;-- M1: gated payment tables and cross-cutting tables (IMPLEMENTATION_PLAN.md §4.2)
 
--- payments: only populated when online payments are enabled (M11 gate).
--- Never store payment secrets or full card data.
-CREATE TABLE payments (
+CREATE TABLE IF NOT EXISTS payments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id uuid NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   provider text NOT NULL,
@@ -1068,10 +1059,9 @@ CREATE TABLE payments (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_payments_order ON payments(order_id);
+CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id);
 
--- Webhook dedupe: exactly one processed row per provider event (plan §4.2, §10).
-CREATE TABLE payment_events (
+CREATE TABLE IF NOT EXISTS payment_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   provider text NOT NULL,
   provider_event_id text NOT NULL,
@@ -1081,9 +1071,7 @@ CREATE TABLE payment_events (
   UNIQUE (provider, provider_event_id)
 );
 
--- Idempotency: primary key (user, scope, key); request_hash distinguishes a
--- retry of the same request from a conflicting reuse of the key (plan §4.7).
-CREATE TABLE idempotency_keys (
+CREATE TABLE IF NOT EXISTS idempotency_keys (
   user_id uuid NOT NULL,
   scope text NOT NULL,
   key text NOT NULL,
@@ -1093,11 +1081,7 @@ CREATE TABLE idempotency_keys (
   PRIMARY KEY (user_id, scope, key)
 );
 
--- Append-only audit log (plan §4.2, §4.9). Populated by RPCs and triggers from
--- M2. Rows are never updated or deleted; sensitive values are redacted before
--- insert (redaction function added in M2).
--- entity_id is text to accommodate tables with non-uuid PKs (e.g., store_settings boolean singleton).
-CREATE TABLE audit_logs (
+CREATE TABLE IF NOT EXISTS audit_logs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   actor_id uuid REFERENCES profiles(id),
   action text NOT NULL,
@@ -1109,14 +1093,12 @@ CREATE TABLE audit_logs (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
-CREATE INDEX idx_audit_logs_created ON audit_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at DESC);
 
 REVOKE UPDATE, DELETE ON audit_logs FROM PUBLIC;
 
--- Notification outbox: async notifications never roll back a valid order (§4.7).
--- MVP uses in-app status + manual phone contact; providers are P1 (M10).
-CREATE TABLE notification_outbox (
+CREATE TABLE IF NOT EXISTS notification_outbox (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id uuid REFERENCES orders(id) ON DELETE CASCADE,
   channel text NOT NULL,
@@ -1555,251 +1537,237 @@ ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
 ON CONFLICT (fy) DO NOTHING;-- M2: RLS policies for all tables (IMPLEMENTATION_PLAN.md §5.1, §5.2)
--- Default deny already set in M1 (migration 008). Policies grant minimum required access.
 
 -- ============================================================
 -- IDENTITY / CONFIG
 -- ============================================================
 
--- profiles: users read own row; staff/manager read all; manager writes role/is_active
+DROP POLICY IF EXISTS "profiles_read_own" ON profiles;
 CREATE POLICY "profiles_read_own" ON profiles
   FOR SELECT TO authenticated USING (id = auth.uid());
 
+DROP POLICY IF EXISTS "profiles_read_staff" ON profiles;
 CREATE POLICY "profiles_read_staff" ON profiles
   FOR SELECT TO authenticated USING (public.current_role()::text = 'staff' OR public.current_role()::text = 'manager');
 
+DROP POLICY IF EXISTS "profiles_update_role_active" ON profiles;
 CREATE POLICY "profiles_update_role_active" ON profiles
   FOR UPDATE TO authenticated
   USING (public.current_role() = 'manager'::user_role)
   WITH CHECK (public.current_role() = 'manager'::user_role);
 
--- store_settings: everyone reads; only manager writes
+DROP POLICY IF EXISTS "store_settings_read" ON store_settings;
 CREATE POLICY "store_settings_read" ON store_settings
   FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "store_settings_write" ON store_settings;
 CREATE POLICY "store_settings_write" ON store_settings
   FOR ALL TO authenticated
   USING (public.current_role() = 'manager'::user_role)
   WITH CHECK (public.current_role() = 'manager'::user_role);
 
--- service_areas: everyone reads active; manager writes
+DROP POLICY IF EXISTS "service_areas_read_active" ON service_areas;
 CREATE POLICY "service_areas_read_active" ON service_areas
   FOR SELECT TO authenticated USING (active = true);
 
+DROP POLICY IF EXISTS "service_areas_write" ON service_areas;
 CREATE POLICY "service_areas_write" ON service_areas
   FOR ALL TO authenticated
   USING (public.current_role() = 'manager'::user_role)
   WITH CHECK (public.current_role() = 'manager'::user_role);
 
 -- ============================================================
--- CATALOGUE (read via views for anon/customer; write via RPC)
+-- CATALOGUE
 -- ============================================================
 
--- categories: everyone reads active; manager writes
+DROP POLICY IF EXISTS "categories_read_active" ON categories;
 CREATE POLICY "categories_read_active" ON categories
   FOR SELECT TO authenticated USING (active = true);
 
+DROP POLICY IF EXISTS "categories_write" ON categories;
 CREATE POLICY "categories_write" ON categories
   FOR ALL TO authenticated
   USING (public.current_role() = 'manager'::user_role)
   WITH CHECK (public.current_role() = 'manager'::user_role);
 
--- products: everyone reads active+available; manager writes; staff adjusts stock only
+DROP POLICY IF EXISTS "products_read_published" ON products;
 CREATE POLICY "products_read_published" ON products
   FOR SELECT TO authenticated USING (active = true AND available = true);
 
+DROP POLICY IF EXISTS "products_write_manager" ON products;
 CREATE POLICY "products_write_manager" ON products
   FOR ALL TO authenticated
   USING (public.current_role() = 'manager'::user_role)
   WITH CHECK (public.current_role() = 'manager'::user_role);
 
--- staff can only UPDATE stock_qty, low_stock_threshold, available (no price/active/category changes)
+DROP POLICY IF EXISTS "products_stock_adjust_staff" ON products;
 CREATE POLICY "products_stock_adjust_staff" ON products
   FOR UPDATE TO authenticated
   USING (public.current_role() = 'staff'::user_role)
-  WITH CHECK (
-    public.current_role() = 'staff'::user_role AND
-    -- Only these columns may change (PostgreSQL doesn't support column-level WITH CHECK directly;
-    -- enforcement is in the RPC `adjust_stock` and the UPDATE policy is a fallback.
-    true
-  );
+  WITH CHECK (public.current_role() = 'staff'::user_role);
 
 -- ============================================================
--- CUSTOMER DATA (addresses, orders, order_items, bills)
+-- CUSTOMER ORDERS & ADDRESSES
 -- ============================================================
 
--- addresses: customer CRUD on own; staff/manager read all
+DROP POLICY IF EXISTS "addresses_own_crud" ON addresses;
 CREATE POLICY "addresses_own_crud" ON addresses
   FOR ALL TO authenticated
   USING (customer_id = auth.uid())
   WITH CHECK (customer_id = auth.uid());
 
+DROP POLICY IF EXISTS "addresses_staff_read" ON addresses;
 CREATE POLICY "addresses_staff_read" ON addresses
-  FOR SELECT TO authenticated USING (public.current_role()::text = 'staff' OR public.current_role()::text = 'manager');
+  FOR SELECT TO authenticated
+  USING (public.current_role()::text = 'staff' OR public.current_role()::text = 'manager');
 
--- orders: customer reads own; staff/manager read all; customer inserts via RPC only (no direct INSERT policy)
+DROP POLICY IF EXISTS "orders_read_own" ON orders;
 CREATE POLICY "orders_read_own" ON orders
   FOR SELECT TO authenticated USING (customer_id = auth.uid());
 
+DROP POLICY IF EXISTS "orders_read_staff" ON orders;
 CREATE POLICY "orders_read_staff" ON orders
-  FOR SELECT TO authenticated USING (public.current_role()::text = 'staff' OR public.current_role()::text = 'manager');
+  FOR SELECT TO authenticated
+  USING (public.current_role()::text = 'staff' OR public.current_role()::text = 'manager');
 
+DROP POLICY IF EXISTS "orders_update_status_staff" ON orders;
 CREATE POLICY "orders_update_status_staff" ON orders
   FOR UPDATE TO authenticated
   USING (public.current_role()::text = 'staff' OR public.current_role()::text = 'manager')
   WITH CHECK (public.current_role()::text = 'staff' OR public.current_role()::text = 'manager');
 
--- order_items: follow orders ownership
+DROP POLICY IF EXISTS "order_items_read_own" ON order_items;
 CREATE POLICY "order_items_read_own" ON order_items
   FOR SELECT TO authenticated
   USING (EXISTS (SELECT 1 FROM orders o WHERE o.id = order_items.order_id AND o.customer_id = auth.uid()));
 
+DROP POLICY IF EXISTS "order_items_read_staff" ON order_items;
 CREATE POLICY "order_items_read_staff" ON order_items
-  FOR SELECT TO authenticated USING (public.current_role()::text = 'staff' OR public.current_role()::text = 'manager');
+  FOR SELECT TO authenticated
+  USING (public.current_role()::text = 'staff' OR public.current_role()::text = 'manager');
 
--- order_status_events: customer reads own order's events; staff/manager read all
+DROP POLICY IF EXISTS "order_events_read_own" ON order_status_events;
 CREATE POLICY "order_events_read_own" ON order_status_events
   FOR SELECT TO authenticated
   USING (EXISTS (SELECT 1 FROM orders o WHERE o.id = order_status_events.order_id AND o.customer_id = auth.uid()));
 
+DROP POLICY IF EXISTS "order_events_read_staff" ON order_status_events;
 CREATE POLICY "order_events_read_staff" ON order_status_events
-  FOR SELECT TO authenticated USING (public.current_role()::text = 'staff' OR public.current_role()::text = 'manager');
+  FOR SELECT TO authenticated
+  USING (public.current_role()::text = 'staff' OR public.current_role()::text = 'manager');
 
--- order_assignments: staff/manager read all; delivery reads own assignments
+DROP POLICY IF EXISTS "order_assignments_read_staff" ON order_assignments;
 CREATE POLICY "order_assignments_read_staff" ON order_assignments
-  FOR SELECT TO authenticated USING (public.current_role()::text = 'staff' OR public.current_role()::text = 'manager');
+  FOR SELECT TO authenticated
+  USING (public.current_role()::text = 'staff' OR public.current_role()::text = 'manager');
 
+DROP POLICY IF EXISTS "order_assignments_read_delivery" ON order_assignments;
 CREATE POLICY "order_assignments_read_delivery" ON order_assignments
   FOR SELECT TO authenticated
   USING (public.current_role() = 'delivery'::user_role AND delivery_user_id = auth.uid());
 
+DROP POLICY IF EXISTS "order_assignments_write_staff" ON order_assignments;
 CREATE POLICY "order_assignments_write_staff" ON order_assignments
   FOR ALL TO authenticated
   USING (public.current_role()::text = 'staff' OR public.current_role()::text = 'manager')
   WITH CHECK (public.current_role()::text = 'staff' OR public.current_role()::text = 'manager');
 
--- ============================================================
--- ORDER STATE MACHINE (read-only for all authenticated)
--- ============================================================
-
+DROP POLICY IF EXISTS "order_transitions_read" ON order_transitions;
 CREATE POLICY "order_transitions_read" ON order_transitions
   FOR SELECT TO authenticated USING (true);
 
 -- ============================================================
--- INVENTORY / BILLING
+-- INVENTORY & BILLING
 -- ============================================================
 
--- inventory_movements: insert via RPC only; staff/manager read
+DROP POLICY IF EXISTS "inventory_movements_read" ON inventory_movements;
 CREATE POLICY "inventory_movements_read" ON inventory_movements
-  FOR SELECT TO authenticated USING (public.current_role()::text = 'staff' OR public.current_role()::text = 'manager');
+  FOR SELECT TO authenticated
+  USING (public.current_role()::text = 'staff' OR public.current_role()::text = 'manager');
 
--- bill_counters: manager only (gapless numbering via RPC)
+DROP POLICY IF EXISTS "bill_counters_manager" ON bill_counters;
 CREATE POLICY "bill_counters_manager" ON bill_counters
   FOR ALL TO authenticated
   USING (public.current_role() = 'manager'::user_role)
   WITH CHECK (public.current_role() = 'manager'::user_role);
 
--- pos_sales: cashier (staff/manager) creates; staff/manager read
+DROP POLICY IF EXISTS "pos_sales_write_staff" ON pos_sales;
 CREATE POLICY "pos_sales_write_staff" ON pos_sales
   FOR INSERT TO authenticated
   WITH CHECK (public.current_role()::text = 'staff' OR public.current_role()::text = 'manager');
 
+DROP POLICY IF EXISTS "pos_sales_read_staff" ON pos_sales;
 CREATE POLICY "pos_sales_read_staff" ON pos_sales
-  FOR SELECT TO authenticated USING (public.current_role()::text = 'staff' OR public.current_role()::text = 'manager');
+  FOR SELECT TO authenticated
+  USING (public.current_role()::text = 'staff' OR public.current_role()::text = 'manager');
 
--- bills: customer reads own (via order_id); staff/manager read all
+DROP POLICY IF EXISTS "bills_read_own" ON bills;
 CREATE POLICY "bills_read_own" ON bills
   FOR SELECT TO authenticated
   USING (
-    (source = 'ORDER' AND EXISTS (
-      SELECT 1 FROM orders o WHERE o.id = bills.order_id AND o.customer_id = auth.uid()
-    )) OR
-    public.current_role()::text = 'staff' OR public.current_role()::text = 'manager'
+    (source = 'ORDER' AND EXISTS (SELECT 1 FROM orders o WHERE o.id = bills.order_id AND o.customer_id = auth.uid()))
+    OR public.current_role()::text = 'staff' OR public.current_role()::text = 'manager'
   );
 
+DROP POLICY IF EXISTS "bills_write_staff" ON bills;
 CREATE POLICY "bills_write_staff" ON bills
   FOR ALL TO authenticated
   USING (public.current_role()::text = 'staff' OR public.current_role()::text = 'manager')
   WITH CHECK (public.current_role()::text = 'staff' OR public.current_role()::text = 'manager');
 
--- bill_items: follow bills
+DROP POLICY IF EXISTS "bill_items_read_own" ON bill_items;
 CREATE POLICY "bill_items_read_own" ON bill_items
   FOR SELECT TO authenticated
-  USING (EXISTS (
-    SELECT 1 FROM bills b
-    WHERE b.id = bill_items.bill_id
-      AND ((b.source = 'ORDER' AND EXISTS (
-        SELECT 1 FROM orders o WHERE o.id = b.order_id AND o.customer_id = auth.uid()
-      )) OR public.current_role()::text = 'staff' OR public.current_role()::text = 'manager')
-  ));
+  USING (
+    EXISTS (
+      SELECT 1 FROM bills b
+      WHERE b.id = bill_items.bill_id
+        AND (
+          (b.source = 'ORDER' AND EXISTS (SELECT 1 FROM orders o WHERE o.id = b.order_id AND o.customer_id = auth.uid()))
+          OR public.current_role()::text = 'staff' OR public.current_role()::text = 'manager'
+        )
+    )
+  );
 
+DROP POLICY IF EXISTS "bill_items_write_staff" ON bill_items;
 CREATE POLICY "bill_items_write_staff" ON bill_items
   FOR ALL TO authenticated
   USING (public.current_role()::text = 'staff' OR public.current_role()::text = 'manager')
   WITH CHECK (public.current_role()::text = 'staff' OR public.current_role()::text = 'manager');
 
 -- ============================================================
--- PAYMENTS (gated)
+-- PAYMENTS / IDEMPOTENCY / AUDIT / NOTIFICATION
 -- ============================================================
 
+DROP POLICY IF EXISTS "payments_read_own" ON payments;
 CREATE POLICY "payments_read_own" ON payments
   FOR SELECT TO authenticated
-  USING (EXISTS (
-    SELECT 1 FROM orders o WHERE o.id = payments.order_id AND o.customer_id = auth.uid()
-  ));
+  USING (EXISTS (SELECT 1 FROM orders o WHERE o.id = payments.order_id AND o.customer_id = auth.uid()));
 
+DROP POLICY IF EXISTS "payments_read_staff" ON payments;
 CREATE POLICY "payments_read_staff" ON payments
-  FOR SELECT TO authenticated USING (public.current_role()::text = 'staff' OR public.current_role()::text = 'manager');
+  FOR SELECT TO authenticated
+  USING (public.current_role()::text = 'staff' OR public.current_role()::text = 'manager');
 
--- payment_events: internal only (webhook processor); no direct client access
+DROP POLICY IF EXISTS "payment_events_none" ON payment_events;
 CREATE POLICY "payment_events_none" ON payment_events
   FOR ALL TO authenticated USING (false);
 
--- ============================================================
--- CROSS-CUTTING
--- ============================================================
-
--- idempotency_keys: user sees only own keys (INSERT via RPC on conflict)
+DROP POLICY IF EXISTS "idempotency_own" ON idempotency_keys;
 CREATE POLICY "idempotency_own" ON idempotency_keys
   FOR ALL TO authenticated
   USING (user_id = auth.uid())
   WITH CHECK (user_id = auth.uid());
 
--- audit_logs: manager reads all; insert via triggers only (no direct client writes)
+DROP POLICY IF EXISTS "audit_logs_read_manager" ON audit_logs;
 CREATE POLICY "audit_logs_read_manager" ON audit_logs
-  FOR SELECT TO authenticated USING (public.current_role() = 'manager'::user_role);
+  FOR SELECT TO authenticated
+  USING (public.current_role() = 'manager'::user_role);
 
--- notification_outbox: internal; no direct client access
+DROP POLICY IF EXISTS "notification_outbox_none" ON notification_outbox;
 CREATE POLICY "notification_outbox_none" ON notification_outbox
   FOR ALL TO authenticated USING (false);
 
--- ============================================================
--- CATALOGUE READ VIEWS (for anon + authenticated customers)
--- These are SECURITY INVOKER so they respect the caller's RLS on products/categories.
--- ============================================================
-
-CREATE OR REPLACE VIEW public.catalog_categories
-WITH (security_invoker = true) AS
-SELECT id, name, slug, sort_order
-FROM categories
-WHERE active = true
-ORDER BY sort_order;
-
-CREATE OR REPLACE VIEW public.catalog_products
-WITH (security_invoker = true) AS
-SELECT
-  id, sku, name, description, category_id, image_path,
-  quantity_type, price_paise, price_basis_qty,
-  unit_label, pack_size_label, step_qty, min_qty, max_qty,
-  stock_qty, low_stock_threshold
-FROM products
-WHERE active = true AND available = true;
-
-GRANT SELECT ON public.catalog_categories TO anon, authenticated;
-GRANT SELECT ON public.catalog_products TO anon, authenticated;
-
--- Note: anon has no direct table access; only these views. RLS on tables is enabled but
--- anon role is not in any policy USING clause, so it gets nothing from tables directly.
 
 
 

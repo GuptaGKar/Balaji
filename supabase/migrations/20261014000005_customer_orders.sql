@@ -1,7 +1,7 @@
 -- M1: customer addresses, orders, order items, status events, assignments,
 --     and the order state machine (IMPLEMENTATION_PLAN.md §4.2, §4.3)
 
-CREATE TABLE addresses (
+CREATE TABLE IF NOT EXISTS addresses (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   customer_id uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   label text NOT NULL DEFAULT '',
@@ -18,14 +18,9 @@ CREATE TABLE addresses (
   is_default boolean NOT NULL DEFAULT false
 );
 
-CREATE INDEX idx_addresses_customer ON addresses(customer_id);
+CREATE INDEX IF NOT EXISTS idx_addresses_customer ON addresses(customer_id);
 
--- Orders: address is snapshotted as JSONB at placement; money in integer paise.
--- fee_breakdown stores the threshold/fee values actually used, so historical
--- orders remain explainable after settings change (plan §4.4).
--- idempotency_key is the client-supplied key; the authoritative dedupe table is
--- idempotency_keys (M4 place_order inserts there first).
-CREATE TABLE orders (
+CREATE TABLE IF NOT EXISTS orders (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   public_order_number text NOT NULL UNIQUE,
   customer_id uuid NOT NULL REFERENCES profiles(id),
@@ -48,14 +43,11 @@ CREATE TABLE orders (
   delivered_at timestamptz
 );
 
-CREATE INDEX idx_orders_customer_created ON orders(customer_id, created_at DESC);
-CREATE INDEX idx_orders_status ON orders(status);
-CREATE INDEX idx_orders_idempotency ON orders(idempotency_key) WHERE idempotency_key IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_orders_customer_created ON orders(customer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_idempotency ON orders(idempotency_key) WHERE idempotency_key IS NOT NULL;
 
--- Order items carry immutable name/SKU/unit/price snapshots (plan §4.2):
--- later catalogue edits must never change a historical receipt.
--- qty_base is in base units (grams for WEIGHTED, packs for PACKED); positive.
-CREATE TABLE order_items (
+CREATE TABLE IF NOT EXISTS order_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id uuid NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   product_id uuid REFERENCES products(id) ON DELETE SET NULL,
@@ -71,10 +63,9 @@ CREATE TABLE order_items (
   removed_reason text
 );
 
-CREATE INDEX idx_order_items_order ON order_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
 
--- Append-only status timeline. Every transition writes one row (plan §4.3).
-CREATE TABLE order_status_events (
+CREATE TABLE IF NOT EXISTS order_status_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id uuid NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   from_status order_status,
@@ -84,10 +75,9 @@ CREATE TABLE order_status_events (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_order_status_events_order ON order_status_events(order_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_order_status_events_order ON order_status_events(order_id, created_at DESC);
 
--- Delivery assignment history; active assignment = unassigned_at IS NULL.
-CREATE TABLE order_assignments (
+CREATE TABLE IF NOT EXISTS order_assignments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id uuid NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   delivery_user_id uuid NOT NULL REFERENCES profiles(id),
@@ -96,15 +86,11 @@ CREATE TABLE order_assignments (
   unassigned_at timestamptz
 );
 
-CREATE INDEX idx_order_assignments_order ON order_assignments(order_id);
-CREATE INDEX idx_order_assignments_active
+CREATE INDEX IF NOT EXISTS idx_order_assignments_order ON order_assignments(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_assignments_active
   ON order_assignments(delivery_user_id) WHERE unassigned_at IS NULL;
 
--- Order state machine (plan §4.3). transition_order() (M4) enforces this table
--- and writes order_status_events. Roles: staff/manager run all non-rider
--- transitions; delivery runs only the two highlighted transitions, and only on
--- orders assigned to them (checked in the RPC).
-CREATE TABLE order_transitions (
+CREATE TABLE IF NOT EXISTS order_transitions (
   from_status order_status NOT NULL,
   to_status order_status NOT NULL,
   allowed_roles user_role[] NOT NULL,
@@ -122,7 +108,5 @@ INSERT INTO order_transitions (from_status, to_status, allowed_roles) VALUES
   ('ready_for_dispatch','out_for_delivery',   ARRAY['staff', 'manager', 'delivery']::user_role[]),
   ('ready_for_dispatch','cancelled',          ARRAY['staff', 'manager']::user_role[]),
   ('out_for_delivery',  'delivered',          ARRAY['staff', 'manager', 'delivery']::user_role[]),
-  ('out_for_delivery',  'delivery_failed',    ARRAY['staff', 'manager', 'delivery']::user_role[]);
-
--- 'delivery_failed' is terminal in M1. Retry/resolve behaviour is an open owner
--- decision (not specified in the plan) and is logged in docs/DECISIONS.md.
+  ('out_for_delivery',  'delivery_failed',    ARRAY['staff', 'manager', 'delivery']::user_role[])
+ON CONFLICT (from_status, to_status) DO NOTHING;

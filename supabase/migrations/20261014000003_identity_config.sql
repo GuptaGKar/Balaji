@@ -1,8 +1,6 @@
 -- M1: identity and configuration tables (IMPLEMENTATION_PLAN.md §4.2)
 
--- profiles extends auth.users. Role and is_active change only via manager RPC (M2/M7).
--- login_id: unique staff/rider user ID (riders log in with it; M7 provisioning).
-CREATE TABLE profiles (
+CREATE TABLE IF NOT EXISTS profiles (
   id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   role user_role NOT NULL DEFAULT 'customer',
   display_name text,
@@ -14,16 +12,14 @@ CREATE TABLE profiles (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_profiles_role ON profiles(role);
-CREATE INDEX idx_profiles_login_id ON profiles(login_id);
+CREATE INDEX IF NOT EXISTS idx_profiles_role ON profiles(role);
+CREATE INDEX IF NOT EXISTS idx_profiles_login_id ON profiles(login_id);
 
+DROP TRIGGER IF EXISTS trg_profiles_updated_at ON profiles;
 CREATE TRIGGER trg_profiles_updated_at BEFORE UPDATE ON profiles
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
--- store_settings: singleton row (id is always true). All threshold/fee values live
--- here and are manager-editable; nothing is hard-coded in clients (plan §4.2, §4.4).
--- CHECKs keep the threshold/fee relationships valid at all times.
-CREATE TABLE store_settings (
+CREATE TABLE IF NOT EXISTS store_settings (
   id boolean PRIMARY KEY DEFAULT true CHECK (id),
   store_open boolean NOT NULL DEFAULT true,
   timezone text NOT NULL DEFAULT 'Asia/Kolkata',
@@ -44,9 +40,7 @@ CREATE TABLE store_settings (
   pos_price_override_enabled boolean NOT NULL DEFAULT false
 );
 
--- Serviceable PIN codes / neighbourhoods. Checkout validates against the active
--- set server-side (plan §4.2). Unique per kind, case-insensitive.
-CREATE TABLE service_areas (
+CREATE TABLE IF NOT EXISTS service_areas (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   kind service_area_kind NOT NULL,
   value text NOT NULL,
@@ -54,6 +48,6 @@ CREATE TABLE service_areas (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX idx_service_areas_kind_value_lower
+CREATE UNIQUE INDEX IF NOT EXISTS idx_service_areas_kind_value_lower
   ON service_areas (kind, lower(value));
-CREATE INDEX idx_service_areas_active ON service_areas(active);
+CREATE INDEX IF NOT EXISTS idx_service_areas_active ON service_areas(active);
