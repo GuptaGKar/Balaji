@@ -45,7 +45,7 @@ export default function Dashboard() {
         // Fetch stats
         const [productsRes, ordersRes] = await Promise.all([
           supabase
-            .from("products")
+            .from("catalog_products")
             .select("id, stock_qty, low_stock_threshold, active", { count: "exact" }),
           supabase
             .from("orders")

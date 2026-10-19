@@ -28,7 +28,7 @@ export default function CategoriesTab() {
   const fetchCategories = async () => {
     const supabase = createClient();
     const { data, error } = await supabase
-      .from("categories")
+      .from("catalog_categories")
       .select("*")
       .order("sort_order", { ascending: true });
     if (error) {
@@ -47,11 +47,11 @@ export default function CategoriesTab() {
     const supabase = createClient();
     try {
       if (editingId) {
-        const { error } = await supabase.from("categories").update(data).eq("id", editingId);
+        const { error } = await supabase.from("catalog_categories").update(data).eq("id", editingId);
         if (error) throw error;
         toast.success("Category updated");
       } else {
-        const { error } = await supabase.from("categories").insert(data);
+        const { error } = await supabase.from("catalog_categories").insert(data);
         if (error) throw error;
         toast.success("Category created");
       }
@@ -67,7 +67,7 @@ export default function CategoriesTab() {
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this category? Products in it will need to be reassigned.")) return;
     const supabase = createClient();
-    const { error } = await supabase.from("categories").delete().eq("id", id);
+    const { error } = await supabase.from("catalog_categories").delete().eq("id", id);
     if (error) {
       toast.error("Failed to delete");
       return;

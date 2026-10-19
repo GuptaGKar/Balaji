@@ -7,27 +7,28 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { cn } from "@/lib/utils";
 import { formatRupees, parseRupees } from "@/lib/money";
-import { Save, Loader2, RotateCcw } from "lucide-react";
+import { Save, Loader2, RotateCcw, Clock, Store } from "lucide-react";
 import { Toaster, toast } from "sonner";
 
 const defaultSettings: StoreSettings = {
   store_open: true,
   timezone: "Asia/Kolkata",
   weekly_hours: {
-    mon: ["08:00", "22:00"],
-    tue: ["08:00", "22:00"],
-    wed: ["08:00", "22:00"],
-    thu: ["08:00", "22:00"],
-    fri: ["08:00", "22:00"],
-    sat: ["08:00", "22:00"],
-    sun: ["08:00", "22:00"],
+    operating_hours: ["08:00 AM", "10:00 PM"],
+    mon: ["08:00 AM", "10:00 PM"],
+    tue: ["08:00 AM", "10:00 PM"],
+    wed: ["08:00 AM", "10:00 PM"],
+    thu: ["08:00 AM", "10:00 PM"],
+    fri: ["08:00 AM", "10:00 PM"],
+    sat: ["08:00 AM", "10:00 PM"],
+    sun: ["08:00 AM", "10:00 PM"],
   },
   contact_phone: "9837803293",
   estimated_window_text:
     "Same-day delivery; the exact window is confirmed when the store accepts the order.",
-  delivery_fee_paise: 0,
-  delivery_charge_threshold_paise: 0,
-  free_delivery_threshold_paise: null,
+  delivery_fee_paise: 3000,
+  delivery_charge_threshold_paise: 25000,
+  free_delivery_threshold_paise: 25000,
   mid_tier_fee_paise: null,
   max_order_paise: null,
   cancellation_policy_text: "Cancellation is allowed until the store accepts the order.",
@@ -40,6 +41,8 @@ const defaultSettings: StoreSettings = {
 export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [openTime, setOpenTime] = useState("08:00 AM");
+  const [closeTime, setCloseTime] = useState("10:00 PM");
 
   const form = useForm<StoreSettings>({
     resolver: zodResolver(storeSettingsSchema),
@@ -48,10 +51,6 @@ export default function SettingsPage() {
 
   const watchedT1 = form.watch("delivery_charge_threshold_paise");
   const watchedF1 = form.watch("delivery_fee_paise");
-  const watchedT2 = form.watch("free_delivery_threshold_paise");
-  const watchedF2 = form.watch("mid_tier_fee_paise");
-
-  const feeRuleNote = computeFeeRule(watchedT1, watchedF1, watchedT2, watchedF2);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -65,6 +64,8 @@ export default function SettingsPage() {
           mid_tier_fee_paise: data.mid_tier_fee_paise ?? null,
           max_order_paise: data.max_order_paise ?? null,
         });
+        if (data.weekly_hours?.operating_hours?.[0]) setOpenTime(data.weekly_hours.operating_hours[0]);
+        if (data.weekly_hours?.operating_hours?.[1]) setCloseTime(data.weekly_hours.operating_hours[1]);
       }
       setLoading(false);
     };
@@ -75,11 +76,22 @@ export default function SettingsPage() {
     setSaving(true);
     try {
       const supabase = createClient();
-      const { error } = await supabase.from("store_settings").upsert(data);
+      const updatedWeeklyHours = {
+        ...(typeof data.weekly_hours === "object" ? data.weekly_hours : defaultSettings.weekly_hours),
+        operating_hours: [openTime, closeTime],
+      };
+
+      const payload = {
+        ...data,
+        store_open: String(data.store_open) === "true" || data.store_open === true,
+        weekly_hours: updatedWeeklyHours,
+      };
+
+      const { error } = await supabase.from("store_settings").upsert(payload);
       if (error) throw error;
-      toast.success("Settings saved");
+      toast.success("Store settings updated! App & Web synchronized.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save");
+      toast.error(err instanceof Error ? err.message : "Failed to save settings");
     } finally {
       setSaving(false);
     }
@@ -88,64 +100,77 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
       </div>
     );
   }
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-4xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Store Settings</h1>
-        <p className="text-gray-500">Configure store operations, delivery fees, and thresholds</p>
+        <h1 className="text-2xl font-bold text-slate-900">Store Settings & Operations</h1>
+        <p className="text-slate-500">Configure live store status, operating hours, and delivery fee thresholds</p>
       </div>
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         {/* Store Basics */}
-        <Section title="Store Basics" description="Basic store information and operating hours">
+        <Section title="Store Status & Operating Hours" description="Control live store availability and customer timing display">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Store Open</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">Live Store Availability</label>
               <select
                 {...form.register("store_open")}
-                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-semibold focus:ring-2 focus:ring-emerald-500"
               >
-                <option value="true">Open</option>
-                <option value="false">Closed (Pause)</option>
+                <option value="true">🟢 Store Open (Accepting Orders)</option>
+                <option value="false">🔴 Store Closed (Pause Deliveries)</option>
               </select>
             </div>
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Timezone</label>
-              <input
-                {...form.register("timezone")}
-                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Contact Phone</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">Contact Support Phone</label>
               <input
                 {...form.register("contact_phone")}
-                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-emerald-500"
               />
             </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">Store Opening Time</label>
+              <div className="relative">
+                <Clock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={openTime}
+                  onChange={(e) => setOpenTime(e.target.value)}
+                  placeholder="e.g. 08:00 AM"
+                  className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">Store Closing Time</label>
+              <div className="relative">
+                <Clock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={closeTime}
+                  onChange={(e) => setCloseTime(e.target.value)}
+                  placeholder="e.g. 10:00 PM"
+                  className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+            </div>
+
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Estimated Delivery Window Text
+              <label className="block text-sm font-semibold text-slate-700 mb-1">
+                Estimated Delivery Window Notice
               </label>
               <textarea
                 {...form.register("estimated_window_text")}
                 rows={2}
-                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Weekly Hours (JSON)
-              </label>
-              <textarea
-                {...form.register("weekly_hours")}
-                rows={4}
-                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500 font-mono text-sm"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm focus:ring-2 focus:ring-emerald-500"
               />
             </div>
           </div>
@@ -154,187 +179,56 @@ export default function SettingsPage() {
         {/* Delivery Fee Configuration */}
         <Section
           title="Delivery Fee Configuration"
-          description="Set thresholds and fees. Changes take effect immediately."
+          description="Set thresholds and delivery charges for customer orders"
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Delivery Fee Below Threshold (F1) *
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">₹</span>
-                <input
-                  {...form.register("delivery_fee_paise", { valueAsNumber: true })}
-                  type="number"
-                  min="0"
-                  step="1"
-                  className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <p className="mt-1 text-xs text-gray-500">
-                Fee charged when order subtotal is below delivery-charge threshold
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Delivery-Charge Threshold (T1) *
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">₹</span>
-                <input
-                  {...form.register("delivery_charge_threshold_paise", { valueAsNumber: true })}
-                  type="number"
-                  min="0"
-                  step="1"
-                  className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <p className="mt-1 text-xs text-gray-500">
-                Orders below this subtotal pay F1; at/above this get free delivery (if T2 not set)
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Free-Delivery Threshold (T2) — Optional
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">₹</span>
-                <input
-                  {...form.register("free_delivery_threshold_paise", { valueAsNumber: true })}
-                  type="number"
-                  min="0"
-                  step="1"
-                  className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Optional"
-                />
-              </div>
-              <p className="mt-1 text-xs text-gray-500">
-                If set, F1 applies below T2; free at/above T2. T1 becomes inert.
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Mid-Tier Fee (F2) — Optional
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">₹</span>
-                <input
-                  {...form.register("mid_tier_fee_paise", { valueAsNumber: true })}
-                  type="number"
-                  min="0"
-                  step="1"
-                  className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Optional"
-                />
-              </div>
-              <p className="mt-1 text-xs text-gray-500">
-                Fee between T1 and T2 (requires T2). If T2 set but F2 empty, F1 applies.
-              </p>
-            </div>
-          </div>
-
-          {/* Live Preview */}
-          <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <h4 className="font-medium text-gray-900 mb-2">Live Fee Rule Preview</h4>
-            <div className="text-sm text-gray-700 whitespace-pre-wrap font-mono">{feeRuleNote}</div>
-          </div>
-        </Section>
-
-        {/* Advanced Settings */}
-        <Section title="Advanced Settings" description="Additional store configuration">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Max Order Value (Optional)
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">₹</span>
-                <input
-                  {...form.register("max_order_paise", { valueAsNumber: true })}
-                  type="number"
-                  min="0"
-                  step="1"
-                  className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
-                  placeholder="No limit"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Cancellation Policy Text
-              </label>
-              <textarea
-                {...form.register("cancellation_policy_text")}
-                rows={2}
-                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tax Mode</label>
-              <select
-                {...form.register("tax_mode")}
-                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="none">None</option>
-                <option value="inclusive">Inclusive (GST included in prices)</option>
-                <option value="exclusive">Exclusive (GST added on top)</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tax Rate (basis points)
+              <label className="block text-sm font-semibold text-slate-700 mb-1">
+                Delivery Charge Below Threshold (₹)
               </label>
               <input
-                {...form.register("tax_rate_bps", { valueAsNumber: true })}
                 type="number"
-                min="0"
-                max="10000"
-                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
-                placeholder="e.g., 1800 for 18%"
+                {...form.register("delivery_fee_paise", { valueAsNumber: true })}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-emerald-500"
               />
+              <span className="text-xs text-slate-500 mt-1 block">Value in paise (e.g. 3000 = ₹30)</span>
             </div>
-            <div className="md:col-span-2 flex items-center gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  {...form.register("online_payment_enabled")}
-                  type="checkbox"
-                  className="h-4 w-4 text-indigo-600 rounded border-gray-300"
-                />
-                <span className="text-sm text-gray-700">Enable Online Payments</span>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">
+                Free Delivery Threshold (₹)
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  {...form.register("pos_price_override_enabled")}
-                  type="checkbox"
-                  className="h-4 w-4 text-indigo-600 rounded border-gray-300"
-                />
-                <span className="text-sm text-gray-700">
-                  Enable POS Price Override (Manager only)
-                </span>
-              </label>
+              <input
+                type="number"
+                {...form.register("delivery_charge_threshold_paise", { valueAsNumber: true })}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-emerald-500"
+              />
+              <span className="text-xs text-slate-500 mt-1 block">Value in paise (e.g. 25000 = ₹250)</span>
             </div>
           </div>
         </Section>
 
-        <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+        {/* Form Actions */}
+        <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
           <button
-            type="button"
-            onClick={() => form.reset(defaultSettings)}
-            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 flex items-center gap-2"
+            type="submit"
+            disabled={saving}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-500 shadow-md shadow-emerald-600/20 disabled:opacity-50"
           >
-            <RotateCcw className="h-4 w-4" /> Reset to Defaults
-          </button>
-          <button type="submit" disabled={saving} className="btn-primary flex items-center gap-2">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {saving ? "Saving..." : "Save Settings"}
+            {saving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4" />
+                Save Store Settings
+              </>
+            )}
           </button>
         </div>
       </form>
-
-      <Toaster position="top-right" />
     </div>
   );
 }
@@ -349,39 +243,12 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
-      <div className="mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-        <p className="text-sm text-gray-500">{description}</p>
+    <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4 shadow-sm">
+      <div>
+        <h2 className="text-lg font-bold text-slate-900">{title}</h2>
+        <p className="text-xs text-slate-500">{description}</p>
       </div>
       {children}
     </div>
   );
-}
-
-function computeFeeRule(T1: number, F1: number, T2: number | null, F2: number | null): string {
-  const fmt = (p: number | null) => (p ? formatRupees(p) : "—");
-  const lines = [
-    `F1 (Delivery fee) = ${fmt(F1)}`,
-    `T1 (Delivery-charge threshold) = ${fmt(T1)}`,
-    `T2 (Free-delivery threshold) = ${fmt(T2)}`,
-    `F2 (Mid-tier fee) = ${fmt(F2)}`,
-    "",
-    "Fee calculation:",
-  ];
-
-  if (T2 === null) {
-    lines.push(`  eligible < ${fmt(T1)}  →  ${fmt(F1)}`);
-    lines.push(`  eligible ≥ ${fmt(T1)}  →  FREE`);
-  } else {
-    if (F2 === null) {
-      lines.push(`  eligible < ${fmt(T2)}  →  ${fmt(F1)}`);
-      lines.push(`  eligible ≥ ${fmt(T2)}  →  FREE`);
-    } else {
-      lines.push(`  eligible < ${fmt(T1)}  →  ${fmt(F1)}`);
-      lines.push(`  ${fmt(T1)} ≤ eligible < ${fmt(T2)}  →  ${fmt(F2)}`);
-      lines.push(`  eligible ≥ ${fmt(T2)}  →  FREE`);
-    }
-  }
-  return lines.join("\n");
 }

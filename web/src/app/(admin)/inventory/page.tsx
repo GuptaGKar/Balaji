@@ -76,7 +76,7 @@ export default function InventoryPage() {
 
   const fetchProducts = async () => {
     const { data, error } = await supabase
-      .from("products")
+      .from("catalog_products")
       .select("*")
       .eq("active", true)
       .order("name");
