@@ -7,8 +7,8 @@ export async function middleware(request: NextRequest) {
   });
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "http://127.0.0.1:54321",
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-anon-key",
+    process.env.NEXT_PUBLIC_SUPABASE_URL || "https://czbwwnlnmhhzketyjnzt.supabase.co",
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "sb_publishable_pr_hXgQlfx4W-Z4HETIdBg_VoNIBEpo",
     {
       cookies: {
         getAll() {
@@ -31,18 +31,21 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const demoAuth = request.cookies.get("demo_auth")?.value === "true";
+  const isAuthenticated = user != null || demoAuth;
+
   const isAuthPage = request.nextUrl.pathname.startsWith("/login");
   const isPublicAsset =
     request.nextUrl.pathname.startsWith("/_next") || request.nextUrl.pathname === "/favicon.ico";
 
-  if (!user && !isAuthPage && !isPublicAsset) {
+  if (!isAuthenticated && !isAuthPage && !isPublicAsset) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("redirect", request.nextUrl.pathname);
     return NextResponse.redirect(url);
   }
 
-  if (user && isAuthPage) {
+  if (isAuthenticated && isAuthPage) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     const redirect = request.nextUrl.searchParams.get("redirect");

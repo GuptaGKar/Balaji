@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const quantityTypeEnum = z.enum(["WEIGHTED", "PACKED"]);
+export const quantityTypeEnum = z.enum(["weighted", "packed", "WEIGHTED", "PACKED"]);
 export type QuantityType = z.infer<typeof quantityTypeEnum>;
 
 export const userRoleEnum = z.enum(["customer", "staff", "manager", "delivery"]);

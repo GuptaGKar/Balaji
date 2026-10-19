@@ -75,22 +75,29 @@ export default function ProductsTab() {
   const onSubmit = async (data: Product) => {
     const supabase = createClient();
     try {
-      const payload = { ...data, max_qty: data.max_qty || null };
+      const generatedSku = data.sku.trim() || `SKU-${Math.floor(100000 + Math.random() * 900000)}`;
+      const payload = {
+        ...data,
+        sku: generatedSku,
+        quantity_type: data.quantity_type.toLowerCase(),
+        max_qty: data.max_qty || null,
+      };
+
       if (editingId) {
         const { error } = await supabase.from("catalog_products").update(payload).eq("id", editingId);
         if (error) throw error;
-        toast.success("Product updated");
+        toast.success("Product updated successfully!");
       } else {
         const { error } = await supabase.from("catalog_products").insert(payload);
         if (error) throw error;
-        toast.success("Product created");
+        toast.success("Product created successfully!");
       }
       setEditingId(null);
       setCreating(false);
       form.reset();
       fetchData();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Operation failed");
+      toast.error(err instanceof Error ? err.message : "Operation failed. Check required fields.");
     }
   };
 
