@@ -190,7 +190,7 @@ fun CartScreen(
                     }
                 }
                 
-                // Scrollable Item List + Order Summary at the end
+                // Scrollable Item List + Order Summary
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
@@ -250,7 +250,9 @@ fun CartItemCard(
     onQuantityChange: (Long) -> Unit,
     onRemove: () -> Unit
 ) {
-    val isWeighted = product?.quantityType == QuantityType.WEIGHTED
+    val isWeighted = product?.quantityType == QuantityType.WEIGHTED ||
+                     (lineInfo?.displayQty?.contains("g") == true || lineInfo?.displayQty?.contains("kg") == true) ||
+                     item.qtyBase >= 100
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -273,7 +275,7 @@ fun CartItemCard(
                         .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("🛍️", fontSize = 24.sp)
+                    Text(if (isWeighted) "⚖️" else "🛍️", fontSize = 24.sp)
                 }
                 
                 Column(
@@ -287,12 +289,12 @@ fun CartItemCard(
                         maxLines = 2
                     )
                     Text(
-                        "Unit Rate: ${lineInfo?.let { formatPaise(it.unitPricePaise) } ?: "-"}",
+                        "Unit Rate: ${lineInfo?.let { formatPaise(it.unitPricePaise) } ?: (product?.let { formatPaise(it.pricePaise) } ?: "-")}",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp
                     )
                     Text(
-                        lineInfo?.let { formatPaise(it.lineTotalPaise) } ?: "-",
+                        lineInfo?.let { formatPaise(it.lineTotalPaise) } ?: (product?.let { formatPaise(it.pricePaise) } ?: "-"),
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 16.sp,
                         color = MaterialTheme.colorScheme.primary
@@ -316,22 +318,45 @@ fun CartItemCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "Selected Qty: ${lineInfo?.displayQty ?: "${item.qtyBase}"}",
+                    "Selected: ${lineInfo?.displayQty ?: if (isWeighted) "${item.qtyBase} g" else "${item.qtyBase} packs"}",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
                 
-                if (isWeighted && product != null) {
+                if (isWeighted) {
+                    // Custom Weight Adjustment Button (NO +/- buttons)
+                    val targetProd = product ?: Product(
+                        id = item.productId,
+                        sku = "WEIGHTED",
+                        name = lineInfo?.name ?: "Weighted Item",
+                        description = null,
+                        categoryId = "",
+                        imagePath = null,
+                        quantityType = QuantityType.WEIGHTED,
+                        pricePaise = lineInfo?.unitPricePaise ?: 6000,
+                        priceBasisQty = 1000,
+                        unitLabel = "kg",
+                        packSizeLabel = null,
+                        stepQty = 10,
+                        minQty = 100,
+                        maxQty = null,
+                        stockQty = 50000,
+                        lowStockThreshold = 5000,
+                        active = true,
+                        available = true
+                    )
+                    
                     OutlinedButton(
-                        onClick = { onEditWeight(product) },
+                        onClick = { onEditWeight(targetProd) },
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Icon(Icons.Default.Scale, contentDescription = null, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.size(4.dp))
-                        Text("Change Weight", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("Set Weight (g / kg)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 } else {
+                    // + / - Stepper for Packed Items
                     Surface(
                         shape = RoundedCornerShape(8.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant
@@ -378,38 +403,62 @@ fun OrderSummaryCard(
     Surface(
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 4.dp,
-        shape = RoundedCornerShape(20.dp)
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Order Summary", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("Order Summary", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Divider(color = MaterialTheme.colorScheme.outlineVariant)
             
-            SummaryRow("Items Subtotal", formatPaise(quote.itemSubtotalPaise))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Item Subtotal", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(formatPaise(quote.itemSubtotalPaise), fontWeight = FontWeight.Medium)
+            }
             
-            SummaryRow(
-                "Delivery Fee",
-                if (quote.deliveryFeePaise == 0L) "FREE" else formatPaise(quote.deliveryFeePaise),
-                isHighlight = quote.deliveryFeePaise == 0L
-            )
-            
-            if (quote.taxPaise > 0) {
-                SummaryRow("Taxes", formatPaise(quote.taxPaise))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Delivery Charge", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    if (quote.deliveryFeePaise == 0L) "FREE" else formatPaise(quote.deliveryFeePaise),
+                    fontWeight = FontWeight.Bold,
+                    color = if (quote.deliveryFeePaise == 0L) Color(0xFF16A34A) else MaterialTheme.colorScheme.onSurface
+                )
             }
             
             Divider(color = MaterialTheme.colorScheme.outlineVariant)
             
-            SummaryRow("Grand Total", formatPaise(quote.grandTotalPaise), isTotal = true)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Grand Total", fontWeight = FontWeight.Bold)
+                    Text("Cash on Delivery (COD)", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Text(
+                    formatPaise(quote.grandTotalPaise),
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 20.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
             
-            Spacer(Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             
             Button(
                 onClick = onCheckoutClick,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp),
+                    .height(48.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary
@@ -418,28 +467,5 @@ fun OrderSummaryCard(
                 Text("Proceed to Checkout", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
         }
-    }
-}
-
-@Composable
-fun SummaryRow(label: String, value: String, isTotal: Boolean = false, isHighlight: Boolean = false) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 2.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            label,
-            fontSize = if (isTotal) 16.sp else 14.sp,
-            fontWeight = if (isTotal) FontWeight.Bold else FontWeight.Normal,
-            color = if (isTotal) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            value,
-            fontSize = if (isTotal) 16.sp else 14.sp,
-            fontWeight = if (isTotal || isHighlight) FontWeight.Bold else FontWeight.Normal,
-            color = if (isHighlight) Color(0xFF15803D) else if (isTotal) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-        )
     }
 }
