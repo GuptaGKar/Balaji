@@ -104,6 +104,7 @@ fun AppNavHost(navController: NavHostController) {
         }
         composable("checkout") {
             CheckoutScreen(
+                onNavigateBack = { navController.popBackStack() },
                 onOrderPlaced = { navigateToTab(navController, "orders") }
             )
         }

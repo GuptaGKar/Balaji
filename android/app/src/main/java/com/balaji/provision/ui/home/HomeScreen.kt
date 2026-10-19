@@ -1,5 +1,7 @@
 package com.balaji.provision.ui.home
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -38,8 +40,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -50,7 +52,13 @@ fun HomeScreen(
     onNavigateToOrders: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
+    val context = LocalContext.current
     
+    val dialStorePhone = {
+        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:9837803293"))
+        context.startActivity(intent)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -213,7 +221,7 @@ fun HomeScreen(
                     title = "Store Support",
                     subtitle = "Call 9837803293",
                     icon = Icons.Default.Call,
-                    onClick = {}
+                    onClick = dialStorePhone
                 )
             }
         }
@@ -234,7 +242,7 @@ fun HomeScreen(
             ) {
                 Text("Store Information", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Spacer(Modifier.height(2.dp))
-                InfoRow("Contact Phone", "9837803293")
+                InfoRow("Contact Phone", "9837803293", onClick = dialStorePhone)
                 InfoRow("Store Hours", "8:00 AM - 10:00 PM (Mon-Sun)")
                 InfoRow("Minimum Order", "None (Free delivery above ₹250)")
                 InfoRow("Payment Option", "Cash on Delivery (COD)")
@@ -319,14 +327,20 @@ fun RowScope.QuickActionCard(
 }
 
 @Composable
-fun InfoRow(label: String, value: String) {
+fun InfoRow(label: String, value: String, onClick: (() -> Unit)? = null) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
-        Text(value, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+        Text(
+            value,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 13.sp,
+            color = if (onClick != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+        )
     }
 }

@@ -141,7 +141,7 @@ fun CartScreen(
             }
         } else {
             Column(
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.fillMaxSize()
             ) {
                 // Free Delivery Banner
                 quote?.let { q ->
@@ -190,6 +190,7 @@ fun CartScreen(
                     }
                 }
                 
+                // Scrollable Item List + Order Summary at the end
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
@@ -215,14 +216,18 @@ fun CartScreen(
                             }
                         )
                     }
+                    
+                    // Total Value Card dynamically positioned below the list
+                    quote?.let { q ->
+                        item(key = "order_summary") {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OrderSummaryCard(
+                                quote = q,
+                                onCheckoutClick = onNavigateToCheckout
+                            )
+                        }
+                    }
                 }
-            }
-            
-            quote?.let { q ->
-                OrderSummaryCard(
-                    quote = q,
-                    onCheckoutClick = onNavigateToCheckout
-                )
             }
         }
         
@@ -372,8 +377,8 @@ fun OrderSummaryCard(
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 8.dp,
-        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+        tonalElevation = 4.dp,
+        shape = RoundedCornerShape(20.dp)
     ) {
         Column(
             modifier = Modifier.padding(20.dp),
