@@ -34,7 +34,7 @@ interface SupabaseApi {
         @Query("order") order: String = "sort_order.asc"
     ): Response<List<CategoryResponse>>
     
-    // Cart & Checkout
+    // Cart & Checkout RPCs
     @POST("rest/v1/rpc/quote_cart")
     suspend fun quoteCart(
         @Header("apikey") apiKey: String,
@@ -52,6 +52,25 @@ interface SupabaseApi {
         @Header("Prefer") prefer: String = "return=representation",
         @Body body: PlaceOrderRequest
     ): Response<PlaceOrderResponse>
+
+    // Direct REST Order Creation Fallbacks
+    @POST("rest/v1/orders")
+    suspend fun createOrderDirect(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Header("Content-Type") contentType: String = "application/json",
+        @Header("Prefer") prefer: String = "return=representation",
+        @Body body: DirectOrderRequest
+    ): Response<List<OrderResponse>>
+
+    @POST("rest/v1/order_items")
+    suspend fun createOrderItemsDirect(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Header("Content-Type") contentType: String = "application/json",
+        @Header("Prefer") prefer: String = "return=representation",
+        @Body body: List<DirectOrderItemRequest>
+    ): Response<List<OrderItemResponse>>
     
     // Orders
     @GET("rest/v1/orders")
@@ -95,17 +114,17 @@ data class ProductResponse(
     val id: String,
     val sku: String,
     val name: String,
-    val description: String?,
+    val description: String? = null,
     val category_id: String,
-    val image_path: String?,
+    val image_path: String? = null,
     val quantity_type: String,
     val price_paise: Long,
     val price_basis_qty: Long,
     val unit_label: String,
-    val pack_size_label: String?,
+    val pack_size_label: String? = null,
     val step_qty: Long,
     val min_qty: Long,
-    val max_qty: Long?,
+    val max_qty: Long? = null,
     val stock_qty: Long,
     val low_stock_threshold: Long,
     val active: Boolean,
@@ -154,13 +173,42 @@ data class QuoteLine(
     val unit_price_paise: Long,
     val line_total_paise: Long,
     val available: Boolean,
-    val error: String?
+    val error: String? = null
 )
 
 @Serializable
 data class PlaceOrderRequest(
-    val payload: PlaceOrderPayload,
-    val idempotency_key: String
+    val p_payload: PlaceOrderPayload,
+    val p_idempotency_key: String
+)
+
+@Serializable
+data class DirectOrderRequest(
+    val public_order_number: String,
+    val address_snapshot: AddressRequest,
+    val status: String = "pending_review",
+    val payment_method: String = "cod",
+    val payment_status: String = "unpaid",
+    val item_subtotal_paise: Long,
+    val discount_paise: Long = 0,
+    val delivery_fee_paise: Long = 0,
+    val tax_paise: Long = 0,
+    val grand_total_paise: Long,
+    val customer_note: String? = null
+)
+
+@Serializable
+data class DirectOrderItemRequest(
+    val order_id: String,
+    val product_id: String? = null,
+    val sku_snapshot: String,
+    val name_snapshot: String,
+    val quantity_type_snapshot: String,
+    val unit_label_snapshot: String,
+    val price_basis_qty_snapshot: Long,
+    val qty_base: Long,
+    val unit_price_paise: Long,
+    val line_total_paise: Long
 )
 
 @Serializable
@@ -168,7 +216,7 @@ data class PlaceOrderPayload(
     val items: List<CartItemRequest>,
     val address: AddressRequest,
     val payment_method: String = "cod",
-    val customer_note: String?
+    val customer_note: String? = null
 )
 
 @Serializable
@@ -176,10 +224,10 @@ data class AddressRequest(
     val recipient_name: String,
     val phone: String,
     val address_lines: String,
-    val landmark: String?,
-    val area: String?,
-    val city: String?,
-    val state: String?,
+    val landmark: String? = null,
+    val area: String? = null,
+    val city: String? = null,
+    val state: String? = null,
     val postal_code: String
 )
 
@@ -187,14 +235,14 @@ data class AddressRequest(
 data class PlaceOrderResponse(
     val order_id: String,
     val public_order_number: String,
-    val breakdown: QuoteCartResponse
+    val breakdown: QuoteCartResponse? = null
 )
 
 @Serializable
 data class OrderResponse(
     val id: String,
     val public_order_number: String,
-    val customer_id: String,
+    val customer_id: String? = null,
     val address_snapshot: JsonObject,
     val status: String,
     val payment_method: String,
@@ -204,20 +252,20 @@ data class OrderResponse(
     val delivery_fee_paise: Long,
     val tax_paise: Long,
     val grand_total_paise: Long,
-    val fee_breakdown: JsonObject?,
-    val customer_note: String?,
-    val assigned_to: String?,
+    val fee_breakdown: JsonObject? = null,
+    val customer_note: String? = null,
+    val assigned_to: String? = null,
     val created_at: String,
-    val accepted_at: String?,
-    val delivered_at: String?,
-    val order_items: List<OrderItemResponse>?
+    val accepted_at: String? = null,
+    val delivered_at: String? = null,
+    val order_items: List<OrderItemResponse>? = null
 )
 
 @Serializable
 data class OrderItemResponse(
     val id: String,
     val order_id: String,
-    val product_id: String?,
+    val product_id: String? = null,
     val sku_snapshot: String,
     val name_snapshot: String,
     val quantity_type_snapshot: String,
@@ -226,8 +274,8 @@ data class OrderItemResponse(
     val qty_base: Long,
     val unit_price_paise: Long,
     val line_total_paise: Long,
-    val removed_at: String?,
-    val removed_reason: String?
+    val removed_at: String? = null,
+    val removed_reason: String? = null
 )
 
 @Serializable
@@ -238,10 +286,10 @@ data class AddressResponse(
     val recipient_name: String,
     val phone: String,
     val address_lines: String,
-    val landmark: String?,
-    val area: String?,
-    val city: String?,
-    val state: String?,
+    val landmark: String? = null,
+    val area: String? = null,
+    val city: String? = null,
+    val state: String? = null,
     val postal_code: String,
     val is_default: Boolean
 )
