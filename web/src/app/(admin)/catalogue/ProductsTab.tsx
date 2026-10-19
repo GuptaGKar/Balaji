@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
-import { productSchema, type Product, quantityTypeEnum } from "@/lib/schemas";
-import { useForm, useFieldArray } from "react-hook-form";
+import { productSchema, type Product } from "@/lib/schemas";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { cn } from "@/lib/utils";
 import {
@@ -16,6 +16,8 @@ import {
   Image as ImageIcon,
   FileText,
   Search,
+  AlertCircle,
+  Package,
 } from "lucide-react";
 import { useDropzone } from "react-dropzone";
 import { Toaster, toast } from "sonner";
@@ -29,6 +31,7 @@ export default function ProductsTab() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState("");
+  const [priceRupees, setPriceRupees] = useState<number>(100);
 
   const form = useForm<Product>({
     resolver: zodResolver(productSchema),
@@ -39,15 +42,15 @@ export default function ProductsTab() {
       category_id: "",
       image_path: "",
       quantity_type: "PACKED",
-      price_paise: 0,
+      price_paise: 10000,
       price_basis_qty: 1,
       unit_label: "pack",
-      pack_size_label: null,
+      pack_size_label: "1 kg",
       step_qty: 1,
       min_qty: 1,
       max_qty: null,
-      stock_qty: 0,
-      low_stock_threshold: 0,
+      stock_qty: 50,
+      low_stock_threshold: 5,
       active: true,
       available: true,
     },
@@ -60,11 +63,15 @@ export default function ProductsTab() {
       supabase.from("categories").select("id, name").eq("active", true).order("sort_order"),
     ]);
     if (productsRes.error || categoriesRes.error) {
-      toast.error("Failed to load data");
+      toast.error("Failed to load catalogue data");
       return;
     }
     setProducts(productsRes.data || []);
-    setCategories(categoriesRes.data || []);
+    const catList = categoriesRes.data || [];
+    setCategories(catList);
+    if (catList.length > 0 && !form.getValues("category_id")) {
+      form.setValue("category_id", catList[0].id);
+    }
     setLoading(false);
   };
 
@@ -76,10 +83,20 @@ export default function ProductsTab() {
     const supabase = createClient();
     try {
       const generatedSku = data.sku.trim() || `SKU-${Math.floor(100000 + Math.random() * 900000)}`;
+      const calculatedPricePaise = Math.round((priceRupees || 0) * 100);
+      const selectedCategoryId = data.category_id || (categories.length > 0 ? categories[0].id : null);
+
+      if (!selectedCategoryId) {
+        toast.error("Please create or select a Category first.");
+        return;
+      }
+
       const payload = {
         ...data,
         sku: generatedSku,
+        category_id: selectedCategoryId,
         quantity_type: data.quantity_type.toLowerCase(),
+        price_paise: calculatedPricePaise > 0 ? calculatedPricePaise : data.price_paise || 10000,
         max_qty: data.max_qty || null,
       };
 
@@ -97,7 +114,7 @@ export default function ProductsTab() {
       form.reset();
       fetchData();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Operation failed. Check required fields.");
+      toast.error(err instanceof Error ? err.message : "Failed to save product.");
     }
   };
 
@@ -106,7 +123,7 @@ export default function ProductsTab() {
     const supabase = createClient();
     const { error } = await supabase.from("products").update({ active: false }).eq("id", id);
     if (error) {
-      toast.error("Failed to archive");
+      toast.error("Failed to archive product");
       return;
     }
     toast.success("Product archived");
@@ -119,6 +136,7 @@ export default function ProductsTab() {
       max_qty: prod.max_qty || undefined,
       pack_size_label: prod.pack_size_label || undefined,
     });
+    setPriceRupees(prod.price_paise / 100);
     setEditingId(prod.id);
   };
 
@@ -131,14 +149,13 @@ export default function ProductsTab() {
   const onDrop = async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
     if (!file.type.startsWith("image/")) {
-      toast.error("Only images allowed");
+      toast.error("Only image files allowed");
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      toast.error("Max 2MB");
+      toast.error("Max image size is 2MB");
       return;
     }
-    // In production, upload to Supabase Storage. For now, store as data URL.
     const reader = new FileReader();
     reader.onload = () => form.setValue("image_path", reader.result as string);
     reader.readAsDataURL(file);
@@ -158,104 +175,112 @@ export default function ProductsTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Products</h1>
-          <p className="text-gray-500">Manage catalogue items</p>
+      {/* Search & Action Bar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search products by name or SKU..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
+          />
         </div>
+
         <button
           onClick={() => {
             setCreating(true);
-            form.reset();
+            form.reset({
+              sku: "",
+              name: "",
+              description: "",
+              category_id: categories.length > 0 ? categories[0].id : "",
+              image_path: "",
+              quantity_type: "PACKED",
+              price_paise: 10000,
+              price_basis_qty: 1,
+              unit_label: "pack",
+              pack_size_label: "1 kg",
+              step_qty: 1,
+              min_qty: 1,
+              max_qty: null,
+              stock_qty: 50,
+              low_stock_threshold: 5,
+              active: true,
+              available: true,
+            });
+            setPriceRupees(100);
           }}
-          className="btn-primary"
+          className="flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl shadow-md shadow-emerald-600/20 transition-all"
         >
-          <Plus className="h-4 w-4 mr-2" /> Add Product
+          <Plus className="h-4 w-4" /> Add New Product
         </button>
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
-        <div className="flex gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search products..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
+      {categories.length === 0 && (
+        <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl text-amber-800 text-sm font-semibold">
+          <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0" />
+          <span>No categories found in store. Please switch to the <strong>Categories</strong> tab to create at least one category before adding products.</span>
         </div>
-      </div>
+      )}
 
       {creating && (
-        <ProductForm
+        <ProductFormCard
           form={form}
           categories={categories}
           onSubmit={onSubmit}
           onCancel={cancelEdit}
-          title="Create Product"
-          onDrop={onDrop}
+          title="Create New Product"
           getRootProps={getRootProps}
           getInputProps={getInputProps}
           isDragActive={isDragActive}
+          priceRupees={priceRupees}
+          setPriceRupees={setPriceRupees}
         />
       )}
 
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      {/* Products Table */}
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
+          <table className="w-full text-left border-collapse">
+            <thead className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Image
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  SKU / Name
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Type
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Price
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Stock
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
+                <th className="px-4 py-3.5">Image</th>
+                <th className="px-4 py-3.5">Product Name & SKU</th>
+                <th className="px-4 py-3.5">Type</th>
+                <th className="px-4 py-3.5">Price (₹)</th>
+                <th className="px-4 py-3.5">Stock Qty</th>
+                <th className="px-4 py-3.5">Status</th>
+                <th className="px-4 py-3.5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-slate-200 text-sm text-slate-700">
               {filteredProducts.map((prod) => (
                 <tr
                   key={prod.id}
-                  className={editingId === prod.id ? "bg-indigo-50" : "hover:bg-gray-50"}
+                  className={editingId === prod.id ? "bg-emerald-50/50" : "hover:bg-slate-50/80 transition-colors"}
                 >
                   {editingId === prod.id ? (
-                    <td colSpan={7} className="px-4 py-4">
-                      <ProductForm
+                    <td colSpan={7} className="p-4">
+                      <ProductFormCard
                         form={form}
                         categories={categories}
                         onSubmit={onSubmit}
                         onCancel={cancelEdit}
                         title="Edit Product"
-                        onDrop={onDrop}
                         getRootProps={getRootProps}
                         getInputProps={getInputProps}
                         isDragActive={isDragActive}
+                        priceRupees={priceRupees}
+                        setPriceRupees={setPriceRupees}
                       />
                     </td>
                   ) : (
@@ -265,95 +290,78 @@ export default function ProductsTab() {
                           <img
                             src={prod.image_path}
                             alt={prod.name}
-                            className="h-12 w-12 object-cover rounded"
+                            className="h-12 w-12 object-cover rounded-xl border border-slate-200"
                           />
                         ) : (
-                          <div className="h-12 w-12 bg-gray-100 rounded flex items-center justify-center">
-                            <FileText className="h-6 w-6 text-gray-400" />
+                          <div className="h-12 w-12 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-center">
+                            <Package className="h-6 w-6 text-slate-400" />
                           </div>
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <p className="font-medium text-gray-900">{prod.name}</p>
-                        <p className="text-sm text-gray-500">{prod.sku}</p>
+                        <p className="font-bold text-slate-900">{prod.name}</p>
+                        <p className="text-xs text-slate-500 font-mono">{prod.sku}</p>
                       </td>
                       <td className="px-4 py-3">
                         <span
                           className={cn(
-                            "inline-flex items-center px-2 py-1 text-xs font-medium rounded-full",
-                            prod.quantity_type === "WEIGHTED"
+                            "inline-flex items-center px-2.5 py-0.5 text-xs font-bold rounded-full",
+                            prod.quantity_type?.toLowerCase() === "weighted"
                               ? "bg-blue-100 text-blue-800"
-                              : "bg-green-100 text-green-800",
+                              : "bg-emerald-100 text-emerald-800",
                           )}
                         >
                           {prod.quantity_type}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-gray-900">
-                        ₹
-                        {(prod.price_paise / 100).toLocaleString("en-IN", {
-                          minimumFractionDigits: 2,
-                        })}
-                        <span className="text-xs text-gray-500 ml-1">
-                          /{" "}
-                          {prod.price_basis_qty === 1000
-                            ? "kg"
-                            : prod.price_basis_qty === 100
-                              ? "100g"
-                              : prod.quantity_type === "PACKED"
-                                ? "pack"
-                                : prod.price_basis_qty}
+                      <td className="px-4 py-3 font-semibold text-slate-900">
+                        ₹{(prod.price_paise / 100).toFixed(2)}
+                        <span className="text-xs text-slate-400 ml-1">
+                          / {prod.unit_label || "pack"}
                         </span>
                       </td>
                       <td className="px-4 py-3">
                         <span
                           className={cn(
-                            "font-medium",
+                            "font-bold text-sm",
                             prod.stock_qty <= prod.low_stock_threshold && prod.stock_qty > 0
-                              ? "text-yellow-600"
+                              ? "text-amber-600"
                               : prod.stock_qty === 0
                                 ? "text-red-600"
-                                : "text-gray-900",
+                                : "text-slate-900",
                           )}
                         >
-                          {prod.quantity_type === "WEIGHTED"
+                          {prod.quantity_type?.toLowerCase() === "weighted"
                             ? `${(prod.stock_qty / 1000).toFixed(1)} kg`
                             : `${prod.stock_qty} packs`}
                         </span>
-                        {prod.stock_qty <= prod.low_stock_threshold && prod.stock_qty > 0 && (
-                          <span className="ml-1 text-xs text-yellow-600">(low)</span>
-                        )}
                       </td>
                       <td className="px-4 py-3">
                         <span
                           className={cn(
-                            "inline-flex items-center px-2 py-1 text-xs font-medium rounded-full",
+                            "inline-flex items-center px-2.5 py-0.5 text-xs font-bold rounded-full",
                             prod.active
                               ? prod.available
-                                ? "bg-green-100 text-green-800"
-                                : "bg-yellow-100 text-yellow-800"
-                              : "bg-gray-100 text-gray-800",
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-amber-100 text-amber-800"
+                              : "bg-slate-100 text-slate-600",
                           )}
                         >
-                          {prod.active
-                            ? prod.available
-                              ? "Available"
-                              : "Unavailable"
-                            : "Archived"}
+                          {prod.active ? (prod.available ? "Available" : "Unavailable") : "Archived"}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={() => startEdit(prod)}
-                            className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
+                            className="p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
                             aria-label="Edit"
                           >
                             <Edit className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => handleDelete(prod.id)}
-                            className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded"
+                            className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                             aria-label="Archive"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -368,7 +376,9 @@ export default function ProductsTab() {
           </table>
         </div>
         {filteredProducts.length === 0 && (
-          <div className="p-12 text-center text-gray-500">No products found</div>
+          <div className="p-12 text-center text-slate-400 font-medium">
+            No products found in catalogue. Click <strong>+ Add New Product</strong> above to add one.
+          </div>
         )}
       </div>
 
@@ -377,104 +387,61 @@ export default function ProductsTab() {
   );
 }
 
-function ProductForm({
+function ProductFormCard({
   form,
   categories,
   onSubmit,
   onCancel,
   title,
-  onDrop,
   getRootProps,
   getInputProps,
   isDragActive,
+  priceRupees,
+  setPriceRupees,
 }: {
   form: ReturnType<typeof useForm<Product>>;
   categories: { id: string; name: string }[];
   onSubmit: (data: Product) => void;
   onCancel: () => void;
   title: string;
-  onDrop: (files: File[]) => void;
   getRootProps: () => Record<string, unknown>;
   getInputProps: () => Record<string, unknown>;
   isDragActive: boolean;
+  priceRupees: number;
+  setPriceRupees: (val: number) => void;
 }) {
-  const watchedQuantityType = form.watch("quantity_type");
-  const watchedPriceBasisQty = form.watch("price_basis_qty");
-  const watchedStepQty = form.watch("step_qty");
-
   return (
-    <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">{title}</h3>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        {/* Image Upload */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Product Image</label>
-          <div
-            {...getRootProps()}
-            className={cn(
-              "border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors",
-              isDragActive
-                ? "border-indigo-500 bg-indigo-50"
-                : "border-gray-300 hover:border-indigo-400",
-            )}
-          >
-            <input {...getInputProps()} />
-            <div className="flex flex-col items-center gap-2">
-              <ImageIcon className="h-8 w-8 text-gray-400" />
-              <p className="text-sm text-gray-600">Drag & drop image here, or click to select</p>
-              <p className="text-xs text-gray-500">Max 2MB · JPG, PNG, WebP</p>
-            </div>
-          </div>
-          {form.watch("image_path") && (
-            <div className="mt-2 relative w-24 h-24">
-              <img
-                src={form.watch("image_path")}
-                alt="Preview"
-                className="w-full h-full object-cover rounded"
-              />
-            </div>
-          )}
-        </div>
+    <div className="bg-white border border-emerald-300 rounded-3xl p-6 shadow-xl space-y-5">
+      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 className="text-lg font-extrabold text-slate-900">{title}</h3>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      </div>
 
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">SKU *</label>
-            <input
-              {...form.register("sku")}
-              className={cn(
-                "w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500",
-                form.formState.errors.sku && "border-red-500",
-              )}
-              placeholder="UNIQUE-SKU"
-            />
-            {form.formState.errors.sku && (
-              <p className="mt-1 text-sm text-red-600">{form.formState.errors.sku.message}</p>
-            )}
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Product Name *</label>
             <input
               {...form.register("name")}
-              className={cn(
-                "w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500",
-                form.formState.errors.name && "border-red-500",
-              )}
-              placeholder="Product name"
+              required
+              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm focus:ring-2 focus:ring-emerald-500"
+              placeholder="e.g. Aashirvaad Whole Wheat Atta 5kg"
             />
-            {form.formState.errors.name && (
-              <p className="mt-1 text-sm text-red-600">{form.formState.errors.name.message}</p>
-            )}
           </div>
+
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Category *</label>
             <select
               {...form.register("category_id")}
-              className={cn(
-                "w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500",
-                form.formState.errors.category_id && "border-red-500",
-              )}
+              required
+              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm focus:ring-2 focus:ring-emerald-500"
             >
-              <option value="">Select category</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -482,230 +449,75 @@ function ProductForm({
               ))}
             </select>
           </div>
+
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Quantity Type *</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Selling Price (₹) *</label>
+            <input
+              type="number"
+              step="0.01"
+              value={priceRupees}
+              onChange={(e) => setPriceRupees(parseFloat(e.target.value) || 0)}
+              required
+              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm font-bold focus:ring-2 focus:ring-emerald-500"
+              placeholder="100.00"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Stock Quantity *</label>
+            <input
+              type="number"
+              {...form.register("stock_qty", { valueAsNumber: true })}
+              required
+              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm focus:ring-2 focus:ring-emerald-500"
+              placeholder="50"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Quantity Type *</label>
             <select
               {...form.register("quantity_type")}
-              className={cn(
-                "w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500",
-                form.formState.errors.quantity_type && "border-red-500",
-              )}
+              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm focus:ring-2 focus:ring-emerald-500"
             >
-              <option value="PACKED">Packed (integer packs)</option>
-              <option value="WEIGHTED">Weighted (grams/kg)</option>
+              <option value="PACKED">Packed (by unit count / pack)</option>
+              <option value="WEIGHTED">Weighted (by Grams / Kilograms)</option>
             </select>
           </div>
 
-          {/* Price fields - shown based on quantity type */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Price (₹) *</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Pack Size Label</label>
             <input
-              {...form.register("price_paise", { valueAsNumber: true })}
-              type="number"
-              min="0"
-              step="0.01"
-              className={cn(
-                "w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500",
-                form.formState.errors.price_paise && "border-red-500",
-              )}
-              placeholder="0.00"
-            />
-          </div>
-
-          {/* Packed-specific fields */}
-          {watchedQuantityType === "PACKED" && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Unit Label *</label>
-                <input
-                  {...form.register("unit_label")}
-                  className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
-                  placeholder="pack"
-                  defaultValue="pack"
-                  readOnly
-                />
-                {/* eslint-disable-next-line react/no-unescaped-entities */}
-                <p className="mt-1 text-xs text-gray-500">Fixed to "pack" for PACKED items</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Pack Size Label
-                </label>
-                <input
-                  {...form.register("pack_size_label")}
-                  className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
-                  placeholder="e.g., 1 kg, 500 g"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Price Basis Qty *
-                </label>
-                <input
-                  {...form.register("price_basis_qty", { valueAsNumber: true })}
-                  type="number"
-                  min="1"
-                  className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
-                  defaultValue={1}
-                  readOnly
-                />
-                {/* eslint-disable-next-line react/no-unescaped-entities */}
-                <p className="mt-1 text-xs text-gray-500">Fixed to 1 for PACKED items</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Step Qty *</label>
-                <input
-                  {...form.register("step_qty", { valueAsNumber: true })}
-                  type="number"
-                  min="1"
-                  className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
-                  defaultValue={1}
-                  readOnly
-                />
-                <p className="mt-1 text-xs text-gray-500">Fixed to 1 for PACKED items</p>
-              </div>
-            </>
-          )}
-
-          {/* Weighted-specific fields */}
-          {watchedQuantityType === "WEIGHTED" && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Unit Label *</label>
-                <select
-                  {...form.register("unit_label")}
-                  className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="g">g</option>
-                  <option value="kg">kg</option>
-                  <option value="100 g">100 g</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Price Basis *
-                </label>
-                <select
-                  {...form.register("price_basis_qty", { valueAsNumber: true })}
-                  className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value={1000}>Per kg (1000 g)</option>
-                  <option value={100}>Per 100 g</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Step Qty (g) *
-                </label>
-                <input
-                  {...form.register("step_qty", { valueAsNumber: true })}
-                  type="number"
-                  min="1"
-                  className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
-                  defaultValue={10}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Pack Size Label
-                </label>
-                <input
-                  {...form.register("pack_size_label")}
-                  className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
-                  placeholder="e.g., 1 kg bag"
-                />
-              </div>
-            </>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Min Qty *</label>
-            <input
-              {...form.register("min_qty", { valueAsNumber: true })}
-              type="number"
-              min="1"
-              className={cn(
-                "w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500",
-                form.formState.errors.min_qty && "border-red-500",
-              )}
-              defaultValue={1}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Max Qty</label>
-            <input
-              {...form.register("max_qty", { valueAsNumber: true })}
-              type="number"
-              min="1"
-              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
-              placeholder="Optional"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Stock Qty *</label>
-            <input
-              {...form.register("stock_qty", { valueAsNumber: true })}
-              type="number"
-              min="0"
-              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
-              defaultValue={0}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Low Stock Threshold
-            </label>
-            <input
-              {...form.register("low_stock_threshold", { valueAsNumber: true })}
-              type="number"
-              min="0"
-              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
-              defaultValue={0}
-            />
-          </div>
-
-          <div className="md:col-span-2 flex items-center gap-2">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                {...form.register("active")}
-                type="checkbox"
-                className="h-4 w-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
-                defaultChecked
-              />
-              <span className="text-sm text-gray-700">Active</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                {...form.register("available")}
-                type="checkbox"
-                className="h-4 w-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
-                defaultChecked
-              />
-              <span className="text-sm text-gray-700">Available for sale</span>
-            </label>
-          </div>
-
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <textarea
-              {...form.register("description")}
-              rows={3}
-              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
-              placeholder="Product description"
+              {...form.register("pack_size_label")}
+              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm focus:ring-2 focus:ring-emerald-500"
+              placeholder="e.g. 5 kg or 1 L"
             />
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 pt-4 border-t border-indigo-200">
+        <div>
+          <label className="block text-xs font-semibold text-slate-700 mb-1">Description (Optional)</label>
+          <textarea
+            {...form.register("description")}
+            rows={2}
+            className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm focus:ring-2 focus:ring-emerald-500"
+            placeholder="Short product description or features..."
+          />
+        </div>
+
+        <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
           <button
             type="button"
             onClick={onCancel}
-            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            className="px-4 py-2 border border-slate-300 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50"
           >
-            <X className="h-4 w-4 mr-2 inline" /> Cancel
+            Cancel
           </button>
-          <button type="submit" className="btn-primary">
-            <Save className="h-4 w-4 mr-2" /> Save
+          <button
+            type="submit"
+            className="flex items-center gap-2 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl shadow-md shadow-emerald-600/20"
+          >
+            <Save className="h-4 w-4" /> Save Product
           </button>
         </div>
       </form>
