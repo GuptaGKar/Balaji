@@ -62,6 +62,8 @@ class ProductViewModel @Inject constructor(
                     val catList = catResponse.body()?.filter { it.active }?.map { it.toDomain() } ?: emptyList()
                     val prodList = prodResponse.body()?.filter { it.active && it.available }?.map { it.toDomain() } ?: emptyList()
                     
+                    catalogRepository.liveCategories = catList
+                    catalogRepository.liveProducts = prodList
                     _categories.value = catList
                     _allProducts.value = prodList
                 } else {

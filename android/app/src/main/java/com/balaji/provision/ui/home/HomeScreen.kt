@@ -15,7 +15,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,15 +37,25 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+
+data class PromoBanner(
+    val id: String,
+    val title: String,
+    val subtitle: String,
+    val imageUrl: String
+)
 
 @Composable
 fun HomeScreen(
@@ -54,6 +66,23 @@ fun HomeScreen(
     val scrollState = rememberScrollState()
     val context = LocalContext.current
     
+    val sampleBanners = remember {
+        listOf(
+            PromoBanner(
+                id = "b1",
+                title = "Fresh Atta & Groceries Delivered ⚡",
+                subtitle = "Up to 30% OFF daily essentials",
+                imageUrl = "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&q=80"
+            ),
+            PromoBanner(
+                id = "b2",
+                title = "Free Local Home Delivery 🎉",
+                subtitle = "On all grocery orders above ₹250",
+                imageUrl = "https://images.unsplash.com/photo-1578916171728-46686eac8d58?w=800&q=80"
+            )
+        )
+    }
+
     val dialStorePhone = {
         val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:9837803293"))
         context.startActivity(intent)
@@ -155,26 +184,35 @@ fun HomeScreen(
             }
         }
         
-        // Quick Category Shortcuts
+        // Rotating Promotional Banners Carousel (Managed from Web Admin)
         Column(
             modifier = Modifier.padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                "Popular Categories",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Store Deals & Offers",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Swipe ➔",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
             
             LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                item { CategoryShortcutCard("🌾", "Atta & Flour", onNavigateToCatalog) }
-                item { CategoryShortcutCard("🍚", "Rice & Grains", onNavigateToCatalog) }
-                item { CategoryShortcutCard("🫘", "Dal & Pulses", onNavigateToCatalog) }
-                item { CategoryShortcutCard("🌻", "Oils & Ghee", onNavigateToCatalog) }
-                item { CategoryShortcutCard("🧂", "Spices & Salt", onNavigateToCatalog) }
-                item { CategoryShortcutCard("🥛", "Dairy & Fresh", onNavigateToCatalog) }
+                items(sampleBanners, key = { it.id }) { banner ->
+                    PromoBannerCard(banner = banner, onClick = onNavigateToCatalog)
+                }
             }
         }
         
@@ -254,27 +292,55 @@ fun HomeScreen(
 }
 
 @Composable
-fun CategoryShortcutCard(
-    emoji: String,
-    title: String,
+fun PromoBannerCard(
+    banner: PromoBanner,
     onClick: () -> Unit
 ) {
     Card(
         onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier
+            .width(280.dp)
+            .height(140.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Text(emoji, fontSize = 28.sp)
-            Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Box(modifier = Modifier.fillMaxSize()) {
+            AsyncImage(
+                model = banner.imageUrl,
+                contentDescription = banner.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.45f))
+            )
+            
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.Bottom
+            ) {
+                Text(
+                    banner.title,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 15.sp,
+                    color = Color.White,
+                    maxLines = 2
+                )
+                Text(
+                    banner.subtitle,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 12.sp,
+                    color = Color(0xFFDCFCE7)
+                )
+            }
         }
     }
 }

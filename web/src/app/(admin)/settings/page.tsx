@@ -6,9 +6,30 @@ import { storeSettingsSchema, type StoreSettings } from "@/lib/schemas";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { cn } from "@/lib/utils";
-import { formatRupees, parseRupees } from "@/lib/money";
-import { Save, Loader2, RotateCcw, Clock, Store } from "lucide-react";
+import { Save, Loader2, Clock, Image as ImageIcon, Plus, Trash2 } from "lucide-react";
 import { Toaster, toast } from "sonner";
+
+interface BannerItem {
+  id: string;
+  title: string;
+  subtitle: string;
+  image_url: string;
+}
+
+const defaultBanners: BannerItem[] = [
+  {
+    id: "b-1",
+    title: "Fresh Atta & Groceries Delivered ⚡",
+    subtitle: "Up to 30% OFF daily essentials",
+    image_url: "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&q=80",
+  },
+  {
+    id: "b-2",
+    title: "Free Local Home Delivery 🎉",
+    subtitle: "On all orders above ₹250",
+    image_url: "https://images.unsplash.com/photo-1578916171728-46686eac8d58?w=800&q=80",
+  },
+];
 
 const defaultSettings: StoreSettings = {
   store_open: true,
@@ -16,12 +37,6 @@ const defaultSettings: StoreSettings = {
   weekly_hours: {
     operating_hours: ["08:00 AM", "10:00 PM"],
     mon: ["08:00 AM", "10:00 PM"],
-    tue: ["08:00 AM", "10:00 PM"],
-    wed: ["08:00 AM", "10:00 PM"],
-    thu: ["08:00 AM", "10:00 PM"],
-    fri: ["08:00 AM", "10:00 PM"],
-    sat: ["08:00 AM", "10:00 PM"],
-    sun: ["08:00 AM", "10:00 PM"],
   },
   contact_phone: "9837803293",
   estimated_window_text:
@@ -43,14 +58,12 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [openTime, setOpenTime] = useState("08:00 AM");
   const [closeTime, setCloseTime] = useState("10:00 PM");
+  const [banners, setBanners] = useState<BannerItem[]>(defaultBanners);
 
   const form = useForm<StoreSettings>({
     resolver: zodResolver(storeSettingsSchema),
     defaultValues: defaultSettings,
   });
-
-  const watchedT1 = form.watch("delivery_charge_threshold_paise");
-  const watchedF1 = form.watch("delivery_fee_paise");
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -66,11 +79,32 @@ export default function SettingsPage() {
         });
         if (data.weekly_hours?.operating_hours?.[0]) setOpenTime(data.weekly_hours.operating_hours[0]);
         if (data.weekly_hours?.operating_hours?.[1]) setCloseTime(data.weekly_hours.operating_hours[1]);
+        if (Array.isArray(data.weekly_hours?.promotional_banners)) {
+          setBanners(data.weekly_hours.promotional_banners);
+        }
       }
       setLoading(false);
     };
     fetchSettings();
   }, [form]);
+
+  const addBanner = () => {
+    const newB: BannerItem = {
+      id: "b-" + Date.now(),
+      title: "Special Offer Banner",
+      subtitle: "Exclusive deals on groceries",
+      image_url: "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&q=80",
+    };
+    setBanners([...banners, newB]);
+  };
+
+  const removeBanner = (id: string) => {
+    setBanners(banners.filter((b) => b.id !== id));
+  };
+
+  const updateBanner = (id: string, field: keyof BannerItem, value: string) => {
+    setBanners(banners.map((b) => (b.id === id ? { ...b, [field]: value } : b)));
+  };
 
   const onSubmit = async (data: StoreSettings) => {
     setSaving(true);
@@ -79,9 +113,11 @@ export default function SettingsPage() {
       const updatedWeeklyHours = {
         ...(typeof data.weekly_hours === "object" ? data.weekly_hours : defaultSettings.weekly_hours),
         operating_hours: [openTime, closeTime],
+        promotional_banners: banners,
       };
 
       const payload = {
+        id: true,
         ...data,
         store_open: String(data.store_open) === "true" || data.store_open === true,
         weekly_hours: updatedWeeklyHours,
@@ -89,7 +125,7 @@ export default function SettingsPage() {
 
       const { error } = await supabase.from("store_settings").upsert(payload);
       if (error) throw error;
-      toast.success("Store settings updated! App & Web synchronized.");
+      toast.success("Store settings & promotional banners updated! App & Web synchronized.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save settings");
     } finally {
@@ -106,10 +142,10 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="max-w-4xl space-y-6 pb-12">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Store Settings & Operations</h1>
-        <p className="text-slate-500">Configure live store status, operating hours, and delivery fee thresholds</p>
+        <h1 className="text-2xl font-extrabold text-slate-900">Store Settings & Operations</h1>
+        <p className="text-sm font-medium text-slate-500">Configure live store status, operating hours, delivery thresholds, and mobile app banners</p>
       </div>
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -176,6 +212,69 @@ export default function SettingsPage() {
           </div>
         </Section>
 
+        {/* Promotional Banners Management */}
+        <Section title="Mobile App Promotional Banners" description="Manage rotating hero banners shown at the top of the Android App">
+          <div className="space-y-4">
+            {banners.map((b, idx) => (
+              <div key={b.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-lg">
+                    Banner #{idx + 1}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeBanner(b.id)}
+                    className="p-1 text-slate-400 hover:text-red-600 rounded-lg"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Banner Headline Title</label>
+                    <input
+                      type="text"
+                      value={b.title}
+                      onChange={(e) => updateBanner(b.id, "title", e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Subtitle / Deal Offer</label>
+                    <input
+                      type="text"
+                      value={b.subtitle}
+                      onChange={(e) => updateBanner(b.id, "subtitle", e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Banner Image URL</label>
+                    <input
+                      type="text"
+                      value={b.image_url}
+                      onChange={(e) => updateBanner(b.id, "image_url", e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-mono focus:ring-2 focus:ring-emerald-500"
+                      placeholder="https://images.unsplash.com/..."
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            <button
+              type="button"
+              onClick={addBanner}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl border border-slate-300 transition-all"
+            >
+              <Plus className="h-4 w-4" /> Add Another Banner
+            </button>
+          </div>
+        </Section>
+
         {/* Delivery Fee Configuration */}
         <Section
           title="Delivery Fee Configuration"
@@ -223,12 +322,13 @@ export default function SettingsPage() {
             ) : (
               <>
                 <Save className="h-4 w-4" />
-                Save Store Settings
+                Save Store Settings & Banners
               </>
             )}
           </button>
         </div>
       </form>
+      <Toaster position="top-right" />
     </div>
   );
 }
