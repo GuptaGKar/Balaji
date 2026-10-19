@@ -47,12 +47,14 @@ export default function StaffPage() {
     const supabase = createClient();
     const { data, error } = await supabase
       .from("profiles")
-      .select("*")
+      .select("id, role, display_name, phone, login_id, is_active, must_change_password")
       .neq("role", "customer")
       .order("role")
-      .order("display_name");
+      .order("display_name")
+      .limit(500);
     if (error) {
-      toast.error("Failed to load");
+      toast.error("Failed to load staff");
+      setLoading(false);
       return;
     }
     setStaff(data || []);
@@ -102,15 +104,29 @@ export default function StaffPage() {
     }
   };
 
-  const handleToggleActive = async (id: string, current: boolean) => {
+  const handleToggleActive = async (member: Staff) => {
     const supabase = createClient();
-    const { error } = await supabase.from("profiles").update({ is_active: !current }).eq("id", id);
-    if (error) {
-      toast.error("Failed");
-      return;
+    if (member.role === "delivery") {
+      const { data, error } = await supabase.rpc("set_rider_active", {
+        p_rider_id: member.id,
+        p_active: !member.is_active,
+      });
+      if (error || data?.error) {
+        toast.error(data?.message || error?.message || "Failed to update rider");
+        return;
+      }
+    } else {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ is_active: !member.is_active })
+        .eq("id", member.id);
+      if (error) {
+        toast.error(error.message || "Failed to update staff");
+        return;
+      }
     }
     fetchStaff();
-    toast.success(current ? "Deactivated" : "Activated");
+    toast.success(member.is_active ? "Deactivated" : "Activated");
   };
 
   if (loading)
@@ -254,7 +270,7 @@ export default function StaffPage() {
                           <RotateCcw className="h-4 w-4" />
                         </button>
                         <button
-                          onClick={() => handleToggleActive(s.id, s.is_active)}
+                          onClick={() => handleToggleActive(s)}
                           className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
                           aria-label={s.is_active ? "Deactivate" : "Activate"}
                         >

@@ -1,10 +1,20 @@
 -- ===========================================================================
--- Balaji Provision Store — Clean Database Reset Script
--- Run this in Supabase SQL Editor to wipe data during local development.
--- Does NOT modify RLS policies or security configuration.
+-- Balaji Provision Store — DEV-ONLY Reset Script
+-- ===========================================================================
+-- WARNING: this truncates business data. It refuses to run unless the session
+-- explicitly opts in. NEVER run it on production.
+--   SELECT set_config('balaji.allow_clean_database', 'yes', false);
 -- ===========================================================================
 
--- 1. Truncate all data tables safely with CASCADE
+DO $$
+BEGIN
+  IF current_setting('balaji.allow_clean_database', true) IS DISTINCT FROM 'yes' THEN
+    RAISE EXCEPTION
+      'clean_database.sql is destructive and dev-only. Set balaji.allow_clean_database=yes in this session to run it.';
+  END IF;
+END $$;
+
+-- 1. Truncate all tables safely with CASCADE
 TRUNCATE TABLE
   bill_items,
   bills,
@@ -25,7 +35,7 @@ TRUNCATE TABLE
   idempotency_keys
 CASCADE;
 
--- 2. Create compatibility views for catalogue reads
+-- 2. Create compatibility views so both "categories/products" and "catalog_categories/catalog_products" work
 CREATE OR REPLACE VIEW catalog_categories AS SELECT * FROM categories;
 CREATE OR REPLACE VIEW catalog_products AS SELECT * FROM products;
 
@@ -42,3 +52,6 @@ INSERT INTO store_settings (
   3000, 25000, 25000,
   'Cancellation allowed before order acceptance.'
 ) ON CONFLICT (id) DO UPDATE SET store_open = EXCLUDED.store_open;
+
+-- 4. RLS policies are managed by migrations. Do NOT create public policies
+-- here: the previous version of this script opened all tables to the anon key.

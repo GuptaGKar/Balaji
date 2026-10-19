@@ -1,11 +1,10 @@
 package com.balaji.provision.data.network
 
-import android.content.Context
-import dagger.hilt.android.qualifiers.ApplicationContext
+import com.balaji.provision.BuildConfig
 import dagger.hilt.InstallIn
-import dagger.hilt.components.SingletonComponent
 import dagger.Module
 import dagger.Provides
+import dagger.hilt.components.SingletonComponent
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -22,13 +21,23 @@ object NetworkModule {
     @Provides
     @Singleton
     @Named("supabaseUrl")
-    fun provideSupabaseUrl(): String = "https://czbwwnlnmhhzketyjnzt.supabase.co/"
-    
+    fun provideSupabaseUrl(): String {
+        val url = BuildConfig.SUPABASE_URL.trim()
+        require(url.isNotBlank()) { "SUPABASE_URL is not configured" }
+        return if (url.endsWith("/")) url else "$url/"
+    }
+
     @Provides
     @Singleton
-    fun provideOkHttpClient(@ApplicationContext context: Context): OkHttpClient {
+    fun provideOkHttpClient(): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            level = if (BuildConfig.DEBUG) {
+                HttpLoggingInterceptor.Level.BASIC
+            } else {
+                HttpLoggingInterceptor.Level.NONE
+            }
+            redactHeader("apikey")
+            redactHeader("Authorization")
         }
         return OkHttpClient.Builder()
             .addInterceptor(logging)
@@ -55,4 +64,8 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideSupabaseApi(retrofit: Retrofit): SupabaseApi = retrofit.create(SupabaseApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideAuthApi(retrofit: Retrofit): AuthApi = retrofit.create(AuthApi::class.java)
 }

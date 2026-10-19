@@ -35,6 +35,7 @@ type AuditFilters = {
 export default function AuditPage() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
@@ -53,55 +54,62 @@ export default function AuditPage() {
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      let query = supabase
+      let countQuery = supabase
         .from("audit_logs")
-        .select("*", { count: "exact" })
-        .order("created_at", { ascending: false });
+        .select("id", { count: "exact", head: true });
 
-      if (filters.start_date) query = query.gte("created_at", filters.start_date);
-      if (filters.end_date) query = query.lte("created_at", filters.end_date);
-      if (filters.entity_type) query = query.eq("entity_type", filters.entity_type);
-      if (filters.actor_id) query = query.eq("actor_id", filters.actor_id);
-      if (filters.action) query = query.eq("action", filters.action);
+      if (filters.start_date) countQuery = countQuery.gte("created_at", filters.start_date);
+      if (filters.end_date) countQuery = countQuery.lte("created_at", filters.end_date);
+      if (filters.entity_type) countQuery = countQuery.eq("entity_type", filters.entity_type);
+      if (filters.actor_id) countQuery = countQuery.eq("actor_id", filters.actor_id);
+      if (filters.action) countQuery = countQuery.eq("action", filters.action);
 
-      query = query.range(
-        (filters.page - 1) * filters.page_size,
-        filters.page * filters.page_size - 1,
-      );
+      const [countResult, rowsResult] = await Promise.all([
+        countQuery,
+        supabase.rpc("get_audit_logs", {
+          p_start_date: filters.start_date,
+          p_end_date: filters.end_date,
+          p_entity_type: filters.entity_type,
+          p_actor_id: filters.actor_id,
+          p_action: filters.action,
+          p_limit: filters.page_size,
+          p_offset: (filters.page - 1) * filters.page_size,
+        }),
+      ]);
 
-      const { data, error, count } = await query;
-      if (error) {
-        toast.error("Failed to load audit logs");
-        return;
-      }
-      setLogs(data || []);
-      setTotalCount(count || 0);
-    } catch (err: any) {
-      toast.error("Failed to load audit logs");
+      if (rowsResult.error) throw rowsResult.error;
+      setLogs(rowsResult.data || []);
+      setTotalCount(countResult.count || 0);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load audit logs");
     } finally {
       setLoading(false);
     }
   }, [filters, supabase]);
 
   const fetchEntityTypes = useCallback(async () => {
-    const { data } = await supabase.from("audit_logs").select("entity_type").order("entity_type");
-    const types = Array.from(new Set(data?.map((d) => d.entity_type) || []));
-    return types;
+    const { data } = await supabase
+      .from("audit_logs")
+      .select("entity_type")
+      .order("entity_type")
+      .limit(1000);
+    return Array.from(new Set(data?.map((d) => d.entity_type) || []));
   }, [supabase]);
 
   const fetchActors = useCallback(async () => {
     const { data } = await supabase
-      .from("audit_logs")
-      .select("actor_id, actor_name, actor_role")
-      .order("actor_name");
-    const actorsMap = new Map<string, { id: string; name: string | null; role: string | null }>();
-    (data || []).forEach((d) => {
-      if (d.actor_id && !actorsMap.has(d.actor_id)) {
-        actorsMap.set(d.actor_id, { id: d.actor_id, name: d.actor_name, role: d.actor_role });
-      }
-    });
-    return Array.from(actorsMap.values());
+      .from("profiles")
+      .select("id, display_name, role")
+      .neq("role", "customer")
+      .order("display_name")
+      .limit(500);
+    return (data || []).map((d) => ({
+      id: d.id,
+      name: d.display_name as string | null,
+      role: d.role as string | null,
+    }));
   }, [supabase]);
 
   const [entityTypes, setEntityTypes] = useState<string[]>([]);
@@ -125,15 +133,23 @@ export default function AuditPage() {
   const handleExport = async () => {
     try {
       const supabase = createClient();
+      const exportLimit = Math.min(totalCount, 500);
       const { data, error } = await supabase.rpc("get_audit_logs", {
         p_start_date: filters.start_date,
         p_end_date: filters.end_date,
         p_entity_type: filters.entity_type,
         p_actor_id: filters.actor_id,
-        p_limit: totalCount,
+        p_action: filters.action,
+        p_limit: exportLimit,
         p_offset: 0,
       });
       if (error) throw error;
+
+      const csvCell = (value: unknown) => {
+        const text = typeof value === "string" ? value : JSON.stringify(value ?? {});
+        const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+        return `"${safe.replace(/"/g, '""')}"`;
+      };
 
       const csv = [
         [
@@ -161,9 +177,7 @@ export default function AuditPage() {
           log.request_id || "",
         ]),
       ]
-        .map((row: any[]) =>
-          row.map((cell: any) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
-        )
+        .map((row: unknown[]) => row.map(csvCell).join(","))
         .join("\n");
 
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -173,6 +187,9 @@ export default function AuditPage() {
       link.download = `audit-logs-${new Date().toISOString().split("T")[0]}.csv`;
       link.click();
       URL.revokeObjectURL(url);
+      if (totalCount > 500) {
+        toast.warning("Export limited to the most recent 500 entries");
+      }
       toast.success("Export complete");
     } catch (err: any) {
       toast.error("Export failed: " + err.message);
@@ -187,32 +204,6 @@ export default function AuditPage() {
       return next;
     });
   };
-
-  const formatDateTime = (iso: string) => {
-    return new Date(iso).toLocaleString();
-  };
-
-  const formatRelativeTime = (iso: string) => {
-    const date = new Date(iso);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return "just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return new Date(iso).toLocaleDateString();
-  };
-
-  if (loading)
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
-      </div>
-    );
 
   return (
     <div className="space-y-6">
@@ -302,6 +293,17 @@ export default function AuditPage() {
       </div>
 
       {/* Results Table */}
+      {error && (
+        <div
+          role="alert"
+          className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          <span>{error}</span>
+          <button onClick={fetchLogs} className="font-medium underline">
+            Retry
+          </button>
+        </div>
+      )}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -331,6 +333,14 @@ export default function AuditPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
+              {loading && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-12 text-center">
+                    <Loader2 className="mx-auto h-8 w-8 animate-spin text-indigo-600" />
+                    <span className="sr-only">Loading audit logs</span>
+                  </td>
+                </tr>
+              )}
               {logs.map((log) => {
                 const isExpanded = expandedLogs.has(log.id);
                 return (
@@ -345,7 +355,8 @@ export default function AuditPage() {
                         <div className="flex items-center gap-2">
                           <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center">
                             <span className="text-xs font-medium text-indigo-700">
-                              {log.actor_name?.charAt(0) || log.actor_id.slice(0, 2).toUpperCase()}
+                              {log.actor_name?.charAt(0) ||
+                                (log.actor_id || "?").slice(0, 2).toUpperCase()}
                             </span>
                           </div>
                           <div>
@@ -388,7 +399,8 @@ export default function AuditPage() {
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900">{log.entity_type}</td>
                       <td className="px-4 py-3 text-sm text-gray-500 font-mono text-xs">
-                        {log.entity_id.slice(0, 8)}…
+                        {(log.entity_id || "—").slice(0, 8)}
+                        {log.entity_id && log.entity_id.length > 8 ? "…" : ""}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-500 font-mono text-xs">
                         {log.request_id?.slice(0, 12) || "—"}
@@ -439,7 +451,7 @@ export default function AuditPage() {
             </tbody>
           </table>
         </div>
-        {logs.length === 0 && (
+        {!loading && logs.length === 0 && (
           <div className="p-12 text-center text-gray-500">No audit logs found</div>
         )}
       </div>
@@ -447,8 +459,12 @@ export default function AuditPage() {
       {/* Pagination */}
       <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between">
         <div className="text-sm text-gray-500">
-          Showing {(filters.page - 1) * filters.page_size + 1} to{" "}
-          {Math.min(filters.page * filters.page_size, totalCount)} of {totalCount} results
+          {totalCount === 0
+            ? "No results"
+            : `Showing ${(filters.page - 1) * filters.page_size + 1} to ${Math.min(
+                filters.page * filters.page_size,
+                totalCount,
+              )} of ${totalCount} results`}
         </div>
         <div className="flex items-center gap-2">
           <select

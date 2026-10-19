@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import { formatRelativeTime } from "@/lib/format";
 import { formatRupees } from "@/lib/money";
@@ -27,7 +27,16 @@ type Order = {
   status: string;
   customer_note: string;
   created_at: string;
-  items: any[];
+  items: Array<{
+    id: string;
+    name: string;
+    qty: number;
+    display_qty: string;
+    unit: string;
+    quantity_type: string;
+    unitPrice: number;
+    total: number;
+  }>;
 };
 
 export default function RiderPage() {
@@ -38,40 +47,36 @@ export default function RiderPage() {
 
   const supabase = createClient();
 
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     try {
       const { data, error } = await supabase.rpc("get_rider_orders");
       if (error) throw error;
-      setOrders(data || []);
-    } catch (err: any) {
-      setError(err.message);
+      setOrders((data as Order[]) || []);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load deliveries");
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [supabase]);
 
   useEffect(() => {
     fetchOrders();
-    // Poll every 15 seconds as fallback
     const interval = setInterval(fetchOrders, 15000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchOrders]);
 
   const handleStatusUpdate = async (orderId: string, newStatus: string, note?: string) => {
-    try {
-      const { data, error } = await supabase.rpc("rider_update_status", {
-        p_order_id: orderId,
-        p_to_status: newStatus,
-        p_note: note || null,
-      });
-      if (error) throw error;
-      if (data.error) throw new Error(data.error.message);
-      toast.success(`Order ${newStatus.replace("_", " ")}`);
-      fetchOrders();
-    } catch (err: any) {
-      toast.error(err.message);
-    }
+    const { data, error } = await supabase.rpc("rider_update_status", {
+      p_order_id: orderId,
+      p_to_status: newStatus,
+      p_note: note || null,
+    });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.message || data.error);
+    toast.success(`Order marked ${newStatus.replace(/_/g, " ")}`);
+    await fetchOrders();
   };
 
   const handleRefresh = () => {
@@ -113,6 +118,7 @@ export default function RiderPage() {
           <button
             onClick={handleRefresh}
             disabled={refreshing}
+            aria-label="Refresh assigned deliveries"
             className="p-2 text-gray-500 hover:text-gray-700"
           >
             <RefreshCw className={cn("h-5 w-5", refreshing && "animate-spin")} />
@@ -122,6 +128,17 @@ export default function RiderPage() {
 
       {/* Orders List */}
       <main className="p-4 space-y-4">
+        {error && orders.length > 0 && (
+          <div
+            role="alert"
+            className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          >
+            <span>{error}</span>
+            <button onClick={fetchOrders} className="font-medium underline">
+              Retry
+            </button>
+          </div>
+        )}
         {orders.length === 0 ? (
           <div className="text-center py-12">
             <Truck className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -147,9 +164,8 @@ function OrderCard({
   onStatusUpdate,
 }: {
   order: Order;
-  onStatusUpdate: (id: string, status: string, note?: string) => void;
+  onStatusUpdate: (id: string, status: string, note?: string) => Promise<void>;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const [updating, setUpdating] = useState<string | null>(null);
 
   const statusColors: Record<string, string> = {
@@ -164,6 +180,26 @@ function OrderCard({
     out_for_delivery: <Truck className="h-3.5 w-3.5" />,
     delivered: <CheckCircle className="h-3.5 w-3.5" />,
     delivery_failed: <AlertCircle className="h-3.5 w-3.5" />,
+  };
+
+  const runAction = async (status: string) => {
+    let note: string | undefined;
+    if (status === "delivery_failed") {
+      const input = window.prompt("Reason for delivery failure (required)");
+      if (!input || !input.trim()) {
+        toast.error("A reason is required for a failed delivery");
+        return;
+      }
+      note = input.trim();
+    }
+    setUpdating(status);
+    try {
+      await onStatusUpdate(order.id, status, note);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update order");
+    } finally {
+      setUpdating(null);
+    }
   };
 
   const getNextActions = (status: string) => {
@@ -195,7 +231,7 @@ function OrderCard({
                 )}
               >
                 {statusIcons[order.status]}
-                {order.status.replace("_", " ")}
+                {order.status.replace(/_/g, " ")}
               </span>
             </div>
             <p className="text-sm text-gray-500 mt-1">
@@ -228,7 +264,15 @@ function OrderCard({
                 {order.address_snapshot?.postal_code}
               </p>
             </div>
-            <Phone className="h-5 w-5 text-indigo-600 mt-0.5" />
+            {order.address_snapshot?.phone && (
+              <a
+                href={`tel:${String(order.address_snapshot.phone).replace(/[^0-9+]/g, "")}`}
+                aria-label="Call customer"
+                className="text-indigo-600 hover:text-indigo-800"
+              >
+                <Phone className="h-5 w-5 mt-0.5" />
+              </a>
+            )}
           </div>
         </div>
 
@@ -236,12 +280,13 @@ function OrderCard({
         <div className="px-4 py-3 border-b border-gray-100">
           <p className="font-medium text-gray-900 mb-2">Items</p>
           <div className="space-y-2">
-            {order.items?.map((item: any) => (
+            {order.items?.map((item) => (
               <div key={item.id} className="flex items-center justify-between text-sm">
                 <div className="flex-1">
                   <p className="font-medium">{item.name}</p>
                   <p className="text-gray-500">
-                    {item.qty} x {item.unit} @ {item.unitPrice}
+                    {item.display_qty || `${item.qty} ${item.unit}`} @{" "}
+                    {formatRupees(item.unitPrice)}
                   </p>
                 </div>
                 <span className="font-medium">{formatRupees(item.total)}</span>
@@ -254,9 +299,15 @@ function OrderCard({
         {order.payment_method === "cod" && (
           <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
             <div className="flex items-center justify-between">
-              <span className="font-medium text-gray-900">COD to Collect</span>
+              <span className="font-medium text-gray-900">
+                {order.status === "delivered" ? "COD Collected" : "COD to Collect"}
+              </span>
               <span className="text-lg font-bold text-green-700">
-                {formatRupees(order.cod_collected_paise || order.grand_total_paise)}
+                {formatRupees(
+                  order.status === "delivered"
+                    ? (order.cod_collected_paise ?? order.grand_total_paise)
+                    : order.grand_total_paise,
+                )}
               </span>
             </div>
           </div>
@@ -275,15 +326,15 @@ function OrderCard({
           {getNextActions(order.status).map((action) => (
             <button
               key={action.status}
-              onClick={() => onStatusUpdate(order.id, action.status)}
-              disabled={updating === action.status}
+              onClick={() => runAction(action.status)}
+              disabled={updating !== null}
               className={cn(
                 "w-full py-2.5 px-4 rounded-lg font-medium transition-colors",
                 action.color,
                 "text-white hover:opacity-90 disabled:opacity-50",
               )}
             >
-              {action.label}
+              {updating === action.status ? "Updating..." : action.label}
             </button>
           ))}
         </div>
@@ -292,16 +343,3 @@ function OrderCard({
   );
 }
 
-const statusColors: Record<string, string> = {
-  ready_for_dispatch: "bg-indigo-100 text-indigo-800",
-  out_for_delivery: "bg-orange-100 text-orange-800",
-  delivered: "bg-green-100 text-green-800",
-  delivery_failed: "bg-red-100 text-red-800",
-};
-
-const statusIcons: Record<string, React.ReactNode> = {
-  ready_for_dispatch: <Truck className="h-3.5 w-3.5" />,
-  out_for_delivery: <Truck className="h-3.5 w-3.5" />,
-  delivered: <CheckCircle className="h-3.5 w-3.5" />,
-  delivery_failed: <AlertCircle className="h-3.5 w-3.5" />,
-};

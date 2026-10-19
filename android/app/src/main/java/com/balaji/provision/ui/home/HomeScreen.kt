@@ -29,15 +29,18 @@ import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Store
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,44 +51,26 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
-
-data class PromoBanner(
-    val id: String,
-    val title: String,
-    val subtitle: String,
-    val imageUrl: String
-)
 
 @Composable
 fun HomeScreen(
     onNavigateToCatalog: () -> Unit,
     onNavigateToCart: () -> Unit = {},
-    onNavigateToOrders: () -> Unit = {}
+    onNavigateToOrders: () -> Unit = {},
+    viewModel: HomeViewModel = hiltViewModel()
 ) {
     val scrollState = rememberScrollState()
     val context = LocalContext.current
-    
-    val sampleBanners = remember {
-        listOf(
-            PromoBanner(
-                id = "b1",
-                title = "Fresh Atta & Groceries Delivered ⚡",
-                subtitle = "Up to 30% OFF daily essentials",
-                imageUrl = "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&q=80"
-            ),
-            PromoBanner(
-                id = "b2",
-                title = "Free Local Home Delivery 🎉",
-                subtitle = "On all grocery orders above ₹250",
-                imageUrl = "https://images.unsplash.com/photo-1578916171728-46686eac8d58?w=800&q=80"
-            )
-        )
-    }
+    val state by viewModel.state.collectAsState()
 
+    val storePhone = state.contactPhone?.filter { it.isDigit() || it == '+' }?.takeIf { it.isNotBlank() }
     val dialStorePhone = {
-        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:9837803293"))
-        context.startActivity(intent)
+        if (storePhone != null) {
+            val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$storePhone"))
+            context.startActivity(intent)
+        }
     }
 
     Column(
@@ -144,17 +129,19 @@ fun HomeScreen(
                         }
                     }
                     
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF16A34A)
-                    ) {
-                        Text(
-                            "OPEN NOW",
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
+                    if (!state.isLoading && state.error == null) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (state.storeOpen) Color(0xFF16A34A) else Color(0xFFB91C1C)
+                        ) {
+                            Text(
+                                if (state.storeOpen) "OPEN" else "CLOSED",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
                     }
                 }
                 
@@ -175,7 +162,7 @@ fun HomeScreen(
                             modifier = Modifier.size(18.dp)
                         )
                         Text(
-                            "Local Area Delivery • Same-day Fulfillment",
+                            state.estimatedWindow ?: "Local Area Delivery",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -184,34 +171,55 @@ fun HomeScreen(
             }
         }
         
-        // Rotating Promotional Banners Carousel (Managed from Web Admin)
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Row(
+        if (state.isLoading) {
+            Box(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+            }
+        }
+
+        if (state.error != null) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        state.error ?: "",
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        fontSize = 13.sp
+                    )
+                    Button(onClick = { viewModel.loadStoreInfo() }) {
+                        Text("Retry")
+                    }
+                }
+            }
+        }
+
+        if (state.banners.isNotEmpty()) {
+            Column(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
                     "Store Deals & Offers",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
-                Text(
-                    "Swipe ➔",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-            
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                items(sampleBanners, key = { it.id }) { banner ->
-                    PromoBannerCard(banner = banner, onClick = onNavigateToCatalog)
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    items(state.banners, key = { it.id }) { banner ->
+                        PromoBannerCard(banner = banner, onClick = onNavigateToCatalog)
+                    }
                 }
             }
         }
@@ -257,7 +265,7 @@ fun HomeScreen(
                 )
                 QuickActionCard(
                     title = "Store Support",
-                    subtitle = "Call 9837803293",
+                    subtitle = if (storePhone != null) "Call the store" else "Phone unavailable",
                     icon = Icons.Default.Call,
                     onClick = dialStorePhone
                 )
@@ -280,10 +288,20 @@ fun HomeScreen(
             ) {
                 Text("Store Information", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Spacer(Modifier.height(2.dp))
-                InfoRow("Contact Phone", "9837803293", onClick = dialStorePhone)
-                InfoRow("Store Hours", "8:00 AM - 10:00 PM (Mon-Sun)")
-                InfoRow("Minimum Order", "None (Free delivery above ₹250)")
-                InfoRow("Payment Option", "Cash on Delivery (COD)")
+                if (storePhone != null) {
+                    InfoRow("Contact Phone", storePhone, onClick = dialStorePhone)
+                }
+                state.hours.forEach { entry ->
+                    InfoRow(entry.substringBefore(":"), entry.substringAfter(": "))
+                }
+                InfoRow("Delivery", state.deliveryText ?: "Confirmed by the store")
+                if (!state.estimatedWindow.isNullOrBlank()) {
+                    InfoRow("Timing", state.estimatedWindow ?: "")
+                }
+                InfoRow(
+                    "Payment Option",
+                    if (state.onlinePaymentEnabled) "Cash on Delivery / Online" else "Cash on Delivery (COD)"
+                )
             }
         }
         
@@ -293,7 +311,7 @@ fun HomeScreen(
 
 @Composable
 fun PromoBannerCard(
-    banner: PromoBanner,
+    banner: HomeBanner,
     onClick: () -> Unit
 ) {
     Card(

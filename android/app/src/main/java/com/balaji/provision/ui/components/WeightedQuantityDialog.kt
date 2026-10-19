@@ -48,6 +48,22 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.balaji.provision.domain.model.Product
 import com.balaji.provision.domain.model.formatPaise
+import com.balaji.provision.domain.model.formatWeightGrams
+import com.balaji.provision.domain.model.lineTotalPaise
+
+private fun parseWeightInput(text: String, isKilograms: Boolean): Long {
+    val trimmed = text.trim()
+    if (trimmed.isEmpty()) return 0
+    return if (isKilograms) {
+        val parts = trimmed.split(".")
+        if (parts.size > 2) return 0
+        val whole = parts[0].toLongOrNull() ?: return 0
+        val fraction = if (parts.size == 2) parts[1].padEnd(3, '0').take(3).toLongOrNull() ?: return 0 else 0
+        whole * 1000 + fraction
+    } else {
+        trimmed.toLongOrNull() ?: 0
+    }
+}
 
 enum class WeightUnit {
     GRAMS, KILOGRAMS
@@ -69,8 +85,7 @@ fun WeightedQuantityDialog(
     var inputText by remember(selectedUnit) {
         mutableStateOf(
             if (selectedUnit == WeightUnit.KILOGRAMS) {
-                val kg = currentQtyBaseGrams / 1000.0
-                if (kg == kg.toLong().toDouble()) kg.toLong().toString() else kg.toString()
+                formatWeightGrams(currentQtyBaseGrams).removeSuffix(" kg")
             } else {
                 currentQtyBaseGrams.toString()
             }
@@ -79,22 +94,13 @@ fun WeightedQuantityDialog(
     
     val calculatedGrams by remember(inputText, selectedUnit) {
         derivedStateOf {
-            val num = inputText.toDoubleOrNull() ?: 0.0
-            if (selectedUnit == WeightUnit.KILOGRAMS) {
-                (num * 1000).toLong()
-            } else {
-                num.toLong()
-            }
+            parseWeightInput(inputText, selectedUnit == WeightUnit.KILOGRAMS)
         }
     }
-    
+
     val calculatedPricePaise by remember(calculatedGrams) {
         derivedStateOf {
-            if (product.priceBasisQty > 0) {
-                (product.pricePaise.toDouble() * (calculatedGrams.toDouble() / product.priceBasisQty.toDouble())).toLong()
-            } else {
-                product.pricePaise
-            }
+            lineTotalPaise(product.pricePaise, product.priceBasisQty, calculatedGrams)
         }
     }
     
@@ -180,7 +186,7 @@ fun WeightedQuantityDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     val presets = if (selectedUnit == WeightUnit.GRAMS) {
-                        listOf("100", "250", "500", "750")
+                        listOf("100", "200", "500", "750")
                     } else {
                         listOf("0.5", "1", "2", "5")
                     }
@@ -232,7 +238,7 @@ fun WeightedQuantityDialog(
                         Column {
                             Text("Total Weight", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
-                                if (calculatedGrams >= 1000) "${calculatedGrams / 1000.0} kg" else "${calculatedGrams} g",
+                                formatWeightGrams(calculatedGrams),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
                             )

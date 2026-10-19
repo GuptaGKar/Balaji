@@ -203,8 +203,31 @@ enum class UserRole {
 }
 
 fun formatPaise(paise: Long): String {
-    val rupees = paise / 100.0
-    return "₹${String.format(java.util.Locale.US, "%,.2f", rupees)}"
+    val negative = paise < 0
+    val absolute = kotlin.math.abs(paise)
+    val rupees = absolute / 100
+    val fraction = absolute % 100
+    val grouped = rupees.toString()
+        .reversed()
+        .chunked(3)
+        .joinToString(",")
+        .reversed()
+    val sign = if (negative) "-" else ""
+    return "$sign₹$grouped.${fraction.toString().padStart(2, '0')}"
+}
+
+fun formatWeightGrams(grams: Long): String {
+    if (grams < 1000) return "$grams g"
+    val kg = grams / 1000
+    val remainder = grams % 1000
+    if (remainder == 0L) return "$kg kg"
+    val fraction = remainder.toString().padStart(3, '0').trimEnd('0')
+    return "$kg.$fraction kg"
+}
+
+fun lineTotalPaise(pricePaise: Long, priceBasisQty: Long, qtyBase: Long): Long {
+    if (priceBasisQty <= 0) return 0
+    return (pricePaise * qtyBase + priceBasisQty / 2) / priceBasisQty
 }
 
 fun formatPrice(pricePaise: Long, priceBasisQty: Long, quantityType: QuantityType): String {

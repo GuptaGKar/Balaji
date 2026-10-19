@@ -137,7 +137,16 @@ export const productSchema = z
 export type Product = z.infer<typeof productSchema>;
 
 export const loginSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  email: z
+    .string()
+    .min(1, "Email or login ID required")
+    .refine(
+      (value) =>
+        value.includes("@")
+          ? z.string().email().safeParse(value).success
+          : /^[A-Za-z0-9-]{3,40}$/.test(value),
+      "Enter a valid email address or login ID",
+    ),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
@@ -151,9 +160,13 @@ export const serviceAreaSchema = z.object({
 export type ServiceArea = z.infer<typeof serviceAreaSchema>;
 
 export const createStaffSchema = z.object({
-  display_name: z.string().min(1, "Name is required"),
-  phone: z.string().min(10, "Valid phone required"),
-  role: z.enum(["staff", "manager", "delivery"]),
-  login_id: z.string().min(3, "Login ID required"),
+  display_name: z.string().min(1, "Display name required").max(120),
+  phone: z.string().min(10, "Valid phone required").max(20),
+  role: z.enum(["staff", "delivery"]),
+  login_id: z
+    .string()
+    .min(3, "Login ID required")
+    .max(40)
+    .regex(/^[A-Z0-9-]+$/, "Use uppercase letters, digits and hyphens only"),
 });
 export type CreateStaffInput = z.infer<typeof createStaffSchema>;

@@ -7,31 +7,31 @@ import com.balaji.provision.data.repository.CatalogRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.anyInt
 import org.mockito.Mockito.anyString
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
+import retrofit2.Response
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ProductViewModelTest {
 
-    private lateinit var viewModel: ProductViewModel
+    private val dispatcher = StandardTestDispatcher()
     private lateinit var mockApi: SupabaseApi
-    private lateinit var mockCatalogRepo: CatalogRepository
-    private val testDispatcher = StandardTestDispatcher()
 
     @Before
     fun setup() {
-        Dispatchers.setMain(testDispatcher)
+        Dispatchers.setMain(dispatcher)
         mockApi = mock(SupabaseApi::class.java)
-        mockCatalogRepo = CatalogRepository()
     }
 
     @After
@@ -40,30 +40,114 @@ class ProductViewModelTest {
     }
 
     @Test
-    fun `loadData filters active categories and products`() = runTest(testDispatcher) {
-        val categories = listOf(
-            CategoryResponse("cat-1", "Active Cat", "active-cat", 1, true),
-            CategoryResponse("cat-2", "Inactive Cat", "inactive-cat", 2, false)
+    fun `loadData filters inactive categories and unavailable products`() = runTest(dispatcher) {
+        stubApi(
+            categories = listOf(
+                CategoryResponse("cat-1", "Active Cat", "active-cat", 1, true),
+                CategoryResponse("cat-2", "Inactive Cat", "inactive-cat", 2, false)
+            ),
+            products = listOf(
+                productResponse("p-1", "SKU1", "Product 1", "cat-1", active = true, available = true),
+                productResponse("p-2", "SKU2", "Hidden Product", "cat-1", active = false, available = true),
+                productResponse("p-3", "SKU3", "Unavailable Product", "cat-1", active = true, available = false)
+            )
         )
-        val products = listOf(
-            ProductResponse("p-1", "SKU1", "Product 1", null, "cat-1", null, "PACKED", 10000, 1, "pack", null, 1, 1, null, 10, 0, active = true, available = true)
-        )
-        
-        `when`(mockApi.getCategories(anyString(), anyString(), anyString(), anyString())).thenReturn(retrofit2.Response.success(categories))
-        `when`(mockApi.getProducts(anyString(), anyString(), anyString(), anyString(), anyInt())).thenReturn(retrofit2.Response.success(products))
-        
-        viewModel = ProductViewModel(mockApi, mockCatalogRepo)
-        testDispatcher.scheduler.advanceUntilIdle()
-        
+
+        val viewModel = ProductViewModel(mockApi, CatalogRepository())
+        advanceUntilIdle()
+
         assertEquals(1, viewModel.categories.value.size)
         assertEquals("cat-1", viewModel.categories.value[0].id)
+        assertEquals(1, viewModel.products.value.size)
+        assertEquals("p-1", viewModel.products.value[0].id)
+        assertEquals(null, viewModel.error.value)
     }
 
     @Test
-    fun `searchQuery updates`() = runTest(testDispatcher) {
-        viewModel = ProductViewModel(mockApi, mockCatalogRepo)
-        viewModel.setSearchQuery("test query")
-        testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals("test query", viewModel.searchQuery.value)
+    fun `selectCategory filters products`() = runTest(dispatcher) {
+        stubApi(
+            categories = listOf(
+                CategoryResponse("cat-1", "Cat 1", "cat-1", 1, true),
+                CategoryResponse("cat-2", "Cat 2", "cat-2", 2, true)
+            ),
+            products = listOf(
+                productResponse("p-1", "SKU1", "Product 1", "cat-1"),
+                productResponse("p-2", "SKU2", "Product 2", "cat-2")
+            )
+        )
+
+        val viewModel = ProductViewModel(mockApi, CatalogRepository())
+        advanceUntilIdle()
+        viewModel.selectCategory("cat-1")
+        advanceUntilIdle()
+
+        assertEquals("cat-1", viewModel.selectedCategory.value)
+        assertEquals(1, viewModel.products.value.size)
+        assertEquals("p-1", viewModel.products.value[0].id)
     }
+
+    @Test
+    fun `searchQuery filters products`() = runTest(dispatcher) {
+        stubApi(
+            categories = emptyList(),
+            products = listOf(
+                productResponse("p-1", "RICE-1", "Basmati Rice", "cat-1"),
+                productResponse("p-2", "OIL-1", "Sunflower Oil", "cat-1")
+            )
+        )
+
+        val viewModel = ProductViewModel(mockApi, CatalogRepository())
+        advanceUntilIdle()
+        viewModel.setSearchQuery("rice")
+        advanceUntilIdle()
+
+        assertEquals("rice", viewModel.searchQuery.value)
+        assertEquals(1, viewModel.products.value.size)
+    }
+
+    @Test
+    fun `api failure exposes error without sample data`() = runTest(dispatcher) {
+        `when`(mockApi.getCategories(anyString(), anyString(), anyString(), anyString()))
+            .thenReturn(Response.error(500, okhttp3.ResponseBody.create(null, "")))
+        `when`(mockApi.getProducts(anyString(), anyString(), anyString(), anyString(), anyInt()))
+            .thenReturn(Response.error(500, okhttp3.ResponseBody.create(null, "")))
+
+        val viewModel = ProductViewModel(mockApi, CatalogRepository())
+        advanceUntilIdle()
+
+        assertNotNull(viewModel.error.value)
+        assertEquals(0, viewModel.products.value.size)
+        assertEquals(0, viewModel.categories.value.size)
+    }
+
+    private suspend fun stubApi(categories: List<CategoryResponse>, products: List<ProductResponse>) {
+        `when`(mockApi.getCategories(anyString(), anyString(), anyString(), anyString()))
+            .thenReturn(Response.success(categories))
+        `when`(mockApi.getProducts(anyString(), anyString(), anyString(), anyString(), anyInt()))
+            .thenReturn(Response.success(products))
+    }
+
+    private fun productResponse(
+        id: String,
+        sku: String,
+        name: String,
+        categoryId: String,
+        active: Boolean = true,
+        available: Boolean = true
+    ) = ProductResponse(
+        id = id,
+        sku = sku,
+        name = name,
+        category_id = categoryId,
+        quantity_type = "PACKED",
+        price_paise = 10000,
+        price_basis_qty = 1,
+        unit_label = "pack",
+        step_qty = 1,
+        min_qty = 1,
+        stock_qty = 10,
+        low_stock_threshold = 2,
+        active = active,
+        available = available
+    )
 }

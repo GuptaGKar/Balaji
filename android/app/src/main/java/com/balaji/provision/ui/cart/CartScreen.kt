@@ -111,7 +111,7 @@ fun CartScreen(
                         color = MaterialTheme.colorScheme.primaryContainer
                     ) {
                         Text(
-                            "${cart.itemCount} items",
+                            "${cart.items.size} items",
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,

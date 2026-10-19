@@ -20,7 +20,14 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
-        buildConfigField("String", "SUPABASE_ANON_KEY", "\"sb_publishable_pr_hXgQlfx4W-Z4HETIdBg_VoNIBEpo\"")
+        val supabaseUrl = (project.findProperty("SUPABASE_URL") as String?)
+            ?: System.getenv("SUPABASE_URL")
+            ?: "https://czbwwnlnmhhzketyjnzt.supabase.co/"
+        val supabaseAnonKey = (project.findProperty("SUPABASE_ANON_KEY") as String?)
+            ?: System.getenv("SUPABASE_ANON_KEY")
+            ?: "sb_publishable_pr_hXgQlfx4W-Z4HETIdBg_VoNIBEpo"
+        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseAnonKey\"")
     }
 
     buildTypes {
@@ -89,6 +96,7 @@ dependencies {
     
     // DataStore (cart/session persistence)
     implementation("androidx.datastore:datastore-preferences:1.0.0")
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("androidx.datastore:datastore-preferences-rxjava3:1.0.0")
     implementation("io.reactivex.rxjava3:rxjava:3.1.8")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-rx3:1.7.3")

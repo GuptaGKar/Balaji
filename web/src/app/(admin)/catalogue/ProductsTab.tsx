@@ -106,7 +106,9 @@ export default function ProductsTab() {
     const supabase = createClient();
     try {
       const isWeighted = data.quantity_type?.toLowerCase() === "weighted";
-      const generatedSku = (data.sku && data.sku.trim()) ? data.sku.trim() : `SKU-${Math.floor(100000 + Math.random() * 900000)}`;
+      const generatedSku = (data.sku && data.sku.trim())
+        ? data.sku.trim()
+        : `SKU-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
       const calculatedPricePaise = Math.round((priceRupees || 0) * 100);
       const selectedCategoryId = data.category_id || (categories.length > 0 ? categories[0].id : null);
 
@@ -115,21 +117,18 @@ export default function ProductsTab() {
         return;
       }
 
-      // Convert stock to base units (Grams for WEIGHTED, Packs for PACKED)
-      const finalStockQty = isWeighted ? Math.round((stockInput || 0) * 1000) : Math.round(stockInput || 0);
-
+      const { stock_qty: _ignoredStock, ...productFields } = data;
       const payload = {
-        ...data,
+        ...productFields,
         sku: generatedSku,
         category_id: selectedCategoryId,
         quantity_type: isWeighted ? "WEIGHTED" : "PACKED",
-        price_paise: calculatedPricePaise > 0 ? calculatedPricePaise : 10000,
+        price_paise: calculatedPricePaise,
         price_basis_qty: isWeighted ? 1000 : 1,
         unit_label: isWeighted ? "kg" : "pack",
         pack_size_label: isWeighted ? null : (data.pack_size_label || "1 pc"),
         step_qty: isWeighted ? 10 : 1,
         min_qty: isWeighted ? 100 : 1,
-        stock_qty: finalStockQty,
         low_stock_threshold: isWeighted ? 5000 : 5,
         max_qty: data.max_qty || null,
       };
@@ -139,8 +138,29 @@ export default function ProductsTab() {
         if (error) throw error;
         toast.success("Product updated successfully!");
       } else {
-        const { error } = await supabase.from("products").insert(payload);
+        const { data: inserted, error } = await supabase
+          .from("products")
+          .insert(payload)
+          .select("id")
+          .single();
         if (error) throw error;
+
+        const initialStockQty = isWeighted
+          ? Math.round((stockInput || 0) * 1000)
+          : Math.round(stockInput || 0);
+        if (initialStockQty > 0) {
+          const { data: stockResult, error: stockError } = await supabase.rpc("adjust_stock", {
+            p_product_id: inserted.id,
+            p_delta_qty: initialStockQty,
+            p_reason: "manual_adjustment",
+            p_note: "Initial stock on product creation",
+          });
+          if (stockError || stockResult?.error) {
+            toast.error(
+              stockError?.message || stockResult?.message || "Product created but initial stock failed",
+            );
+          }
+        }
         toast.success("Product created successfully!");
       }
       setEditingId(null);
@@ -285,6 +305,7 @@ export default function ProductsTab() {
           stockInput={stockInput}
           setStockInput={setStockInput}
           watchedQuantityType={watchedQuantityType}
+          isEditing={false}
         />
       )}
 
@@ -328,6 +349,7 @@ export default function ProductsTab() {
                           stockInput={stockInput}
                           setStockInput={setStockInput}
                           watchedQuantityType={watchedQuantityType}
+                          isEditing
                         />
                       </td>
                     ) : (
@@ -455,6 +477,7 @@ function ProductFormCard({
   stockInput,
   setStockInput,
   watchedQuantityType,
+  isEditing,
 }: {
   form: ReturnType<typeof useForm<Product>>;
   categories: { id: string; name: string }[];
@@ -469,6 +492,7 @@ function ProductFormCard({
   stockInput: number;
   setStockInput: (val: number) => void;
   watchedQuantityType: string;
+  isEditing: boolean;
 }) {
   const isWeighted = watchedQuantityType?.toLowerCase() === "weighted";
 
@@ -591,11 +615,16 @@ function ProductFormCard({
               value={stockInput}
               onChange={(e) => setStockInput(parseFloat(e.target.value) || 0)}
               required
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm font-semibold focus:ring-2 focus:ring-emerald-500"
+              disabled={isEditing}
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm font-semibold focus:ring-2 focus:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
               placeholder={isWeighted ? "e.g. 50 (50 kg)" : "e.g. 50 (50 pcs)"}
             />
             <span className="text-[11px] text-slate-500 mt-1 block">
-              {isWeighted ? "Enter total stock in kg (e.g. 50 kg)" : "Enter total quantity in packs"}
+              {isEditing
+                ? "Stock can only be changed through Inventory → Adjust Stock"
+                : isWeighted
+                  ? "Initial stock in kg (e.g. 50 kg), recorded as an audited movement"
+                  : "Initial quantity in packs, recorded as an audited movement"}
             </span>
           </div>
 

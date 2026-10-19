@@ -6,6 +6,8 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.balaji.provision.data.auth.SessionStorage
+import com.balaji.provision.data.auth.SessionStore
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -25,6 +27,10 @@ object AppModule {
     fun provideAppDataStore(@ApplicationContext context: Context): DataStore<Preferences> =
         context.dataStore
     
+    @Provides
+    @Singleton
+    fun provideSessionStorage(store: SessionStore): SessionStorage = store
+
     @Provides
     @Singleton
     @Named("cartVersionKey")

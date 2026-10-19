@@ -16,6 +16,21 @@ class PriceFormattingTest {
     }
 
     @Test
+    fun `formatWeightGrams uses integer arithmetic`() {
+        assertEquals("250 g", formatWeightGrams(250))
+        assertEquals("1 kg", formatWeightGrams(1000))
+        assertEquals("1.5 kg", formatWeightGrams(1500))
+        assertEquals("1.05 kg", formatWeightGrams(1050))
+    }
+
+    @Test
+    fun `lineTotalPaise rounds half up`() {
+        assertEquals(1500, lineTotalPaise(6000, 1000, 250))
+        assertEquals(500, lineTotalPaise(999, 2, 1))
+        assertEquals(0, lineTotalPaise(6000, 0, 250))
+    }
+
+    @Test
     fun `formatPrice packed`() {
         assertEquals("₹45.00 / pack", formatPrice(4500, 1, QuantityType.PACKED))
         assertEquals("₹123.45 / pack", formatPrice(12345, 1, QuantityType.PACKED))
