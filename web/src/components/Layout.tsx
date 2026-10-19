@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase";
@@ -35,13 +35,25 @@ const navigation = [
   { name: "POS & Billing", href: "/billing", icon: FileText },
 ];
 
-export default function Layout({ children }: { children: React.ReactNode }) {
+export default function Layout({
+  children,
+  user,
+}: {
+  children: React.ReactNode;
+  user: { email: string; role: string };
+}) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [user] = useState<{ email: string; role: string } | null>({
-    email: "admin@balajiprovision.com",
-    role: "Manager",
-  });
+  const [storeOpen, setStoreOpen] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("store_settings")
+      .select("store_open")
+      .single()
+      .then(({ data }) => setStoreOpen(data ? data.store_open : null));
+  }, []);
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -120,9 +132,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {/* User & Store Status Footer */}
           <div className="p-4 border-t border-slate-800 bg-slate-950/30 space-y-3">
             <div className="flex items-center justify-between text-xs px-1">
-              <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                Store Online
+              <span
+                className={cn(
+                  "flex items-center gap-1.5 font-medium",
+                  storeOpen === null ? "text-slate-400" : storeOpen ? "text-emerald-400" : "text-red-400",
+                )}
+              >
+                <span
+                  className={cn(
+                    "h-2 w-2 rounded-full",
+                    storeOpen === null ? "bg-slate-500" : storeOpen ? "bg-emerald-400 animate-pulse" : "bg-red-400",
+                  )}
+                />
+                {storeOpen === null ? "Store status unknown" : storeOpen ? "Store Open" : "Store Closed"}
               </span>
               <span className="text-slate-400">v1.0.0</span>
             </div>
@@ -159,11 +181,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
             <div className="flex items-center gap-3">
               <div className="hidden sm:flex flex-col text-right">
-                <span className="text-xs font-semibold text-slate-900">{user?.email}</span>
-                <span className="text-[11px] text-emerald-600 font-medium">{user?.role}</span>
+                <span className="text-xs font-semibold text-slate-900">{user.email}</span>
+                <span className="text-[11px] text-emerald-600 font-medium capitalize">{user.role}</span>
               </div>
               <div className="h-8 w-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-sm border border-emerald-300 shadow-sm">
-                M
+                {user.email.slice(0, 1).toUpperCase()}
               </div>
             </div>
           </div>

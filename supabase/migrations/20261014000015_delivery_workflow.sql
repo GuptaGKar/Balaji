@@ -13,52 +13,18 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
-DECLARE
-  v_otp text;
-  v_email text;
-  v_user_id uuid;
-  v_profile_id uuid;
 BEGIN
-  -- Authorization
+  -- Auth users can only be created through the Supabase Admin API. The web
+  -- server route /api/staff performs provisioning with the service-role key.
+  -- Returning fake success/OTP from SQL was misleading and never created a
+  -- usable login, so fail explicitly instead.
   IF public.current_role() <> 'manager' THEN
     RETURN jsonb_build_object('error', 'FORBIDDEN', 'message', 'Manager required');
   END IF;
 
-  -- Validate login_id format
-  IF p_login_id !~ '^[A-Z0-9-]+$' THEN
-    RETURN jsonb_build_object('error', 'VALIDATION_FAILED', 'message', 'Login ID must be uppercase alphanumeric with hyphens');
-  END IF;
-
-  -- Check uniqueness
-  IF EXISTS (SELECT 1 FROM public.profiles WHERE login_id = p_login_id) THEN
-    RETURN jsonb_build_object('error', 'VALIDATION_FAILED', 'message', 'Login ID already exists');
-  END IF;
-
-  -- Generate synthetic email and OTP
-  v_email := lower(p_login_id) || '@riders.invalid';
-  v_otp := encode(gen_random_bytes(6), 'hex'); -- 12-char OTP
-
-  -- Create auth user (using admin API via service role)
-  -- This requires the function to be called with service role key
-  -- For now, we create the profile directly and note the OTP
-  -- In production, this would call auth.admin.create_user
-  
-  INSERT INTO public.profiles (id, role, display_name, phone, login_id, is_active, must_change_password)
-  VALUES (gen_random_uuid(), 'delivery', p_display_name, p_phone, p_login_id, true, true)
-  RETURNING id INTO v_profile_id;
-
-  -- Audit log
-  INSERT INTO public.audit_logs (actor_id, action, entity_type, entity_id, after, request_id)
-  VALUES (auth.uid(), 'CREATE_RIDER', 'profiles', v_profile_id,
-          jsonb_build_object('login_id', p_login_id, 'display_name', p_display_name, 'phone', p_phone),
-          current_setting('request.id', true)::text);
-
   RETURN jsonb_build_object(
-    'success', true,
-    'rider_id', v_profile_id,
-    'login_id', p_login_id,
-    'otp', v_otp,  -- Shown ONCE to manager, never stored/logged
-    'message', 'Rider created. Share OTP securely. Rider must change password on first login.'
+    'error', 'NOT_SUPPORTED',
+    'message', 'Rider accounts are provisioned through the admin web API (/api/staff), not SQL.'
   );
 END;
 $$;
@@ -74,34 +40,16 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
-DECLARE
-  v_otp text;
-  v_login_id text;
 BEGIN
   IF public.current_role() <> 'manager' THEN
     RETURN jsonb_build_object('error', 'FORBIDDEN', 'message', 'Manager required');
   END IF;
 
-  SELECT login_id INTO v_login_id FROM public.profiles WHERE id = p_rider_id AND role = 'delivery';
-  IF NOT FOUND THEN
-    RETURN jsonb_build_object('error', 'NOT_FOUND', 'message', 'Rider not found');
-  END IF;
-
-  v_otp := encode(gen_random_bytes(6), 'hex');
-
-  -- In production: call auth.admin.update_user_by_id with new password
-  -- For now, update profile flag
-  UPDATE public.profiles SET must_change_password = true WHERE id = p_rider_id;
-
-  INSERT INTO public.audit_logs (actor_id, action, entity_type, entity_id, after, request_id)
-  VALUES (auth.uid(), 'RESET_RIDER_PASSWORD', 'profiles', p_rider_id,
-          jsonb_build_object('login_id', v_login_id),
-          current_setting('request.id', true)::text);
-
+  -- Passwords live in auth.users and can only be reset through the Admin API.
+  -- The admin web route /api/staff performs the reset with the service key.
   RETURN jsonb_build_object(
-    'success', true,
-    'otp', v_otp,
-    'message', 'Password reset. Share OTP securely.'
+    'error', 'NOT_SUPPORTED',
+    'message', 'Rider passwords are reset through the admin web API (/api/staff), not SQL.'
   );
 END;
 $$;
@@ -156,8 +104,8 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 DECLARE
-  v_order orders%ROWTYPE;
-  v_rider profiles%ROWTYPE;
+  v_order public.orders%ROWTYPE;
+  v_rider public.profiles%ROWTYPE;
 BEGIN
   IF public.current_role() NOT IN ('staff','manager') THEN
     RETURN jsonb_build_object('error', 'FORBIDDEN', 'message', 'Staff or manager required');
@@ -209,8 +157,8 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 DECLARE
-  v_order orders%ROWTYPE;
-  v_assignment order_assignments%ROWTYPE;
+  v_order public.orders%ROWTYPE;
+  v_assignment public.order_assignments%ROWTYPE;
   v_from_status public.order_status;
   v_allowed boolean;
   v_cod_collected bigint;
@@ -220,8 +168,10 @@ BEGIN
     RETURN jsonb_build_object('error', 'FORBIDDEN', 'message', 'Only delivery users may call this');
   END IF;
 
-  -- Order must exist and be assigned to this rider (active assignment)
-  SELECT * INTO v_order FROM public.orders WHERE id = p_order_id;
+  -- Order must exist and be assigned to this rider (active assignment).
+  -- Lock the row so two concurrent status calls cannot both pass the state
+  -- machine check (e.g. double-deliver / double-restore).
+  SELECT * INTO v_order FROM public.orders WHERE id = p_order_id FOR UPDATE;
   IF NOT FOUND THEN
     RETURN jsonb_build_object('error', 'NOT_FOUND', 'message', 'Order not found');
   END IF;
@@ -260,7 +210,11 @@ BEGIN
   UPDATE public.orders
   SET status = p_to_status,
       delivered_at = CASE WHEN p_to_status = 'delivered' THEN now() ELSE delivered_at END,
-      cod_collected_paise = COALESCE(v_cod_collected, cod_collected_paise)
+      cod_collected_paise = COALESCE(v_cod_collected, cod_collected_paise),
+      payment_status = CASE
+        WHEN p_to_status = 'delivered' AND v_order.payment_method = 'cod' THEN 'paid'::public.payment_status
+        ELSE payment_status
+      END
   WHERE id = p_order_id;
 
   INSERT INTO public.order_status_events (order_id, from_status, to_status, actor_id, reason)
@@ -297,7 +251,7 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 DECLARE
-  v_order orders%ROWTYPE;
+  v_order public.orders%ROWTYPE;
   v_from_status public.order_status;
   v_allowed boolean;
   v_restore_stock boolean := false;
@@ -306,7 +260,7 @@ BEGIN
     RETURN jsonb_build_object('error', 'FORBIDDEN', 'message', 'Staff or manager required');
   END IF;
 
-  SELECT * INTO v_order FROM public.orders WHERE id = p_order_id;
+  SELECT * INTO v_order FROM public.orders WHERE id = p_order_id FOR UPDATE;
   IF NOT FOUND THEN
     RETURN jsonb_build_object('error', 'NOT_FOUND', 'message', 'Order not found');
   END IF;
@@ -333,7 +287,16 @@ BEGIN
   -- Perform transition
   UPDATE public.orders
   SET status = p_to_status,
-      delivered_at = CASE WHEN p_to_status = 'delivered' THEN now() ELSE delivered_at END
+      accepted_at = CASE WHEN p_to_status = 'accepted' THEN now() ELSE accepted_at END,
+      delivered_at = CASE WHEN p_to_status = 'delivered' THEN now() ELSE delivered_at END,
+      cod_collected_paise = CASE
+        WHEN p_to_status = 'delivered' AND v_order.payment_method = 'cod' THEN v_order.grand_total_paise
+        ELSE cod_collected_paise
+      END,
+      payment_status = CASE
+        WHEN p_to_status = 'delivered' AND v_order.payment_method = 'cod' THEN 'paid'::public.payment_status
+        ELSE payment_status
+      END
   WHERE id = p_order_id;
 
   INSERT INTO public.order_status_events (order_id, from_status, to_status, actor_id, reason)
@@ -346,25 +309,33 @@ BEGIN
       FROM public.inventory_movements
       WHERE reference_type = 'order' AND reference_id = p_order_id AND reason = 'order_placed'
       GROUP BY product_id
-    )
-    UPDATE public.products p
-    SET stock_qty = p.stock_qty + m.total_delta
-    FROM movements m
-    WHERE p.id = m.product_id
-      AND NOT EXISTS (
+      HAVING SUM(delta_qty) <> 0
+    ),
+    eligible AS (
+      SELECT m.product_id, m.total_delta
+      FROM movements m
+      WHERE NOT EXISTS (
         SELECT 1 FROM public.inventory_movements im
-        WHERE im.reference_type = 'order' 
+        WHERE im.reference_type = 'order'
           AND im.reference_id = p_order_id
           AND im.reason IN ('order_cancelled', 'order_rejected', 'item_removed')
           AND im.product_id = m.product_id
-      );
-
+      )
+    ),
+    restored AS (
+      UPDATE public.products p
+      -- order_placed movements are negative, so subtracting the delta restores stock
+      SET stock_qty = p.stock_qty - e.total_delta
+      FROM eligible e
+      WHERE p.id = e.product_id
+      RETURNING p.id AS product_id, e.total_delta
+    )
     INSERT INTO public.inventory_movements (product_id, delta_qty, reason, reference_type, reference_id, actor_id, note)
-    SELECT m.product_id, m.total_delta,
-           CASE WHEN p_to_status = 'rejected' THEN 'order_rejected' ELSE 'order_cancelled' END,
+    SELECT r.product_id, -r.total_delta,
+           (CASE WHEN p_to_status = 'rejected' THEN 'order_rejected' ELSE 'order_cancelled' END)::public.inventory_reason,
            'order', p_order_id, auth.uid(),
            'Auto-restore on ' || p_to_status || ': ' || COALESCE(p_reason, '')
-    FROM movements m;
+    FROM restored r;
   END IF;
 
   RETURN jsonb_build_object(
@@ -391,15 +362,21 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 DECLARE
-  v_order orders%ROWTYPE;
-  v_item order_items%ROWTYPE;
+  v_order public.orders%ROWTYPE;
+  v_item public.order_items%ROWTYPE;
   v_item_total bigint;
+  v_new_subtotal bigint;
+  v_new_fee bigint;
+  v_new_tax bigint;
+  v_new_grand bigint;
+  v_settings public.store_settings%ROWTYPE;
+  v_fee_info record;
 BEGIN
   IF public.current_role() NOT IN ('staff','manager') THEN
     RETURN jsonb_build_object('error', 'FORBIDDEN', 'message', 'Staff or manager required');
   END IF;
 
-  SELECT * INTO v_order FROM public.orders WHERE id = p_order_id;
+  SELECT * INTO v_order FROM public.orders WHERE id = p_order_id FOR UPDATE;
   IF NOT FOUND THEN
     RETURN jsonb_build_object('error', 'NOT_FOUND', 'message', 'Order not found');
   END IF;
@@ -408,7 +385,9 @@ BEGIN
     RETURN jsonb_build_object('error', 'INVALID_STATUS', 'message', 'Item removal only allowed before dispatch');
   END IF;
 
-  SELECT * INTO v_item FROM public.order_items WHERE id = p_item_id AND order_id = p_order_id;
+  SELECT * INTO v_item FROM public.order_items
+  WHERE id = p_item_id AND order_id = p_order_id
+  FOR UPDATE;
   IF NOT FOUND THEN
     RETURN jsonb_build_object('error', 'NOT_FOUND', 'message', 'Order item not found');
   END IF;
@@ -434,17 +413,35 @@ BEGIN
     VALUES (v_item.product_id, v_item.qty_base, 'item_removed', 'order', p_order_id, auth.uid(), p_reason);
   END IF;
 
-  -- Recompute order totals
+  -- Recompute order totals using the server pricing engine so the delivery
+  -- fee and tax reflect the reduced subtotal (never trust stale client totals).
+  SELECT * INTO v_settings FROM public.store_settings;
+  v_new_subtotal := v_order.item_subtotal_paise - v_item_total;
+  SELECT * INTO v_fee_info FROM public.compute_delivery_fee(v_new_subtotal);
+  v_new_fee := v_fee_info.fee_paise;
+  v_new_tax := CASE
+    WHEN v_settings.tax_mode = 'exclusive' AND v_settings.tax_rate_bps > 0
+      THEN ((v_new_subtotal - v_order.discount_paise + v_new_fee) * v_settings.tax_rate_bps) / 10000
+    ELSE 0
+  END;
+  v_new_grand := v_new_subtotal - v_order.discount_paise + v_new_fee + v_new_tax;
+
   UPDATE public.orders
-  SET item_subtotal_paise = item_subtotal_paise - v_item_total,
-      grand_total_paise = grand_total_paise - v_item_total
+  SET item_subtotal_paise = v_new_subtotal,
+      delivery_fee_paise = v_new_fee,
+      tax_paise = v_new_tax,
+      grand_total_paise = v_new_grand,
+      fee_breakdown = jsonb_build_object(
+        'fee_rule_note', v_fee_info.rule_note,
+        'amount_to_free_delivery', v_fee_info.amount_to_free_delivery
+      )
   WHERE id = p_order_id;
 
-  -- Update payment status if needed (partial refund for COD)
+  -- Update payment status if needed (partial refund for online payments)
   UPDATE public.orders
-  SET payment_status = CASE 
-    WHEN payment_method = 'cod' AND payment_status = 'unpaid' THEN 'unpaid'
-    WHEN payment_method = 'online' THEN 'refund_pending'
+  SET payment_status = CASE
+    WHEN payment_method = 'cod' AND payment_status = 'unpaid' THEN 'unpaid'::public.payment_status
+    WHEN payment_method = 'online' THEN 'refund_pending'::public.payment_status
     ELSE payment_status
   END
   WHERE id = p_order_id;
@@ -490,15 +487,24 @@ BEGIN
           'id', oi.id,
           'name', oi.name_snapshot,
           'qty', oi.qty_base,
+          'display_qty', CASE
+            WHEN lower(oi.quantity_type_snapshot::text) = 'weighted' THEN
+              CASE WHEN oi.price_basis_qty_snapshot = 1000
+                THEN to_char(oi.qty_base / 1000.0, 'FM999999990.000') || ' kg'
+                ELSE oi.qty_base || ' g'
+              END
+            ELSE oi.qty_base || ' ' || oi.unit_label_snapshot
+          END,
           'unit', oi.unit_label_snapshot,
+          'quantity_type', oi.quantity_type_snapshot,
           'unitPrice', oi.unit_price_paise,
           'total', oi.line_total_paise
         ))
-        FROM order_items oi
+        FROM public.order_items oi
         WHERE oi.order_id = o.id AND oi.removed_at IS NULL
       ) AS items
-    FROM orders o
-    JOIN order_assignments oa ON oa.order_id = o.id
+    FROM public.orders o
+    JOIN public.order_assignments oa ON oa.order_id = o.id
     WHERE oa.delivery_user_id = auth.uid()
       AND oa.unassigned_at IS NULL
       AND o.status IN ('ready_for_dispatch', 'out_for_delivery', 'delivered', 'delivery_failed')

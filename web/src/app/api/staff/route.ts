@@ -50,6 +50,18 @@ export async function POST(req: NextRequest) {
       if (!["staff", "delivery"].includes(role)) {
         return NextResponse.json({ error: "Invalid role" }, { status: 400 });
       }
+      if (typeof login_id !== "string" || !/^[A-Z0-9-]{3,40}$/.test(login_id)) {
+        return NextResponse.json(
+          { error: "Login ID must be 3-40 uppercase letters, digits or hyphens" },
+          { status: 400 },
+        );
+      }
+      if (typeof display_name !== "string" || !display_name.trim() || display_name.length > 120) {
+        return NextResponse.json({ error: "Invalid display name" }, { status: 400 });
+      }
+      if (typeof phone !== "string" || !/^[0-9+ -]{7,20}$/.test(phone)) {
+        return NextResponse.json({ error: "Invalid phone number" }, { status: 400 });
+      }
 
       const email = `${login_id.toLowerCase()}@riders.invalid`;
       const tempPassword = crypto.randomUUID().slice(0, 12);
@@ -81,22 +93,40 @@ export async function POST(req: NextRequest) {
 
     if (body.action === "reset_password") {
       const { user_id } = body;
-      if (!user_id) {
+      if (!user_id || typeof user_id !== "string") {
         return NextResponse.json({ error: "user_id required" }, { status: 400 });
       }
+
+      const { data: target, error: targetError } = await admin
+        .from("profiles")
+        .select("id, role")
+        .eq("id", user_id)
+        .single();
+      if (targetError || !target) {
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+      if (!["staff", "delivery"].includes(target.role)) {
+        return NextResponse.json(
+          { error: "Only staff and rider accounts can be reset here" },
+          { status: 400 },
+        );
+      }
+
       const tempPassword = crypto.randomUUID().slice(0, 12);
       const { error } = await admin.auth.admin.updateUserById(user_id, { password: tempPassword });
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 400 });
       }
 
-      // Mark must_change_password
-      const supabaseAnon = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        { cookies: { getAll: async () => (await cookies()).getAll(), setAll() {} } },
-      );
-      await supabaseAnon.from("profiles").update({ must_change_password: true }).eq("id", user_id);
+      // Mark must_change_password with the service-role client: the anon client
+      // is subject to RLS and this update would silently affect zero rows.
+      const { error: flagError } = await admin
+        .from("profiles")
+        .update({ must_change_password: true })
+        .eq("id", user_id);
+      if (flagError) {
+        return NextResponse.json({ error: flagError.message }, { status: 500 });
+      }
 
       return NextResponse.json({ tempPassword }, { status: 200 });
     }

@@ -56,6 +56,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.balaji.provision.domain.model.CartItem
 import com.balaji.provision.domain.model.Product
 import com.balaji.provision.domain.model.QuantityType
+import com.balaji.provision.domain.model.formatWeightGrams
 import com.balaji.provision.ui.cart.CartViewModel
 import com.balaji.provision.ui.components.WeightedQuantityDialog
 
@@ -70,6 +71,7 @@ fun CatalogScreen(
     val products by viewModel.products.collectAsState()
     val selectedCategory by viewModel.selectedCategory.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     
     val cart by cartViewModel.cart.collectAsState()
@@ -175,6 +177,27 @@ fun CatalogScreen(
                         Text("Loading fresh catalogue...", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
+            } else if (error != null && products.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.padding(24.dp)
+                    ) {
+                        Text("Catalogue unavailable", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text(
+                            error ?: "",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Button(onClick = { viewModel.loadData() }) {
+                            Text("Retry")
+                        }
+                    }
+                }
             } else if (products.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -184,7 +207,6 @@ fun CatalogScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("🔍", fontSize = 48.sp)
                         Text("No items match your search", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Text("Try searching for another grocery item", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -343,7 +365,7 @@ fun ProductCard(
                         Spacer(modifier = Modifier.size(6.dp))
                         Text(
                             if (inCart) {
-                                val label = if (currentQty >= 1000) "${currentQty / 1000.0} kg" else "${currentQty} g"
+                                val label = formatWeightGrams(currentQty)
                                 "Weight: $label ✎"
                             } else {
                                 "Select Weight (g / kg)"

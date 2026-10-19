@@ -41,74 +41,51 @@ export default function Dashboard() {
     const fetchData = async () => {
       try {
         const supabase = createClient();
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(startOfDay);
+        endOfDay.setDate(endOfDay.getDate() + 1);
 
-        let totalProducts = 10;
-        let lowStockCount = 2;
-        let activeOrders = 1;
-        let todayRevenue = 54500;
-        let ordersList: RecentOrder[] = [
-          {
-            id: "ord-1",
-            public_order_number: "BALAJI-1082",
-            status: "out_for_delivery",
-            grand_total_paise: 54500,
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: "ord-2",
-            public_order_number: "BALAJI-1075",
-            status: "delivered",
-            grand_total_paise: 31800,
-            created_at: new Date(Date.now() - 86400000).toISOString(),
-          },
-        ];
-
-        try {
-          const productsRes = await supabase
+        const [productsRes, ordersRes, activeRes, revenueRes] = await Promise.all([
+          supabase
             .from("catalog_products")
-            .select("id, stock_qty, low_stock_threshold, active", { count: "exact" })
-            .limit(200);
-
-          if (!productsRes.error && productsRes.data && productsRes.data.length > 0) {
-            totalProducts = productsRes.count || productsRes.data.length;
-            lowStockCount = productsRes.data.filter(
-              (p) => p.active && p.stock_qty > 0 && p.stock_qty <= p.low_stock_threshold,
-            ).length;
-          }
-        } catch (e) {
-          // ignore error
-        }
-
-        try {
-          const ordersRes = await supabase
+            .select("id, stock_qty, low_stock_threshold, active")
+            .limit(1000),
+          supabase
             .from("orders")
             .select("id, public_order_number, status, grand_total_paise, created_at")
             .order("created_at", { ascending: false })
-            .limit(5);
+            .limit(5),
+          supabase
+            .from("orders")
+            .select("id", { count: "exact", head: true })
+            .not("status", "in", "(delivered,cancelled,rejected,delivery_failed)"),
+          supabase.rpc("get_sales_report", {
+            p_start_date: startOfDay.toISOString(),
+            p_end_date: endOfDay.toISOString(),
+            p_status: null,
+          }),
+        ]);
 
-          if (!ordersRes.error && ordersRes.data && ordersRes.data.length > 0) {
-            ordersList = ordersRes.data;
-            todayRevenue = ordersRes.data
-              .filter((o) => o.status !== "cancelled" && o.status !== "rejected")
-              .reduce((sum, o) => sum + (o.grand_total_paise || 0), 0);
-            activeOrders = ordersRes.data.filter(
-              (o) => !["delivered", "cancelled", "rejected", "delivery_failed"].includes(o.status),
-            ).length;
-          }
-        } catch (e) {
-          // ignore error
+        const firstError =
+          productsRes.error || ordersRes.error || activeRes.error || revenueRes.error;
+        if (firstError) {
+          setError(firstError.message);
+          return;
         }
 
+        const products = productsRes.data || [];
         setStats({
-          totalProducts,
-          lowStockCount,
-          activeOrders,
-          todayRevenue,
+          totalProducts: products.length,
+          lowStockCount: products.filter(
+            (p) => p.active && p.stock_qty <= p.low_stock_threshold,
+          ).length,
+          activeOrders: activeRes.count || 0,
+          todayRevenue: Number(revenueRes.data?.[0]?.total_revenue_paise || 0),
         });
-
-        setRecentOrders(ordersList);
+        setRecentOrders(ordersRes.data || []);
       } catch (err) {
-        // Fallback default
+        setError(err instanceof Error ? err.message : "Failed to load dashboard data");
       } finally {
         setLoading(false);
       }
@@ -154,6 +131,12 @@ export default function Dashboard() {
       <div className="text-center py-12">
         <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
         <p className="text-red-600">{error}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg"
+        >
+          Retry
+        </button>
       </div>
     );
   }

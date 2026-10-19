@@ -1,3 +1,10 @@
+-- ===========================================================================
+-- Balaji Provision Store — generated full deploy (fresh database only)
+-- Generated from supabase/migrations/*.sql + seed.sql. Do not edit by hand.
+-- For an existing database apply only the missing migration files in order.
+-- ===========================================================================
+
+-- >>> supabase/migrations/20261014000001_enums.sql
 -- M1: enum types (IMPLEMENTATION_PLAN.md §4.2)
 -- Idempotent enum creation guards to prevent 42710 errors on existing databases.
 
@@ -72,113 +79,8 @@ BEGIN
 END $$;
 
 
-
-
--- ===========================================================================
--- Balaji Provision Store — Synthetic Seed Data
--- ===========================================================================
-
--- ---------------------------------------------------------------------------
--- Store settings — default single row
--- ---------------------------------------------------------------------------
-INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone,
-  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
-  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
-  cancellation_policy_text, tax_mode, tax_rate_bps,
-  online_payment_enabled, pos_price_override_enabled
-) VALUES (
-  true,
-  true,
-  'Asia/Kolkata',
-  '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
-  '9837803293',
-  'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
-  25000,  -- ₹250 threshold
-  25000,  -- ₹250 free delivery threshold
-  NULL,
-  NULL,
-  'Cancellation is allowed until the store accepts the order.',
-  'none', 0, false, false
-)
-ON CONFLICT (id) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Categories
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_categories (name, slug, sort_order) VALUES
-  ('Grains & Staples',  'grains-staples',  1),
-  ('Spices & Masalas',  'spices-masalas',  2),
-  ('Oils & Ghee',       'oils-ghee',       3),
-  ('Snacks & Namkeen',  'snacks-namkeen',  4),
-  ('Beverages',         'beverages',       5),
-  ('Personal Care',     'personal-care',   6),
-  ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),
-  ('Fresh Produce',     'fresh-produce',   9)
-ON CONFLICT (slug) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Products — PACKED (price per pack; integer quantities only)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
-
--- ---------------------------------------------------------------------------
--- Products — WEIGHTED (price per kg unless noted; quantities in grams)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
-
--- ---------------------------------------------------------------------------
--- Service areas
--- ---------------------------------------------------------------------------
-INSERT INTO service_areas (kind, value, active) VALUES
-  ('pincode', '122001', true),
-  ('pincode', '122002', true)
-ON CONFLICT (kind, lower(value)) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Synthetic test identities (auth.users + profiles)
--- ---------------------------------------------------------------------------
-INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'customer-b@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'rider-a@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'rider-b@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'staff-1@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000006', 'authenticated', 'authenticated', 'manager-1@balaji-test.invalid',  'synthetic-placeholder', now(), now(), now())
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_change_password) VALUES
-('aaaaaaaa-0000-0000-0000-000000000001', 'customer', 'Customer A',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000002', 'customer', 'Customer B',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000003', 'delivery', 'Rider A',     '9837803293', 'RIDER-A-001', true, true),
-('aaaaaaaa-0000-0000-0000-000000000004', 'delivery', 'Rider B',     '9837803293', 'RIDER-B-002', true, true),
-('aaaaaaaa-0000-0000-0000-000000000005', 'staff',    'Staff One',   '9837803293', 'STAFF-001',   true, false),
-('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;-- M1: shared helper functions (IMPLEMENTATION_PLAN.md §4.1 conventions)
+-- >>> supabase/migrations/20261014000002_helpers.sql
+-- M1: shared helper functions (IMPLEMENTATION_PLAN.md §4.1 conventions)
 
 -- Keeps updated_at current on every UPDATE for tables that carry the column.
 -- Attached by trigger in the table migrations below.
@@ -193,113 +95,8 @@ END;
 $$;
 
 
-
-
--- ===========================================================================
--- Balaji Provision Store — Synthetic Seed Data
--- ===========================================================================
-
--- ---------------------------------------------------------------------------
--- Store settings — default single row
--- ---------------------------------------------------------------------------
-INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone,
-  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
-  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
-  cancellation_policy_text, tax_mode, tax_rate_bps,
-  online_payment_enabled, pos_price_override_enabled
-) VALUES (
-  true,
-  true,
-  'Asia/Kolkata',
-  '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
-  '9837803293',
-  'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
-  25000,  -- ₹250 threshold
-  25000,  -- ₹250 free delivery threshold
-  NULL,
-  NULL,
-  'Cancellation is allowed until the store accepts the order.',
-  'none', 0, false, false
-)
-ON CONFLICT (id) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Categories
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_categories (name, slug, sort_order) VALUES
-  ('Grains & Staples',  'grains-staples',  1),
-  ('Spices & Masalas',  'spices-masalas',  2),
-  ('Oils & Ghee',       'oils-ghee',       3),
-  ('Snacks & Namkeen',  'snacks-namkeen',  4),
-  ('Beverages',         'beverages',       5),
-  ('Personal Care',     'personal-care',   6),
-  ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),
-  ('Fresh Produce',     'fresh-produce',   9)
-ON CONFLICT (slug) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Products — PACKED (price per pack; integer quantities only)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
-
--- ---------------------------------------------------------------------------
--- Products — WEIGHTED (price per kg unless noted; quantities in grams)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
-
--- ---------------------------------------------------------------------------
--- Service areas
--- ---------------------------------------------------------------------------
-INSERT INTO service_areas (kind, value, active) VALUES
-  ('pincode', '122001', true),
-  ('pincode', '122002', true)
-ON CONFLICT (kind, lower(value)) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Synthetic test identities (auth.users + profiles)
--- ---------------------------------------------------------------------------
-INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'customer-b@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'rider-a@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'rider-b@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'staff-1@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000006', 'authenticated', 'authenticated', 'manager-1@balaji-test.invalid',  'synthetic-placeholder', now(), now(), now())
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_change_password) VALUES
-('aaaaaaaa-0000-0000-0000-000000000001', 'customer', 'Customer A',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000002', 'customer', 'Customer B',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000003', 'delivery', 'Rider A',     '9837803293', 'RIDER-A-001', true, true),
-('aaaaaaaa-0000-0000-0000-000000000004', 'delivery', 'Rider B',     '9837803293', 'RIDER-B-002', true, true),
-('aaaaaaaa-0000-0000-0000-000000000005', 'staff',    'Staff One',   '9837803293', 'STAFF-001',   true, false),
-('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;-- M1: identity and configuration tables (IMPLEMENTATION_PLAN.md §4.2)
+-- >>> supabase/migrations/20261014000003_identity_config.sql
+-- M1: identity and configuration tables (IMPLEMENTATION_PLAN.md §4.2)
 
 CREATE TABLE IF NOT EXISTS profiles (
   id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -354,113 +151,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_service_areas_kind_value_lower
 CREATE INDEX IF NOT EXISTS idx_service_areas_active ON service_areas(active);
 
 
-
-
--- ===========================================================================
--- Balaji Provision Store — Synthetic Seed Data
--- ===========================================================================
-
--- ---------------------------------------------------------------------------
--- Store settings — default single row
--- ---------------------------------------------------------------------------
-INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone,
-  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
-  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
-  cancellation_policy_text, tax_mode, tax_rate_bps,
-  online_payment_enabled, pos_price_override_enabled
-) VALUES (
-  true,
-  true,
-  'Asia/Kolkata',
-  '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
-  '9837803293',
-  'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
-  25000,  -- ₹250 threshold
-  25000,  -- ₹250 free delivery threshold
-  NULL,
-  NULL,
-  'Cancellation is allowed until the store accepts the order.',
-  'none', 0, false, false
-)
-ON CONFLICT (id) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Categories
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_categories (name, slug, sort_order) VALUES
-  ('Grains & Staples',  'grains-staples',  1),
-  ('Spices & Masalas',  'spices-masalas',  2),
-  ('Oils & Ghee',       'oils-ghee',       3),
-  ('Snacks & Namkeen',  'snacks-namkeen',  4),
-  ('Beverages',         'beverages',       5),
-  ('Personal Care',     'personal-care',   6),
-  ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),
-  ('Fresh Produce',     'fresh-produce',   9)
-ON CONFLICT (slug) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Products — PACKED (price per pack; integer quantities only)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
-
--- ---------------------------------------------------------------------------
--- Products — WEIGHTED (price per kg unless noted; quantities in grams)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
-
--- ---------------------------------------------------------------------------
--- Service areas
--- ---------------------------------------------------------------------------
-INSERT INTO service_areas (kind, value, active) VALUES
-  ('pincode', '122001', true),
-  ('pincode', '122002', true)
-ON CONFLICT (kind, lower(value)) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Synthetic test identities (auth.users + profiles)
--- ---------------------------------------------------------------------------
-INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'customer-b@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'rider-a@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'rider-b@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'staff-1@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000006', 'authenticated', 'authenticated', 'manager-1@balaji-test.invalid',  'synthetic-placeholder', now(), now(), now())
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_change_password) VALUES
-('aaaaaaaa-0000-0000-0000-000000000001', 'customer', 'Customer A',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000002', 'customer', 'Customer B',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000003', 'delivery', 'Rider A',     '9837803293', 'RIDER-A-001', true, true),
-('aaaaaaaa-0000-0000-0000-000000000004', 'delivery', 'Rider B',     '9837803293', 'RIDER-B-002', true, true),
-('aaaaaaaa-0000-0000-0000-000000000005', 'staff',    'Staff One',   '9837803293', 'STAFF-001',   true, false),
-('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;-- M1: catalogue tables (IMPLEMENTATION_PLAN.md §4.2)
+-- >>> supabase/migrations/20261014000004_catalogue.sql
+-- M1: catalogue tables (IMPLEMENTATION_PLAN.md §4.2)
 
 CREATE TABLE IF NOT EXISTS categories (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -539,113 +231,8 @@ CREATE OR REPLACE VIEW catalog_categories AS SELECT * FROM categories;
 CREATE OR REPLACE VIEW catalog_products AS SELECT * FROM products;
 
 
-
-
--- ===========================================================================
--- Balaji Provision Store — Synthetic Seed Data
--- ===========================================================================
-
--- ---------------------------------------------------------------------------
--- Store settings — default single row
--- ---------------------------------------------------------------------------
-INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone,
-  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
-  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
-  cancellation_policy_text, tax_mode, tax_rate_bps,
-  online_payment_enabled, pos_price_override_enabled
-) VALUES (
-  true,
-  true,
-  'Asia/Kolkata',
-  '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
-  '9837803293',
-  'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
-  25000,  -- ₹250 threshold
-  25000,  -- ₹250 free delivery threshold
-  NULL,
-  NULL,
-  'Cancellation is allowed until the store accepts the order.',
-  'none', 0, false, false
-)
-ON CONFLICT (id) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Categories
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_categories (name, slug, sort_order) VALUES
-  ('Grains & Staples',  'grains-staples',  1),
-  ('Spices & Masalas',  'spices-masalas',  2),
-  ('Oils & Ghee',       'oils-ghee',       3),
-  ('Snacks & Namkeen',  'snacks-namkeen',  4),
-  ('Beverages',         'beverages',       5),
-  ('Personal Care',     'personal-care',   6),
-  ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),
-  ('Fresh Produce',     'fresh-produce',   9)
-ON CONFLICT (slug) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Products — PACKED (price per pack; integer quantities only)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
-
--- ---------------------------------------------------------------------------
--- Products — WEIGHTED (price per kg unless noted; quantities in grams)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
-
--- ---------------------------------------------------------------------------
--- Service areas
--- ---------------------------------------------------------------------------
-INSERT INTO service_areas (kind, value, active) VALUES
-  ('pincode', '122001', true),
-  ('pincode', '122002', true)
-ON CONFLICT (kind, lower(value)) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Synthetic test identities (auth.users + profiles)
--- ---------------------------------------------------------------------------
-INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'customer-b@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'rider-a@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'rider-b@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'staff-1@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000006', 'authenticated', 'authenticated', 'manager-1@balaji-test.invalid',  'synthetic-placeholder', now(), now(), now())
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_change_password) VALUES
-('aaaaaaaa-0000-0000-0000-000000000001', 'customer', 'Customer A',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000002', 'customer', 'Customer B',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000003', 'delivery', 'Rider A',     '9837803293', 'RIDER-A-001', true, true),
-('aaaaaaaa-0000-0000-0000-000000000004', 'delivery', 'Rider B',     '9837803293', 'RIDER-B-002', true, true),
-('aaaaaaaa-0000-0000-0000-000000000005', 'staff',    'Staff One',   '9837803293', 'STAFF-001',   true, false),
-('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;-- M1: customer addresses, orders, order items, status events, assignments,
+-- >>> supabase/migrations/20261014000005_customer_orders.sql
+-- M1: customer addresses, orders, order items, status events, assignments,
 --     and the order state machine (IMPLEMENTATION_PLAN.md §4.2, §4.3)
 
 CREATE TABLE IF NOT EXISTS addresses (
@@ -759,113 +346,8 @@ INSERT INTO order_transitions (from_status, to_status, allowed_roles) VALUES
 ON CONFLICT (from_status, to_status) DO NOTHING;
 
 
-
-
--- ===========================================================================
--- Balaji Provision Store — Synthetic Seed Data
--- ===========================================================================
-
--- ---------------------------------------------------------------------------
--- Store settings — default single row
--- ---------------------------------------------------------------------------
-INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone,
-  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
-  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
-  cancellation_policy_text, tax_mode, tax_rate_bps,
-  online_payment_enabled, pos_price_override_enabled
-) VALUES (
-  true,
-  true,
-  'Asia/Kolkata',
-  '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
-  '9837803293',
-  'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
-  25000,  -- ₹250 threshold
-  25000,  -- ₹250 free delivery threshold
-  NULL,
-  NULL,
-  'Cancellation is allowed until the store accepts the order.',
-  'none', 0, false, false
-)
-ON CONFLICT (id) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Categories
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_categories (name, slug, sort_order) VALUES
-  ('Grains & Staples',  'grains-staples',  1),
-  ('Spices & Masalas',  'spices-masalas',  2),
-  ('Oils & Ghee',       'oils-ghee',       3),
-  ('Snacks & Namkeen',  'snacks-namkeen',  4),
-  ('Beverages',         'beverages',       5),
-  ('Personal Care',     'personal-care',   6),
-  ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),
-  ('Fresh Produce',     'fresh-produce',   9)
-ON CONFLICT (slug) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Products — PACKED (price per pack; integer quantities only)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
-
--- ---------------------------------------------------------------------------
--- Products — WEIGHTED (price per kg unless noted; quantities in grams)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
-
--- ---------------------------------------------------------------------------
--- Service areas
--- ---------------------------------------------------------------------------
-INSERT INTO service_areas (kind, value, active) VALUES
-  ('pincode', '122001', true),
-  ('pincode', '122002', true)
-ON CONFLICT (kind, lower(value)) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Synthetic test identities (auth.users + profiles)
--- ---------------------------------------------------------------------------
-INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'customer-b@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'rider-a@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'rider-b@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'staff-1@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000006', 'authenticated', 'authenticated', 'manager-1@balaji-test.invalid',  'synthetic-placeholder', now(), now(), now())
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_change_password) VALUES
-('aaaaaaaa-0000-0000-0000-000000000001', 'customer', 'Customer A',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000002', 'customer', 'Customer B',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000003', 'delivery', 'Rider A',     '9837803293', 'RIDER-A-001', true, true),
-('aaaaaaaa-0000-0000-0000-000000000004', 'delivery', 'Rider B',     '9837803293', 'RIDER-B-002', true, true),
-('aaaaaaaa-0000-0000-0000-000000000005', 'staff',    'Staff One',   '9837803293', 'STAFF-001',   true, false),
-('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;-- M1: inventory movements and billing/POS tables (IMPLEMENTATION_PLAN.md §4.2)
+-- >>> supabase/migrations/20261014000006_inventory_billing.sql
+-- M1: inventory movements and billing/POS tables (IMPLEMENTATION_PLAN.md §4.2)
 
 CREATE TABLE IF NOT EXISTS inventory_movements (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -939,113 +421,8 @@ CREATE TABLE IF NOT EXISTS bill_items (
 CREATE INDEX IF NOT EXISTS idx_bill_items_bill ON bill_items(bill_id);
 
 
-
-
--- ===========================================================================
--- Balaji Provision Store — Synthetic Seed Data
--- ===========================================================================
-
--- ---------------------------------------------------------------------------
--- Store settings — default single row
--- ---------------------------------------------------------------------------
-INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone,
-  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
-  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
-  cancellation_policy_text, tax_mode, tax_rate_bps,
-  online_payment_enabled, pos_price_override_enabled
-) VALUES (
-  true,
-  true,
-  'Asia/Kolkata',
-  '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
-  '9837803293',
-  'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
-  25000,  -- ₹250 threshold
-  25000,  -- ₹250 free delivery threshold
-  NULL,
-  NULL,
-  'Cancellation is allowed until the store accepts the order.',
-  'none', 0, false, false
-)
-ON CONFLICT (id) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Categories
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_categories (name, slug, sort_order) VALUES
-  ('Grains & Staples',  'grains-staples',  1),
-  ('Spices & Masalas',  'spices-masalas',  2),
-  ('Oils & Ghee',       'oils-ghee',       3),
-  ('Snacks & Namkeen',  'snacks-namkeen',  4),
-  ('Beverages',         'beverages',       5),
-  ('Personal Care',     'personal-care',   6),
-  ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),
-  ('Fresh Produce',     'fresh-produce',   9)
-ON CONFLICT (slug) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Products — PACKED (price per pack; integer quantities only)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
-
--- ---------------------------------------------------------------------------
--- Products — WEIGHTED (price per kg unless noted; quantities in grams)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
-
--- ---------------------------------------------------------------------------
--- Service areas
--- ---------------------------------------------------------------------------
-INSERT INTO service_areas (kind, value, active) VALUES
-  ('pincode', '122001', true),
-  ('pincode', '122002', true)
-ON CONFLICT (kind, lower(value)) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Synthetic test identities (auth.users + profiles)
--- ---------------------------------------------------------------------------
-INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'customer-b@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'rider-a@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'rider-b@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'staff-1@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000006', 'authenticated', 'authenticated', 'manager-1@balaji-test.invalid',  'synthetic-placeholder', now(), now(), now())
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_change_password) VALUES
-('aaaaaaaa-0000-0000-0000-000000000001', 'customer', 'Customer A',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000002', 'customer', 'Customer B',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000003', 'delivery', 'Rider A',     '9837803293', 'RIDER-A-001', true, true),
-('aaaaaaaa-0000-0000-0000-000000000004', 'delivery', 'Rider B',     '9837803293', 'RIDER-B-002', true, true),
-('aaaaaaaa-0000-0000-0000-000000000005', 'staff',    'Staff One',   '9837803293', 'STAFF-001',   true, false),
-('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;-- M1: gated payment tables and cross-cutting tables (IMPLEMENTATION_PLAN.md §4.2)
+-- >>> supabase/migrations/20261014000007_payments_crosscut.sql
+-- M1: gated payment tables and cross-cutting tables (IMPLEMENTATION_PLAN.md §4.2)
 
 CREATE TABLE IF NOT EXISTS payments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1110,113 +487,8 @@ CREATE TABLE IF NOT EXISTS notification_outbox (
 );
 
 
-
-
--- ===========================================================================
--- Balaji Provision Store — Synthetic Seed Data
--- ===========================================================================
-
--- ---------------------------------------------------------------------------
--- Store settings — default single row
--- ---------------------------------------------------------------------------
-INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone,
-  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
-  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
-  cancellation_policy_text, tax_mode, tax_rate_bps,
-  online_payment_enabled, pos_price_override_enabled
-) VALUES (
-  true,
-  true,
-  'Asia/Kolkata',
-  '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
-  '9837803293',
-  'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
-  25000,  -- ₹250 threshold
-  25000,  -- ₹250 free delivery threshold
-  NULL,
-  NULL,
-  'Cancellation is allowed until the store accepts the order.',
-  'none', 0, false, false
-)
-ON CONFLICT (id) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Categories
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_categories (name, slug, sort_order) VALUES
-  ('Grains & Staples',  'grains-staples',  1),
-  ('Spices & Masalas',  'spices-masalas',  2),
-  ('Oils & Ghee',       'oils-ghee',       3),
-  ('Snacks & Namkeen',  'snacks-namkeen',  4),
-  ('Beverages',         'beverages',       5),
-  ('Personal Care',     'personal-care',   6),
-  ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),
-  ('Fresh Produce',     'fresh-produce',   9)
-ON CONFLICT (slug) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Products — PACKED (price per pack; integer quantities only)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
-
--- ---------------------------------------------------------------------------
--- Products — WEIGHTED (price per kg unless noted; quantities in grams)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
-
--- ---------------------------------------------------------------------------
--- Service areas
--- ---------------------------------------------------------------------------
-INSERT INTO service_areas (kind, value, active) VALUES
-  ('pincode', '122001', true),
-  ('pincode', '122002', true)
-ON CONFLICT (kind, lower(value)) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Synthetic test identities (auth.users + profiles)
--- ---------------------------------------------------------------------------
-INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'customer-b@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'rider-a@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'rider-b@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'staff-1@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000006', 'authenticated', 'authenticated', 'manager-1@balaji-test.invalid',  'synthetic-placeholder', now(), now(), now())
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_change_password) VALUES
-('aaaaaaaa-0000-0000-0000-000000000001', 'customer', 'Customer A',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000002', 'customer', 'Customer B',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000003', 'delivery', 'Rider A',     '9837803293', 'RIDER-A-001', true, true),
-('aaaaaaaa-0000-0000-0000-000000000004', 'delivery', 'Rider B',     '9837803293', 'RIDER-B-002', true, true),
-('aaaaaaaa-0000-0000-0000-000000000005', 'staff',    'Staff One',   '9837803293', 'STAFF-001',   true, false),
-('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;-- M1: enable Row Level Security on every table (IMPLEMENTATION_PLAN.md §4.1, §5.2)
+-- >>> supabase/migrations/20261014000008_rls_enable.sql
+-- M1: enable Row Level Security on every table (IMPLEMENTATION_PLAN.md §4.1, §5.2)
 -- Deny-all default. Per-role policies and the catalogue read views are added in M2.
 -- Local development and migrations run as the database owner, which bypasses RLS,
 -- so seed and maintenance operations still work.
@@ -1248,113 +520,8 @@ ALTER TABLE notification_outbox    ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC;
 
 
-
-
--- ===========================================================================
--- Balaji Provision Store — Synthetic Seed Data
--- ===========================================================================
-
--- ---------------------------------------------------------------------------
--- Store settings — default single row
--- ---------------------------------------------------------------------------
-INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone,
-  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
-  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
-  cancellation_policy_text, tax_mode, tax_rate_bps,
-  online_payment_enabled, pos_price_override_enabled
-) VALUES (
-  true,
-  true,
-  'Asia/Kolkata',
-  '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
-  '9837803293',
-  'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
-  25000,  -- ₹250 threshold
-  25000,  -- ₹250 free delivery threshold
-  NULL,
-  NULL,
-  'Cancellation is allowed until the store accepts the order.',
-  'none', 0, false, false
-)
-ON CONFLICT (id) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Categories
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_categories (name, slug, sort_order) VALUES
-  ('Grains & Staples',  'grains-staples',  1),
-  ('Spices & Masalas',  'spices-masalas',  2),
-  ('Oils & Ghee',       'oils-ghee',       3),
-  ('Snacks & Namkeen',  'snacks-namkeen',  4),
-  ('Beverages',         'beverages',       5),
-  ('Personal Care',     'personal-care',   6),
-  ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),
-  ('Fresh Produce',     'fresh-produce',   9)
-ON CONFLICT (slug) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Products — PACKED (price per pack; integer quantities only)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
-
--- ---------------------------------------------------------------------------
--- Products — WEIGHTED (price per kg unless noted; quantities in grams)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
-
--- ---------------------------------------------------------------------------
--- Service areas
--- ---------------------------------------------------------------------------
-INSERT INTO service_areas (kind, value, active) VALUES
-  ('pincode', '122001', true),
-  ('pincode', '122002', true)
-ON CONFLICT (kind, lower(value)) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Synthetic test identities (auth.users + profiles)
--- ---------------------------------------------------------------------------
-INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'customer-b@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'rider-a@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'rider-b@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'staff-1@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000006', 'authenticated', 'authenticated', 'manager-1@balaji-test.invalid',  'synthetic-placeholder', now(), now(), now())
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_change_password) VALUES
-('aaaaaaaa-0000-0000-0000-000000000001', 'customer', 'Customer A',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000002', 'customer', 'Customer B',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000003', 'delivery', 'Rider A',     '9837803293', 'RIDER-A-001', true, true),
-('aaaaaaaa-0000-0000-0000-000000000004', 'delivery', 'Rider B',     '9837803293', 'RIDER-B-002', true, true),
-('aaaaaaaa-0000-0000-0000-000000000005', 'staff',    'Staff One',   '9837803293', 'STAFF-001',   true, false),
-('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;-- M2: auth wiring, current_role(), audit redaction helper, profiles trigger
+-- >>> supabase/migrations/20261014000009_auth_helpers.sql
+-- M2: auth wiring, current_role(), audit redaction helper, profiles trigger
 -- IMPLEMENTATION_PLAN.md §5.2, §5.4, §4.9
 
 -- 1) current_role() — stable, SECURITY DEFINER, used in RLS policies
@@ -1430,113 +597,8 @@ GRANT EXECUTE ON FUNCTION public.redact_for_audit(jsonb) TO authenticated;
 
 -- Note: handle_new_user runs as auth service role (not the new user), so no grant needed.
 
-
-
--- ===========================================================================
--- Balaji Provision Store — Synthetic Seed Data
--- ===========================================================================
-
--- ---------------------------------------------------------------------------
--- Store settings — default single row
--- ---------------------------------------------------------------------------
-INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone,
-  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
-  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
-  cancellation_policy_text, tax_mode, tax_rate_bps,
-  online_payment_enabled, pos_price_override_enabled
-) VALUES (
-  true,
-  true,
-  'Asia/Kolkata',
-  '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
-  '9837803293',
-  'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
-  25000,  -- ₹250 threshold
-  25000,  -- ₹250 free delivery threshold
-  NULL,
-  NULL,
-  'Cancellation is allowed until the store accepts the order.',
-  'none', 0, false, false
-)
-ON CONFLICT (id) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Categories
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_categories (name, slug, sort_order) VALUES
-  ('Grains & Staples',  'grains-staples',  1),
-  ('Spices & Masalas',  'spices-masalas',  2),
-  ('Oils & Ghee',       'oils-ghee',       3),
-  ('Snacks & Namkeen',  'snacks-namkeen',  4),
-  ('Beverages',         'beverages',       5),
-  ('Personal Care',     'personal-care',   6),
-  ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),
-  ('Fresh Produce',     'fresh-produce',   9)
-ON CONFLICT (slug) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Products — PACKED (price per pack; integer quantities only)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
-
--- ---------------------------------------------------------------------------
--- Products — WEIGHTED (price per kg unless noted; quantities in grams)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
-
--- ---------------------------------------------------------------------------
--- Service areas
--- ---------------------------------------------------------------------------
-INSERT INTO service_areas (kind, value, active) VALUES
-  ('pincode', '122001', true),
-  ('pincode', '122002', true)
-ON CONFLICT (kind, lower(value)) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Synthetic test identities (auth.users + profiles)
--- ---------------------------------------------------------------------------
-INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'customer-b@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'rider-a@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'rider-b@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'staff-1@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000006', 'authenticated', 'authenticated', 'manager-1@balaji-test.invalid',  'synthetic-placeholder', now(), now(), now())
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_change_password) VALUES
-('aaaaaaaa-0000-0000-0000-000000000001', 'customer', 'Customer A',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000002', 'customer', 'Customer B',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000003', 'delivery', 'Rider A',     '9837803293', 'RIDER-A-001', true, true),
-('aaaaaaaa-0000-0000-0000-000000000004', 'delivery', 'Rider B',     '9837803293', 'RIDER-B-002', true, true),
-('aaaaaaaa-0000-0000-0000-000000000005', 'staff',    'Staff One',   '9837803293', 'STAFF-001',   true, false),
-('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;-- M2: RLS policies for all tables (IMPLEMENTATION_PLAN.md §5.1, §5.2)
+-- >>> supabase/migrations/20261014000010_rls_policies.sql
+-- M2: RLS policies for all tables (IMPLEMENTATION_PLAN.md §5.1, §5.2)
 
 -- ============================================================
 -- IDENTITY / CONFIG
@@ -1769,113 +831,8 @@ CREATE POLICY "notification_outbox_none" ON notification_outbox
   FOR ALL TO authenticated USING (false);
 
 
-
-
--- ===========================================================================
--- Balaji Provision Store — Synthetic Seed Data
--- ===========================================================================
-
--- ---------------------------------------------------------------------------
--- Store settings — default single row
--- ---------------------------------------------------------------------------
-INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone,
-  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
-  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
-  cancellation_policy_text, tax_mode, tax_rate_bps,
-  online_payment_enabled, pos_price_override_enabled
-) VALUES (
-  true,
-  true,
-  'Asia/Kolkata',
-  '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
-  '9837803293',
-  'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
-  25000,  -- ₹250 threshold
-  25000,  -- ₹250 free delivery threshold
-  NULL,
-  NULL,
-  'Cancellation is allowed until the store accepts the order.',
-  'none', 0, false, false
-)
-ON CONFLICT (id) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Categories
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_categories (name, slug, sort_order) VALUES
-  ('Grains & Staples',  'grains-staples',  1),
-  ('Spices & Masalas',  'spices-masalas',  2),
-  ('Oils & Ghee',       'oils-ghee',       3),
-  ('Snacks & Namkeen',  'snacks-namkeen',  4),
-  ('Beverages',         'beverages',       5),
-  ('Personal Care',     'personal-care',   6),
-  ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),
-  ('Fresh Produce',     'fresh-produce',   9)
-ON CONFLICT (slug) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Products — PACKED (price per pack; integer quantities only)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
-
--- ---------------------------------------------------------------------------
--- Products — WEIGHTED (price per kg unless noted; quantities in grams)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
-
--- ---------------------------------------------------------------------------
--- Service areas
--- ---------------------------------------------------------------------------
-INSERT INTO service_areas (kind, value, active) VALUES
-  ('pincode', '122001', true),
-  ('pincode', '122002', true)
-ON CONFLICT (kind, lower(value)) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Synthetic test identities (auth.users + profiles)
--- ---------------------------------------------------------------------------
-INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'customer-b@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'rider-a@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'rider-b@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'staff-1@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000006', 'authenticated', 'authenticated', 'manager-1@balaji-test.invalid',  'synthetic-placeholder', now(), now(), now())
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_change_password) VALUES
-('aaaaaaaa-0000-0000-0000-000000000001', 'customer', 'Customer A',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000002', 'customer', 'Customer B',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000003', 'delivery', 'Rider A',     '9837803293', 'RIDER-A-001', true, true),
-('aaaaaaaa-0000-0000-0000-000000000004', 'delivery', 'Rider B',     '9837803293', 'RIDER-B-002', true, true),
-('aaaaaaaa-0000-0000-0000-000000000005', 'staff',    'Staff One',   '9837803293', 'STAFF-001',   true, false),
-('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;-- M2: audit trigger infrastructure + table-specific triggers (IMPLEMENTATION_PLAN.md §4.9)
+-- >>> supabase/migrations/20261014000011_audit_triggers.sql
+-- M2: audit trigger infrastructure + table-specific triggers (IMPLEMENTATION_PLAN.md §4.9)
 -- Triggers are SECURITY DEFINER, set search_path='', capture actor from auth.uid().
 
 -- 1) Generic audit function
@@ -1969,113 +926,8 @@ GRANT EXECUTE ON FUNCTION public.audit_trigger_fn() TO authenticated;
 -- account creation/reset, item removal/refund-state changes is added in M4/M7/M9
 -- when those RPCs are implemented.
 
-
-
--- ===========================================================================
--- Balaji Provision Store — Synthetic Seed Data
--- ===========================================================================
-
--- ---------------------------------------------------------------------------
--- Store settings — default single row
--- ---------------------------------------------------------------------------
-INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone,
-  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
-  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
-  cancellation_policy_text, tax_mode, tax_rate_bps,
-  online_payment_enabled, pos_price_override_enabled
-) VALUES (
-  true,
-  true,
-  'Asia/Kolkata',
-  '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
-  '9837803293',
-  'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
-  25000,  -- ₹250 threshold
-  25000,  -- ₹250 free delivery threshold
-  NULL,
-  NULL,
-  'Cancellation is allowed until the store accepts the order.',
-  'none', 0, false, false
-)
-ON CONFLICT (id) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Categories
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_categories (name, slug, sort_order) VALUES
-  ('Grains & Staples',  'grains-staples',  1),
-  ('Spices & Masalas',  'spices-masalas',  2),
-  ('Oils & Ghee',       'oils-ghee',       3),
-  ('Snacks & Namkeen',  'snacks-namkeen',  4),
-  ('Beverages',         'beverages',       5),
-  ('Personal Care',     'personal-care',   6),
-  ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),
-  ('Fresh Produce',     'fresh-produce',   9)
-ON CONFLICT (slug) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Products — PACKED (price per pack; integer quantities only)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
-
--- ---------------------------------------------------------------------------
--- Products — WEIGHTED (price per kg unless noted; quantities in grams)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
-
--- ---------------------------------------------------------------------------
--- Service areas
--- ---------------------------------------------------------------------------
-INSERT INTO service_areas (kind, value, active) VALUES
-  ('pincode', '122001', true),
-  ('pincode', '122002', true)
-ON CONFLICT (kind, lower(value)) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Synthetic test identities (auth.users + profiles)
--- ---------------------------------------------------------------------------
-INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'customer-b@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'rider-a@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'rider-b@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'staff-1@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000006', 'authenticated', 'authenticated', 'manager-1@balaji-test.invalid',  'synthetic-placeholder', now(), now(), now())
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_change_password) VALUES
-('aaaaaaaa-0000-0000-0000-000000000001', 'customer', 'Customer A',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000002', 'customer', 'Customer B',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000003', 'delivery', 'Rider A',     '9837803293', 'RIDER-A-001', true, true),
-('aaaaaaaa-0000-0000-0000-000000000004', 'delivery', 'Rider B',     '9837803293', 'RIDER-B-002', true, true),
-('aaaaaaaa-0000-0000-0000-000000000005', 'staff',    'Staff One',   '9837803293', 'STAFF-001',   true, false),
-('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;-- M2: rider limited view + status update RPC (IMPLEMENTATION_PLAN.md §5.2, §5.4, §6)
+-- >>> supabase/migrations/20261014000012_rider_view.sql
+-- M2: rider limited view + status update RPC (IMPLEMENTATION_PLAN.md §5.2, §5.4, §6)
 -- Riders see ONLY assigned orders, with only necessary fields.
 
 -- 1) Security-invoker view: filters to orders assigned to the current delivery user
@@ -2235,113 +1087,8 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.assign_order(uuid, uuid) TO authenticated;
 
-
-
--- ===========================================================================
--- Balaji Provision Store — Synthetic Seed Data
--- ===========================================================================
-
--- ---------------------------------------------------------------------------
--- Store settings — default single row
--- ---------------------------------------------------------------------------
-INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone,
-  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
-  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
-  cancellation_policy_text, tax_mode, tax_rate_bps,
-  online_payment_enabled, pos_price_override_enabled
-) VALUES (
-  true,
-  true,
-  'Asia/Kolkata',
-  '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
-  '9837803293',
-  'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
-  25000,  -- ₹250 threshold
-  25000,  -- ₹250 free delivery threshold
-  NULL,
-  NULL,
-  'Cancellation is allowed until the store accepts the order.',
-  'none', 0, false, false
-)
-ON CONFLICT (id) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Categories
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_categories (name, slug, sort_order) VALUES
-  ('Grains & Staples',  'grains-staples',  1),
-  ('Spices & Masalas',  'spices-masalas',  2),
-  ('Oils & Ghee',       'oils-ghee',       3),
-  ('Snacks & Namkeen',  'snacks-namkeen',  4),
-  ('Beverages',         'beverages',       5),
-  ('Personal Care',     'personal-care',   6),
-  ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),
-  ('Fresh Produce',     'fresh-produce',   9)
-ON CONFLICT (slug) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Products — PACKED (price per pack; integer quantities only)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
-
--- ---------------------------------------------------------------------------
--- Products — WEIGHTED (price per kg unless noted; quantities in grams)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
-
--- ---------------------------------------------------------------------------
--- Service areas
--- ---------------------------------------------------------------------------
-INSERT INTO service_areas (kind, value, active) VALUES
-  ('pincode', '122001', true),
-  ('pincode', '122002', true)
-ON CONFLICT (kind, lower(value)) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Synthetic test identities (auth.users + profiles)
--- ---------------------------------------------------------------------------
-INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'customer-b@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'rider-a@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'rider-b@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'staff-1@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000006', 'authenticated', 'authenticated', 'manager-1@balaji-test.invalid',  'synthetic-placeholder', now(), now(), now())
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_change_password) VALUES
-('aaaaaaaa-0000-0000-0000-000000000001', 'customer', 'Customer A',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000002', 'customer', 'Customer B',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000003', 'delivery', 'Rider A',     '9837803293', 'RIDER-A-001', true, true),
-('aaaaaaaa-0000-0000-0000-000000000004', 'delivery', 'Rider B',     '9837803293', 'RIDER-B-002', true, true),
-('aaaaaaaa-0000-0000-0000-000000000005', 'staff',    'Staff One',   '9837803293', 'STAFF-001',   true, false),
-('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;-- M4: Pricing engine, quote_cart, place_order, idempotency, stock locking, movements
+-- >>> supabase/migrations/20261014000013_pricing_engine.sql
+-- M4: Pricing engine, quote_cart, place_order, idempotency, stock locking, movements
 -- IMPLEMENTATION_PLAN.md §4.4, §4.5, §4.6, §4.7, §4.9
 
 -- 1) eligible_subtotal — merchandise subtotal before discount/tax, excl. delivery fee
@@ -2584,113 +1331,8 @@ GRANT EXECUTE ON FUNCTION public.quote_cart(jsonb) TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.compute_delivery_fee(bigint) TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.eligible_subtotal(jsonb) TO authenticated, anon;
 
-
-
--- ===========================================================================
--- Balaji Provision Store — Synthetic Seed Data
--- ===========================================================================
-
--- ---------------------------------------------------------------------------
--- Store settings — default single row
--- ---------------------------------------------------------------------------
-INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone,
-  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
-  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
-  cancellation_policy_text, tax_mode, tax_rate_bps,
-  online_payment_enabled, pos_price_override_enabled
-) VALUES (
-  true,
-  true,
-  'Asia/Kolkata',
-  '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
-  '9837803293',
-  'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
-  25000,  -- ₹250 threshold
-  25000,  -- ₹250 free delivery threshold
-  NULL,
-  NULL,
-  'Cancellation is allowed until the store accepts the order.',
-  'none', 0, false, false
-)
-ON CONFLICT (id) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Categories
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_categories (name, slug, sort_order) VALUES
-  ('Grains & Staples',  'grains-staples',  1),
-  ('Spices & Masalas',  'spices-masalas',  2),
-  ('Oils & Ghee',       'oils-ghee',       3),
-  ('Snacks & Namkeen',  'snacks-namkeen',  4),
-  ('Beverages',         'beverages',       5),
-  ('Personal Care',     'personal-care',   6),
-  ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),
-  ('Fresh Produce',     'fresh-produce',   9)
-ON CONFLICT (slug) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Products — PACKED (price per pack; integer quantities only)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
-
--- ---------------------------------------------------------------------------
--- Products — WEIGHTED (price per kg unless noted; quantities in grams)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
-
--- ---------------------------------------------------------------------------
--- Service areas
--- ---------------------------------------------------------------------------
-INSERT INTO service_areas (kind, value, active) VALUES
-  ('pincode', '122001', true),
-  ('pincode', '122002', true)
-ON CONFLICT (kind, lower(value)) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Synthetic test identities (auth.users + profiles)
--- ---------------------------------------------------------------------------
-INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'customer-b@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'rider-a@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'rider-b@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'staff-1@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000006', 'authenticated', 'authenticated', 'manager-1@balaji-test.invalid',  'synthetic-placeholder', now(), now(), now())
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_change_password) VALUES
-('aaaaaaaa-0000-0000-0000-000000000001', 'customer', 'Customer A',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000002', 'customer', 'Customer B',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000003', 'delivery', 'Rider A',     '9837803293', 'RIDER-A-001', true, true),
-('aaaaaaaa-0000-0000-0000-000000000004', 'delivery', 'Rider B',     '9837803293', 'RIDER-B-002', true, true),
-('aaaaaaaa-0000-0000-0000-000000000005', 'staff',    'Staff One',   '9837803293', 'STAFF-001',   true, false),
-('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;-- M4 (cont): place_order with idempotency, stock locking, movements, status events
+-- >>> supabase/migrations/20261014000014_place_order.sql
+-- M4 (cont): place_order with idempotency, stock locking, movements, status events
 -- IMPLEMENTATION_PLAN.md §4.7, §4.8, §4.9
 
 -- 1) place_order — single transaction, server-authoritative pricing
@@ -2960,113 +1602,8 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.place_order(jsonb, text) TO authenticated;
 
-
-
--- ===========================================================================
--- Balaji Provision Store — Synthetic Seed Data
--- ===========================================================================
-
--- ---------------------------------------------------------------------------
--- Store settings — default single row
--- ---------------------------------------------------------------------------
-INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone,
-  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
-  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
-  cancellation_policy_text, tax_mode, tax_rate_bps,
-  online_payment_enabled, pos_price_override_enabled
-) VALUES (
-  true,
-  true,
-  'Asia/Kolkata',
-  '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
-  '9837803293',
-  'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
-  25000,  -- ₹250 threshold
-  25000,  -- ₹250 free delivery threshold
-  NULL,
-  NULL,
-  'Cancellation is allowed until the store accepts the order.',
-  'none', 0, false, false
-)
-ON CONFLICT (id) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Categories
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_categories (name, slug, sort_order) VALUES
-  ('Grains & Staples',  'grains-staples',  1),
-  ('Spices & Masalas',  'spices-masalas',  2),
-  ('Oils & Ghee',       'oils-ghee',       3),
-  ('Snacks & Namkeen',  'snacks-namkeen',  4),
-  ('Beverages',         'beverages',       5),
-  ('Personal Care',     'personal-care',   6),
-  ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),
-  ('Fresh Produce',     'fresh-produce',   9)
-ON CONFLICT (slug) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Products — PACKED (price per pack; integer quantities only)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
-
--- ---------------------------------------------------------------------------
--- Products — WEIGHTED (price per kg unless noted; quantities in grams)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
-
--- ---------------------------------------------------------------------------
--- Service areas
--- ---------------------------------------------------------------------------
-INSERT INTO service_areas (kind, value, active) VALUES
-  ('pincode', '122001', true),
-  ('pincode', '122002', true)
-ON CONFLICT (kind, lower(value)) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Synthetic test identities (auth.users + profiles)
--- ---------------------------------------------------------------------------
-INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'customer-b@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'rider-a@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'rider-b@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'staff-1@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000006', 'authenticated', 'authenticated', 'manager-1@balaji-test.invalid',  'synthetic-placeholder', now(), now(), now())
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_change_password) VALUES
-('aaaaaaaa-0000-0000-0000-000000000001', 'customer', 'Customer A',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000002', 'customer', 'Customer B',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000003', 'delivery', 'Rider A',     '9837803293', 'RIDER-A-001', true, true),
-('aaaaaaaa-0000-0000-0000-000000000004', 'delivery', 'Rider B',     '9837803293', 'RIDER-B-002', true, true),
-('aaaaaaaa-0000-0000-0000-000000000005', 'staff',    'Staff One',   '9837803293', 'STAFF-001',   true, false),
-('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;-- M7: rider provisioning, order corrections, delivery workflow
+-- >>> supabase/migrations/20261014000015_delivery_workflow.sql
+-- M7: rider provisioning, order corrections, delivery workflow
 -- IMPLEMENTATION_PLAN.md §4.7, §4.8, §5.4, §5.7
 
 -- 1) Rider provisioning RPC (manager only)
@@ -3081,52 +1618,18 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
-DECLARE
-  v_otp text;
-  v_email text;
-  v_user_id uuid;
-  v_profile_id uuid;
 BEGIN
-  -- Authorization
+  -- Auth users can only be created through the Supabase Admin API. The web
+  -- server route /api/staff performs provisioning with the service-role key.
+  -- Returning fake success/OTP from SQL was misleading and never created a
+  -- usable login, so fail explicitly instead.
   IF public.current_role() <> 'manager' THEN
     RETURN jsonb_build_object('error', 'FORBIDDEN', 'message', 'Manager required');
   END IF;
 
-  -- Validate login_id format
-  IF p_login_id !~ '^[A-Z0-9-]+$' THEN
-    RETURN jsonb_build_object('error', 'VALIDATION_FAILED', 'message', 'Login ID must be uppercase alphanumeric with hyphens');
-  END IF;
-
-  -- Check uniqueness
-  IF EXISTS (SELECT 1 FROM public.profiles WHERE login_id = p_login_id) THEN
-    RETURN jsonb_build_object('error', 'VALIDATION_FAILED', 'message', 'Login ID already exists');
-  END IF;
-
-  -- Generate synthetic email and OTP
-  v_email := lower(p_login_id) || '@riders.invalid';
-  v_otp := encode(gen_random_bytes(6), 'hex'); -- 12-char OTP
-
-  -- Create auth user (using admin API via service role)
-  -- This requires the function to be called with service role key
-  -- For now, we create the profile directly and note the OTP
-  -- In production, this would call auth.admin.create_user
-  
-  INSERT INTO public.profiles (id, role, display_name, phone, login_id, is_active, must_change_password)
-  VALUES (gen_random_uuid(), 'delivery', p_display_name, p_phone, p_login_id, true, true)
-  RETURNING id INTO v_profile_id;
-
-  -- Audit log
-  INSERT INTO public.audit_logs (actor_id, action, entity_type, entity_id, after, request_id)
-  VALUES (auth.uid(), 'CREATE_RIDER', 'profiles', v_profile_id,
-          jsonb_build_object('login_id', p_login_id, 'display_name', p_display_name, 'phone', p_phone),
-          current_setting('request.id', true)::text);
-
   RETURN jsonb_build_object(
-    'success', true,
-    'rider_id', v_profile_id,
-    'login_id', p_login_id,
-    'otp', v_otp,  -- Shown ONCE to manager, never stored/logged
-    'message', 'Rider created. Share OTP securely. Rider must change password on first login.'
+    'error', 'NOT_SUPPORTED',
+    'message', 'Rider accounts are provisioned through the admin web API (/api/staff), not SQL.'
   );
 END;
 $$;
@@ -3142,34 +1645,16 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
-DECLARE
-  v_otp text;
-  v_login_id text;
 BEGIN
   IF public.current_role() <> 'manager' THEN
     RETURN jsonb_build_object('error', 'FORBIDDEN', 'message', 'Manager required');
   END IF;
 
-  SELECT login_id INTO v_login_id FROM public.profiles WHERE id = p_rider_id AND role = 'delivery';
-  IF NOT FOUND THEN
-    RETURN jsonb_build_object('error', 'NOT_FOUND', 'message', 'Rider not found');
-  END IF;
-
-  v_otp := encode(gen_random_bytes(6), 'hex');
-
-  -- In production: call auth.admin.update_user_by_id with new password
-  -- For now, update profile flag
-  UPDATE public.profiles SET must_change_password = true WHERE id = p_rider_id;
-
-  INSERT INTO public.audit_logs (actor_id, action, entity_type, entity_id, after, request_id)
-  VALUES (auth.uid(), 'RESET_RIDER_PASSWORD', 'profiles', p_rider_id,
-          jsonb_build_object('login_id', v_login_id),
-          current_setting('request.id', true)::text);
-
+  -- Passwords live in auth.users and can only be reset through the Admin API.
+  -- The admin web route /api/staff performs the reset with the service key.
   RETURN jsonb_build_object(
-    'success', true,
-    'otp', v_otp,
-    'message', 'Password reset. Share OTP securely.'
+    'error', 'NOT_SUPPORTED',
+    'message', 'Rider passwords are reset through the admin web API (/api/staff), not SQL.'
   );
 END;
 $$;
@@ -3224,8 +1709,8 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 DECLARE
-  v_order orders%ROWTYPE;
-  v_rider profiles%ROWTYPE;
+  v_order public.orders%ROWTYPE;
+  v_rider public.profiles%ROWTYPE;
 BEGIN
   IF public.current_role() NOT IN ('staff','manager') THEN
     RETURN jsonb_build_object('error', 'FORBIDDEN', 'message', 'Staff or manager required');
@@ -3277,8 +1762,8 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 DECLARE
-  v_order orders%ROWTYPE;
-  v_assignment order_assignments%ROWTYPE;
+  v_order public.orders%ROWTYPE;
+  v_assignment public.order_assignments%ROWTYPE;
   v_from_status public.order_status;
   v_allowed boolean;
   v_cod_collected bigint;
@@ -3288,8 +1773,10 @@ BEGIN
     RETURN jsonb_build_object('error', 'FORBIDDEN', 'message', 'Only delivery users may call this');
   END IF;
 
-  -- Order must exist and be assigned to this rider (active assignment)
-  SELECT * INTO v_order FROM public.orders WHERE id = p_order_id;
+  -- Order must exist and be assigned to this rider (active assignment).
+  -- Lock the row so two concurrent status calls cannot both pass the state
+  -- machine check (e.g. double-deliver / double-restore).
+  SELECT * INTO v_order FROM public.orders WHERE id = p_order_id FOR UPDATE;
   IF NOT FOUND THEN
     RETURN jsonb_build_object('error', 'NOT_FOUND', 'message', 'Order not found');
   END IF;
@@ -3328,7 +1815,11 @@ BEGIN
   UPDATE public.orders
   SET status = p_to_status,
       delivered_at = CASE WHEN p_to_status = 'delivered' THEN now() ELSE delivered_at END,
-      cod_collected_paise = COALESCE(v_cod_collected, cod_collected_paise)
+      cod_collected_paise = COALESCE(v_cod_collected, cod_collected_paise),
+      payment_status = CASE
+        WHEN p_to_status = 'delivered' AND v_order.payment_method = 'cod' THEN 'paid'::public.payment_status
+        ELSE payment_status
+      END
   WHERE id = p_order_id;
 
   INSERT INTO public.order_status_events (order_id, from_status, to_status, actor_id, reason)
@@ -3365,7 +1856,7 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 DECLARE
-  v_order orders%ROWTYPE;
+  v_order public.orders%ROWTYPE;
   v_from_status public.order_status;
   v_allowed boolean;
   v_restore_stock boolean := false;
@@ -3374,7 +1865,7 @@ BEGIN
     RETURN jsonb_build_object('error', 'FORBIDDEN', 'message', 'Staff or manager required');
   END IF;
 
-  SELECT * INTO v_order FROM public.orders WHERE id = p_order_id;
+  SELECT * INTO v_order FROM public.orders WHERE id = p_order_id FOR UPDATE;
   IF NOT FOUND THEN
     RETURN jsonb_build_object('error', 'NOT_FOUND', 'message', 'Order not found');
   END IF;
@@ -3401,7 +1892,16 @@ BEGIN
   -- Perform transition
   UPDATE public.orders
   SET status = p_to_status,
-      delivered_at = CASE WHEN p_to_status = 'delivered' THEN now() ELSE delivered_at END
+      accepted_at = CASE WHEN p_to_status = 'accepted' THEN now() ELSE accepted_at END,
+      delivered_at = CASE WHEN p_to_status = 'delivered' THEN now() ELSE delivered_at END,
+      cod_collected_paise = CASE
+        WHEN p_to_status = 'delivered' AND v_order.payment_method = 'cod' THEN v_order.grand_total_paise
+        ELSE cod_collected_paise
+      END,
+      payment_status = CASE
+        WHEN p_to_status = 'delivered' AND v_order.payment_method = 'cod' THEN 'paid'::public.payment_status
+        ELSE payment_status
+      END
   WHERE id = p_order_id;
 
   INSERT INTO public.order_status_events (order_id, from_status, to_status, actor_id, reason)
@@ -3414,25 +1914,33 @@ BEGIN
       FROM public.inventory_movements
       WHERE reference_type = 'order' AND reference_id = p_order_id AND reason = 'order_placed'
       GROUP BY product_id
-    )
-    UPDATE public.products p
-    SET stock_qty = p.stock_qty + m.total_delta
-    FROM movements m
-    WHERE p.id = m.product_id
-      AND NOT EXISTS (
+      HAVING SUM(delta_qty) <> 0
+    ),
+    eligible AS (
+      SELECT m.product_id, m.total_delta
+      FROM movements m
+      WHERE NOT EXISTS (
         SELECT 1 FROM public.inventory_movements im
-        WHERE im.reference_type = 'order' 
+        WHERE im.reference_type = 'order'
           AND im.reference_id = p_order_id
           AND im.reason IN ('order_cancelled', 'order_rejected', 'item_removed')
           AND im.product_id = m.product_id
-      );
-
+      )
+    ),
+    restored AS (
+      UPDATE public.products p
+      -- order_placed movements are negative, so subtracting the delta restores stock
+      SET stock_qty = p.stock_qty - e.total_delta
+      FROM eligible e
+      WHERE p.id = e.product_id
+      RETURNING p.id AS product_id, e.total_delta
+    )
     INSERT INTO public.inventory_movements (product_id, delta_qty, reason, reference_type, reference_id, actor_id, note)
-    SELECT m.product_id, m.total_delta,
-           CASE WHEN p_to_status = 'rejected' THEN 'order_rejected' ELSE 'order_cancelled' END,
+    SELECT r.product_id, -r.total_delta,
+           (CASE WHEN p_to_status = 'rejected' THEN 'order_rejected' ELSE 'order_cancelled' END)::public.inventory_reason,
            'order', p_order_id, auth.uid(),
            'Auto-restore on ' || p_to_status || ': ' || COALESCE(p_reason, '')
-    FROM movements m;
+    FROM restored r;
   END IF;
 
   RETURN jsonb_build_object(
@@ -3459,15 +1967,21 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 DECLARE
-  v_order orders%ROWTYPE;
-  v_item order_items%ROWTYPE;
+  v_order public.orders%ROWTYPE;
+  v_item public.order_items%ROWTYPE;
   v_item_total bigint;
+  v_new_subtotal bigint;
+  v_new_fee bigint;
+  v_new_tax bigint;
+  v_new_grand bigint;
+  v_settings public.store_settings%ROWTYPE;
+  v_fee_info record;
 BEGIN
   IF public.current_role() NOT IN ('staff','manager') THEN
     RETURN jsonb_build_object('error', 'FORBIDDEN', 'message', 'Staff or manager required');
   END IF;
 
-  SELECT * INTO v_order FROM public.orders WHERE id = p_order_id;
+  SELECT * INTO v_order FROM public.orders WHERE id = p_order_id FOR UPDATE;
   IF NOT FOUND THEN
     RETURN jsonb_build_object('error', 'NOT_FOUND', 'message', 'Order not found');
   END IF;
@@ -3476,7 +1990,9 @@ BEGIN
     RETURN jsonb_build_object('error', 'INVALID_STATUS', 'message', 'Item removal only allowed before dispatch');
   END IF;
 
-  SELECT * INTO v_item FROM public.order_items WHERE id = p_item_id AND order_id = p_order_id;
+  SELECT * INTO v_item FROM public.order_items
+  WHERE id = p_item_id AND order_id = p_order_id
+  FOR UPDATE;
   IF NOT FOUND THEN
     RETURN jsonb_build_object('error', 'NOT_FOUND', 'message', 'Order item not found');
   END IF;
@@ -3502,17 +2018,35 @@ BEGIN
     VALUES (v_item.product_id, v_item.qty_base, 'item_removed', 'order', p_order_id, auth.uid(), p_reason);
   END IF;
 
-  -- Recompute order totals
+  -- Recompute order totals using the server pricing engine so the delivery
+  -- fee and tax reflect the reduced subtotal (never trust stale client totals).
+  SELECT * INTO v_settings FROM public.store_settings;
+  v_new_subtotal := v_order.item_subtotal_paise - v_item_total;
+  SELECT * INTO v_fee_info FROM public.compute_delivery_fee(v_new_subtotal);
+  v_new_fee := v_fee_info.fee_paise;
+  v_new_tax := CASE
+    WHEN v_settings.tax_mode = 'exclusive' AND v_settings.tax_rate_bps > 0
+      THEN ((v_new_subtotal - v_order.discount_paise + v_new_fee) * v_settings.tax_rate_bps) / 10000
+    ELSE 0
+  END;
+  v_new_grand := v_new_subtotal - v_order.discount_paise + v_new_fee + v_new_tax;
+
   UPDATE public.orders
-  SET item_subtotal_paise = item_subtotal_paise - v_item_total,
-      grand_total_paise = grand_total_paise - v_item_total
+  SET item_subtotal_paise = v_new_subtotal,
+      delivery_fee_paise = v_new_fee,
+      tax_paise = v_new_tax,
+      grand_total_paise = v_new_grand,
+      fee_breakdown = jsonb_build_object(
+        'fee_rule_note', v_fee_info.rule_note,
+        'amount_to_free_delivery', v_fee_info.amount_to_free_delivery
+      )
   WHERE id = p_order_id;
 
-  -- Update payment status if needed (partial refund for COD)
+  -- Update payment status if needed (partial refund for online payments)
   UPDATE public.orders
-  SET payment_status = CASE 
-    WHEN payment_method = 'cod' AND payment_status = 'unpaid' THEN 'unpaid'
-    WHEN payment_method = 'online' THEN 'refund_pending'
+  SET payment_status = CASE
+    WHEN payment_method = 'cod' AND payment_status = 'unpaid' THEN 'unpaid'::public.payment_status
+    WHEN payment_method = 'online' THEN 'refund_pending'::public.payment_status
     ELSE payment_status
   END
   WHERE id = p_order_id;
@@ -3558,15 +2092,24 @@ BEGIN
           'id', oi.id,
           'name', oi.name_snapshot,
           'qty', oi.qty_base,
+          'display_qty', CASE
+            WHEN lower(oi.quantity_type_snapshot::text) = 'weighted' THEN
+              CASE WHEN oi.price_basis_qty_snapshot = 1000
+                THEN to_char(oi.qty_base / 1000.0, 'FM999999990.000') || ' kg'
+                ELSE oi.qty_base || ' g'
+              END
+            ELSE oi.qty_base || ' ' || oi.unit_label_snapshot
+          END,
           'unit', oi.unit_label_snapshot,
+          'quantity_type', oi.quantity_type_snapshot,
           'unitPrice', oi.unit_price_paise,
           'total', oi.line_total_paise
         ))
-        FROM order_items oi
+        FROM public.order_items oi
         WHERE oi.order_id = o.id AND oi.removed_at IS NULL
       ) AS items
-    FROM orders o
-    JOIN order_assignments oa ON oa.order_id = o.id
+    FROM public.orders o
+    JOIN public.order_assignments oa ON oa.order_id = o.id
     WHERE oa.delivery_user_id = auth.uid()
       AND oa.unassigned_at IS NULL
       AND o.status IN ('ready_for_dispatch', 'out_for_delivery', 'delivered', 'delivery_failed')
@@ -3590,113 +2133,8 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.get_rider_orders() TO authenticated;
 
-
-
--- ===========================================================================
--- Balaji Provision Store — Synthetic Seed Data
--- ===========================================================================
-
--- ---------------------------------------------------------------------------
--- Store settings — default single row
--- ---------------------------------------------------------------------------
-INSERT INTO store_settings (
-  id, store_open, timezone, weekly_hours, contact_phone,
-  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
-  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
-  cancellation_policy_text, tax_mode, tax_rate_bps,
-  online_payment_enabled, pos_price_override_enabled
-) VALUES (
-  true,
-  true,
-  'Asia/Kolkata',
-  '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
-  '9837803293',
-  'Same-day delivery; the exact window is confirmed when the store accepts the order.',
-  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
-  25000,  -- ₹250 threshold
-  25000,  -- ₹250 free delivery threshold
-  NULL,
-  NULL,
-  'Cancellation is allowed until the store accepts the order.',
-  'none', 0, false, false
-)
-ON CONFLICT (id) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Categories
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_categories (name, slug, sort_order) VALUES
-  ('Grains & Staples',  'grains-staples',  1),
-  ('Spices & Masalas',  'spices-masalas',  2),
-  ('Oils & Ghee',       'oils-ghee',       3),
-  ('Snacks & Namkeen',  'snacks-namkeen',  4),
-  ('Beverages',         'beverages',       5),
-  ('Personal Care',     'personal-care',   6),
-  ('Household',         'household',       7),
-  ('Dairy & Eggs',      'dairy-eggs',      8),
-  ('Fresh Produce',     'fresh-produce',   9)
-ON CONFLICT (slug) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Products — PACKED (price per pack; integer quantities only)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
-('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
-('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
-('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
-('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
-('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
-('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
-('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
-('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
-('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
-('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
-('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
-('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
-('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
-
--- ---------------------------------------------------------------------------
--- Products — WEIGHTED (price per kg unless noted; quantities in grams)
--- ---------------------------------------------------------------------------
-INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
-('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
-('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
-('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
-('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
-('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
-
--- ---------------------------------------------------------------------------
--- Service areas
--- ---------------------------------------------------------------------------
-INSERT INTO service_areas (kind, value, active) VALUES
-  ('pincode', '122001', true),
-  ('pincode', '122002', true)
-ON CONFLICT (kind, lower(value)) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- Synthetic test identities (auth.users + profiles)
--- ---------------------------------------------------------------------------
-INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'customer-b@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'rider-a@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'rider-b@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'staff-1@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
-('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000006', 'authenticated', 'authenticated', 'manager-1@balaji-test.invalid',  'synthetic-placeholder', now(), now(), now())
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_change_password) VALUES
-('aaaaaaaa-0000-0000-0000-000000000001', 'customer', 'Customer A',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000002', 'customer', 'Customer B',  '9837803293', NULL,        true, false),
-('aaaaaaaa-0000-0000-0000-000000000003', 'delivery', 'Rider A',     '9837803293', 'RIDER-A-001', true, true),
-('aaaaaaaa-0000-0000-0000-000000000004', 'delivery', 'Rider B',     '9837803293', 'RIDER-B-002', true, true),
-('aaaaaaaa-0000-0000-0000-000000000005', 'staff',    'Staff One',   '9837803293', 'STAFF-001',   true, false),
-('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
-ON CONFLICT (fy) DO NOTHING;-- M8: Inventory adjustments, reports, audit UI (IMPLEMENTATION_PLAN.md §8)
+-- >>> supabase/migrations/20261014000016_inventory_reports_audit.sql
+-- M8: Inventory adjustments, reports, audit UI (IMPLEMENTATION_PLAN.md §8)
 -- adjust_stock, low-stock list, stock reconciliation, reports, audit viewer
 
 -- 1) adjust_stock RPC - manual stock adjustment with reason (staff/manager)
@@ -3712,7 +2150,7 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 DECLARE
-  v_product products%ROWTYPE;
+  v_product public.products%ROWTYPE;
   v_new_stock bigint;
   v_actor_id uuid := auth.uid();
 BEGIN
@@ -3721,8 +2159,15 @@ BEGIN
     RETURN jsonb_build_object('error', 'FORBIDDEN', 'message', 'Staff or manager required');
   END IF;
 
-  -- Product must exist
-  SELECT * INTO v_product FROM public.products WHERE id = p_product_id;
+  -- Only manual stock reasons are allowed through this RPC; order/pos reasons
+  -- are written by their own workflows.
+  IF p_reason NOT IN ('manual_adjustment'::public.inventory_reason, 'correction'::public.inventory_reason) THEN
+    RETURN jsonb_build_object('error', 'VALIDATION_FAILED', 'message', 'Reason must be manual_adjustment or correction');
+  END IF;
+
+  -- Product must exist; lock the row so concurrent orders/adjustments cannot
+  -- lose updates.
+  SELECT * INTO v_product FROM public.products WHERE id = p_product_id FOR UPDATE;
   IF NOT FOUND THEN
     RETURN jsonb_build_object('error', 'NOT_FOUND', 'message', 'Product not found');
   END IF;
@@ -3766,6 +2211,45 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.adjust_stock(uuid, bigint, public.inventory_reason, text) TO authenticated;
 
+-- 1b) Record initial stock as a movement so reconciliation can be trusted.
+--     Stock added by an order/pos/adjustment workflow is recorded by that
+--     workflow; this trigger only covers product creation (and the seed).
+CREATE OR REPLACE FUNCTION public.record_initial_stock_movement()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  IF NEW.stock_qty <> 0 THEN
+    INSERT INTO public.inventory_movements (
+      product_id, delta_qty, reason, reference_type, reference_id, actor_id, note
+    ) VALUES (
+      NEW.id, NEW.stock_qty, 'correction', 'product', NEW.id, auth.uid(),
+      'Initial stock on product creation'
+    );
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_products_initial_stock ON public.products;
+CREATE TRIGGER trg_products_initial_stock
+  AFTER INSERT ON public.products
+  FOR EACH ROW EXECUTE FUNCTION public.record_initial_stock_movement();
+
+-- Backfill products that existed before movement tracking was deployed.
+INSERT INTO public.inventory_movements (
+  product_id, delta_qty, reason, reference_type, reference_id, actor_id, note
+)
+SELECT p.id, p.stock_qty, 'correction', 'product', p.id, NULL,
+       'Baseline stock before movement tracking'
+FROM public.products p
+WHERE p.stock_qty <> 0
+  AND NOT EXISTS (
+    SELECT 1 FROM public.inventory_movements im WHERE im.product_id = p.id
+  );
+
 -- 2) Low stock list RPC
 CREATE OR REPLACE FUNCTION public.get_low_stock_products()
 RETURNS TABLE (
@@ -3793,7 +2277,6 @@ BEGIN
          p.quantity_type, p.unit_label, p.price_basis_qty, p.price_paise
   FROM public.products p
   WHERE p.active = true
-    AND p.stock_qty > 0
     AND p.stock_qty <= p.low_stock_threshold
   ORDER BY p.low_stock_threshold - p.stock_qty DESC, p.name;
 END;
@@ -3822,8 +2305,8 @@ BEGIN
 
   RETURN QUERY
   SELECT p.id as product_id, p.sku, p.name, p.stock_qty as current_stock,
-         COALESCE(SUM(im.delta_qty), 0) as movement_sum,
-         p.stock_qty - COALESCE(SUM(im.delta_qty), 0) as discrepancy
+         COALESCE(SUM(im.delta_qty), 0)::bigint as movement_sum,
+         (p.stock_qty - COALESCE(SUM(im.delta_qty), 0))::bigint as discrepancy
   FROM public.products p
   LEFT JOIN public.inventory_movements im ON im.product_id = p.id
   WHERE p.active = true
@@ -3875,13 +2358,17 @@ BEGIN
   main_agg AS (
     SELECT 
       COUNT(*) as total_orders,
-      COALESCE(SUM(grand_total_paise), 0) as total_revenue_paise,
-      COALESCE(SUM(CASE WHEN payment_method = 'cod' THEN grand_total_paise ELSE 0 END), 0) as total_cod_paise,
-      COALESCE(SUM(CASE WHEN payment_method = 'online' THEN grand_total_paise ELSE 0 END), 0) as total_online_paise,
-      CASE WHEN COUNT(*) > 0 THEN COALESCE(SUM(grand_total_paise), 0) / COUNT(*) ELSE 0 END as avg_order_value_paise,
-      COALESCE(SUM(cod_collected_paise), 0) as cod_collected_paise,
-      COALESCE(SUM(CASE WHEN payment_method = 'cod' AND payment_status = 'unpaid' THEN grand_total_paise ELSE 0 END), 0) as cod_pending_paise
-    FROM filtered_orders
+      COALESCE(SUM(f.grand_total_paise), 0)::bigint as total_revenue_paise,
+      COALESCE(SUM(CASE WHEN f.payment_method = 'cod' THEN f.grand_total_paise ELSE 0 END), 0)::bigint as total_cod_paise,
+      COALESCE(SUM(CASE WHEN f.payment_method = 'online' THEN f.grand_total_paise ELSE 0 END), 0)::bigint as total_online_paise,
+      CASE WHEN COUNT(*) > 0
+        THEN (COALESCE(SUM(f.grand_total_paise), 0)::numeric / COUNT(*))::bigint
+        ELSE 0::bigint
+      END as avg_order_value_paise,
+      COALESCE(SUM(f.cod_collected_paise), 0)::bigint as cod_collected_paise,
+      COALESCE(SUM(CASE WHEN f.payment_method = 'cod'
+        THEN GREATEST(f.grand_total_paise - COALESCE(f.cod_collected_paise, 0), 0) ELSE 0 END), 0)::bigint as cod_pending_paise
+    FROM filtered_orders f
   ),
   status_breakdown AS (
     SELECT jsonb_object_agg(status, cnt) as by_status
@@ -3960,10 +2447,10 @@ BEGIN
   main_agg AS (
     SELECT 
       COUNT(*) as total_cod_orders,
-      COALESCE(SUM(grand_total_paise), 0) as total_cod_paise,
-      COALESCE(SUM(cod_collected_paise), 0) as collected_paise,
-      COALESCE(SUM(CASE WHEN cod_collected_paise IS NULL OR cod_collected_paise = 0 THEN grand_total_paise ELSE 0 END), 0) as pending_paise
-    FROM cod_orders
+      COALESCE(SUM(o.grand_total_paise), 0)::bigint as total_cod_paise,
+      COALESCE(SUM(o.cod_collected_paise), 0)::bigint as collected_paise,
+      COALESCE(SUM(GREATEST(o.grand_total_paise - COALESCE(o.cod_collected_paise, 0), 0)), 0)::bigint as pending_paise
+    FROM cod_orders o
   ),
   by_rider AS (
     SELECT jsonb_object_agg(rider, stats) as by_rider
@@ -3974,7 +2461,7 @@ BEGIN
           'orders', COUNT(*),
           'total_paise', COALESCE(SUM(o.grand_total_paise), 0),
           'collected_paise', COALESCE(SUM(o.cod_collected_paise), 0),
-          'pending_paise', COALESCE(SUM(CASE WHEN o.cod_collected_paise IS NULL OR o.cod_collected_paise = 0 THEN o.grand_total_paise ELSE 0 END), 0)
+          'pending_paise', COALESCE(SUM(GREATEST(o.grand_total_paise - COALESCE(o.cod_collected_paise, 0), 0)), 0)
         ) as stats
       FROM cod_orders o
       LEFT JOIN public.profiles p ON p.id = o.delivery_user_id
@@ -4008,13 +2495,15 @@ $$;
 GRANT EXECUTE ON FUNCTION public.get_cod_reconciliation(timestamptz, timestamptz) TO authenticated;
 
 -- 5) Audit log viewer RPC
+DROP FUNCTION IF EXISTS public.get_audit_logs(timestamptz, timestamptz, text, uuid, int, int);
 CREATE OR REPLACE FUNCTION public.get_audit_logs(
   p_start_date timestamptz DEFAULT NULL,
   p_end_date timestamptz DEFAULT NULL,
   p_entity_type text DEFAULT NULL,
   p_actor_id uuid DEFAULT NULL,
   p_limit int DEFAULT 100,
-  p_offset int DEFAULT 0
+  p_offset int DEFAULT 0,
+  p_action text DEFAULT NULL
 )
 RETURNS TABLE (
   id uuid,
@@ -4041,84 +2530,635 @@ BEGIN
   RETURN QUERY
   SELECT al.id, al.actor_id, al.action, al.entity_type, al.entity_id,
          al.before, al.after, al.request_id, al.created_at,
-         p.display_name as actor_name, p.role as actor_role
+         p.display_name as actor_name, p.role::text as actor_role
   FROM public.audit_logs al
   LEFT JOIN public.profiles p ON p.id = al.actor_id
   WHERE (p_start_date IS NULL OR al.created_at >= p_start_date)
     AND (p_end_date IS NULL OR al.created_at <= p_end_date)
     AND (p_entity_type IS NULL OR al.entity_type = p_entity_type)
     AND (p_actor_id IS NULL OR al.actor_id = p_actor_id)
+    AND (p_action IS NULL OR al.action = p_action)
   ORDER BY al.created_at DESC
-  LIMIT p_limit OFFSET p_offset;
+  LIMIT LEAST(GREATEST(p_limit, 1), 500) OFFSET GREATEST(p_offset, 0);
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.get_audit_logs(timestamptz, timestamptz, text, uuid, int, int) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_audit_logs(timestamptz, timestamptz, text, uuid, int, int, text) TO authenticated;
 
 -- 6) RLS policies for inventory_movements (already enabled in M1, add manager read)
 -- Already covered in M2: inventory_movements read for staff/manager
 
 -- 7) RLS policy for bill_counters (manager only)
-CREATE POLICY "bill_counters_manager" ON bill_counters
+DROP POLICY IF EXISTS "bill_counters_manager" ON public.bill_counters;
+CREATE POLICY "bill_counters_manager" ON public.bill_counters
   FOR ALL TO authenticated
   USING (public.current_role() = 'manager')
   WITH CHECK (public.current_role() = 'manager');
 
 -- 8) RLS policy for pos_sales (staff/manager read, cashier insert)
-CREATE POLICY "pos_sales_write_staff" ON pos_sales
+DROP POLICY IF EXISTS "pos_sales_write_staff" ON public.pos_sales;
+CREATE POLICY "pos_sales_write_staff" ON public.pos_sales
   FOR INSERT TO authenticated
   WITH CHECK (public.current_role() IN ('staff','manager'));
 
-CREATE POLICY "pos_sales_read_staff" ON pos_sales
+DROP POLICY IF EXISTS "pos_sales_read_staff" ON public.pos_sales;
+CREATE POLICY "pos_sales_read_staff" ON public.pos_sales
   FOR SELECT TO authenticated
   USING (public.current_role() IN ('staff','manager'));
 
 -- 9) RLS policy for bills (customer reads own, staff/manager read all)
-CREATE POLICY "bills_read_own" ON bills
+DROP POLICY IF EXISTS "bills_read_own" ON public.bills;
+CREATE POLICY "bills_read_own" ON public.bills
   FOR SELECT TO authenticated
   USING (
     (source = 'ORDER' AND EXISTS (
-      SELECT 1 FROM orders o WHERE o.id = bills.order_id AND o.customer_id = auth.uid()
+      SELECT 1 FROM public.orders o WHERE o.id = bills.order_id AND o.customer_id = auth.uid()
     )) OR
     public.current_role() IN ('staff','manager')
   );
 
-CREATE POLICY "bills_write_staff" ON bills
+DROP POLICY IF EXISTS "bills_write_staff" ON public.bills;
+CREATE POLICY "bills_write_staff" ON public.bills
   FOR ALL TO authenticated
   USING (public.current_role() IN ('staff','manager'))
   WITH CHECK (public.current_role() IN ('staff','manager'));
 
 -- 10) RLS policy for bill_items (follow bills)
-CREATE POLICY "bill_items_read_own" ON bill_items
+DROP POLICY IF EXISTS "bill_items_read_own" ON public.bill_items;
+CREATE POLICY "bill_items_read_own" ON public.bill_items
   FOR SELECT TO authenticated
   USING (EXISTS (
-    SELECT 1 FROM bills b
+    SELECT 1 FROM public.bills b
     WHERE b.id = bill_items.bill_id
       AND ((b.source = 'ORDER' AND EXISTS (
-        SELECT 1 FROM orders o WHERE o.id = b.order_id AND o.customer_id = auth.uid()
+        SELECT 1 FROM public.orders o WHERE o.id = b.order_id AND o.customer_id = auth.uid()
       )) OR public.current_role() IN ('staff','manager'))
   ));
 
-CREATE POLICY "bill_items_write_staff" ON bill_items
+DROP POLICY IF EXISTS "bill_items_write_staff" ON public.bill_items;
+CREATE POLICY "bill_items_write_staff" ON public.bill_items
   FOR ALL TO authenticated
   USING (public.current_role() IN ('staff','manager'))
   WITH CHECK (public.current_role() IN ('staff','manager'));
 
 -- 11) RLS policy for payment_events (internal only)
-CREATE POLICY "payment_events_none" ON payment_events
+DROP POLICY IF EXISTS "payment_events_none" ON public.payment_events;
+CREATE POLICY "payment_events_none" ON public.payment_events
   FOR ALL TO authenticated USING (false);
 
 -- 12) RLS policy for idempotency_keys (user owns their keys)
-CREATE POLICY "idempotency_own" ON idempotency_keys
+DROP POLICY IF EXISTS "idempotency_own" ON public.idempotency_keys;
+CREATE POLICY "idempotency_own" ON public.idempotency_keys
   FOR ALL TO authenticated
   USING (user_id = auth.uid())
   WITH CHECK (user_id = auth.uid());
 
 -- 13) RLS policy for audit_logs (manager read only)
-CREATE POLICY "audit_logs_read_manager" ON audit_logs
+DROP POLICY IF EXISTS "audit_logs_read_manager" ON public.audit_logs;
+CREATE POLICY "audit_logs_read_manager" ON public.audit_logs
   FOR SELECT TO authenticated
   USING (public.current_role() = 'manager');
 
 -- 14) RLS policy for notification_outbox (internal only)
-CREATE POLICY "notification_outbox_none" ON notification_outbox
+DROP POLICY IF EXISTS "notification_outbox_none" ON public.notification_outbox;
+CREATE POLICY "notification_outbox_none" ON public.notification_outbox
   FOR ALL TO authenticated USING (false);
+
+-- >>> supabase/migrations/20261014000017_security_hardening.sql
+-- Security hardening: close the public RLS hole, restore canonical policies,
+-- lock admin RPCs, protect catalogue views, and add the audited settings RPC.
+--
+-- Context: supabase/fix_rls_catalogue.sql (run manually on the live project)
+-- created FOR ALL TO public USING (true) policies on identity, catalogue,
+-- orders and settings. That script's replacement below is intentionally safe:
+-- customers/riders get owner-scoped policies, anon gets read-only published
+-- catalogue, and every write stays manager/staff scoped.
+
+-- ---------------------------------------------------------------------------
+-- 1) Remove the permissive policies created by fix_rls_catalogue.sql
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "profiles_all_public" ON public.profiles;
+DROP POLICY IF EXISTS "categories_read_public" ON public.categories;
+DROP POLICY IF EXISTS "categories_write_public" ON public.categories;
+DROP POLICY IF EXISTS "products_read_public" ON public.products;
+DROP POLICY IF EXISTS "products_write_public" ON public.products;
+DROP POLICY IF EXISTS "store_settings_read_public" ON public.store_settings;
+DROP POLICY IF EXISTS "store_settings_write_public" ON public.store_settings;
+DROP POLICY IF EXISTS "addresses_all_public" ON public.addresses;
+DROP POLICY IF EXISTS "orders_all_public" ON public.orders;
+DROP POLICY IF EXISTS "order_items_all_public" ON public.order_items;
+
+-- The staff UPDATE policy on products allows changing price/stock directly.
+-- Stock changes must go through adjust_stock so movements stay auditable.
+DROP POLICY IF EXISTS "products_stock_adjust_staff" ON public.products;
+
+-- Direct order UPDATE bypasses transition_order (state machine, stock restore,
+-- timestamps, audit). All status changes must use the RPCs.
+DROP POLICY IF EXISTS "orders_update_status_staff" ON public.orders;
+
+-- ---------------------------------------------------------------------------
+-- 2) Restore canonical owner/staff policies (idempotent)
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "profiles_read_own" ON public.profiles;
+CREATE POLICY "profiles_read_own" ON public.profiles
+  FOR SELECT TO authenticated USING (id = auth.uid());
+
+DROP POLICY IF EXISTS "profiles_read_staff" ON public.profiles;
+CREATE POLICY "profiles_read_staff" ON public.profiles
+  FOR SELECT TO authenticated
+  USING (public.current_role()::text IN ('staff', 'manager'));
+
+DROP POLICY IF EXISTS "profiles_update_role_active" ON public.profiles;
+CREATE POLICY "profiles_update_role_active" ON public.profiles
+  FOR UPDATE TO authenticated
+  USING (public.current_role() = 'manager'::public.user_role)
+  WITH CHECK (public.current_role() = 'manager'::public.user_role);
+
+DROP POLICY IF EXISTS "store_settings_read" ON public.store_settings;
+CREATE POLICY "store_settings_read" ON public.store_settings
+  FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "store_settings_write" ON public.store_settings;
+CREATE POLICY "store_settings_write" ON public.store_settings
+  FOR ALL TO authenticated
+  USING (public.current_role() = 'manager'::public.user_role)
+  WITH CHECK (public.current_role() = 'manager'::public.user_role);
+
+DROP POLICY IF EXISTS "service_areas_read_active" ON public.service_areas;
+CREATE POLICY "service_areas_read_active" ON public.service_areas
+  FOR SELECT TO authenticated USING (active = true);
+
+DROP POLICY IF EXISTS "service_areas_write" ON public.service_areas;
+CREATE POLICY "service_areas_write" ON public.service_areas
+  FOR ALL TO authenticated
+  USING (public.current_role() = 'manager'::public.user_role)
+  WITH CHECK (public.current_role() = 'manager'::public.user_role);
+
+DROP POLICY IF EXISTS "categories_read_active" ON public.categories;
+CREATE POLICY "categories_read_active" ON public.categories
+  FOR SELECT TO authenticated USING (active = true);
+
+DROP POLICY IF EXISTS "categories_write" ON public.categories;
+CREATE POLICY "categories_write" ON public.categories
+  FOR ALL TO authenticated
+  USING (public.current_role() = 'manager'::public.user_role)
+  WITH CHECK (public.current_role() = 'manager'::public.user_role);
+
+DROP POLICY IF EXISTS "products_read_published" ON public.products;
+CREATE POLICY "products_read_published" ON public.products
+  FOR SELECT TO authenticated USING (active = true AND available = true);
+
+DROP POLICY IF EXISTS "products_write_manager" ON public.products;
+CREATE POLICY "products_write_manager" ON public.products
+  FOR ALL TO authenticated
+  USING (public.current_role() = 'manager'::public.user_role)
+  WITH CHECK (public.current_role() = 'manager'::public.user_role);
+
+DROP POLICY IF EXISTS "addresses_own_crud" ON public.addresses;
+CREATE POLICY "addresses_own_crud" ON public.addresses
+  FOR ALL TO authenticated
+  USING (customer_id = auth.uid())
+  WITH CHECK (customer_id = auth.uid());
+
+DROP POLICY IF EXISTS "addresses_staff_read" ON public.addresses;
+CREATE POLICY "addresses_staff_read" ON public.addresses
+  FOR SELECT TO authenticated
+  USING (public.current_role()::text IN ('staff', 'manager'));
+
+DROP POLICY IF EXISTS "orders_read_own" ON public.orders;
+CREATE POLICY "orders_read_own" ON public.orders
+  FOR SELECT TO authenticated USING (customer_id = auth.uid());
+
+DROP POLICY IF EXISTS "orders_read_staff" ON public.orders;
+CREATE POLICY "orders_read_staff" ON public.orders
+  FOR SELECT TO authenticated
+  USING (public.current_role()::text IN ('staff', 'manager'));
+
+DROP POLICY IF EXISTS "order_items_read_own" ON public.order_items;
+CREATE POLICY "order_items_read_own" ON public.order_items
+  FOR SELECT TO authenticated
+  USING (EXISTS (
+    SELECT 1 FROM public.orders o
+    WHERE o.id = order_items.order_id AND o.customer_id = auth.uid()
+  ));
+
+DROP POLICY IF EXISTS "order_items_read_staff" ON public.order_items;
+CREATE POLICY "order_items_read_staff" ON public.order_items
+  FOR SELECT TO authenticated
+  USING (public.current_role()::text IN ('staff', 'manager'));
+
+DROP POLICY IF EXISTS "order_events_read_own" ON public.order_status_events;
+CREATE POLICY "order_events_read_own" ON public.order_status_events
+  FOR SELECT TO authenticated
+  USING (EXISTS (
+    SELECT 1 FROM public.orders o
+    WHERE o.id = order_status_events.order_id AND o.customer_id = auth.uid()
+  ));
+
+DROP POLICY IF EXISTS "order_events_read_staff" ON public.order_status_events;
+CREATE POLICY "order_events_read_staff" ON public.order_status_events
+  FOR SELECT TO authenticated
+  USING (public.current_role()::text IN ('staff', 'manager'));
+
+DROP POLICY IF EXISTS "order_assignments_read_staff" ON public.order_assignments;
+CREATE POLICY "order_assignments_read_staff" ON public.order_assignments
+  FOR SELECT TO authenticated
+  USING (public.current_role()::text IN ('staff', 'manager'));
+
+-- The security_invoker rider_orders view reads orders/order_items as the
+-- rider, so the underlying tables need scoped rider policies too.
+DROP POLICY IF EXISTS "orders_read_assigned_delivery" ON public.orders;
+CREATE POLICY "orders_read_assigned_delivery" ON public.orders
+  FOR SELECT TO authenticated
+  USING (
+    public.current_role() = 'delivery'::public.user_role
+    AND EXISTS (
+      SELECT 1 FROM public.order_assignments oa
+      WHERE oa.order_id = orders.id
+        AND oa.delivery_user_id = auth.uid()
+        AND oa.unassigned_at IS NULL
+    )
+  );
+
+DROP POLICY IF EXISTS "order_items_read_assigned_delivery" ON public.order_items;
+CREATE POLICY "order_items_read_assigned_delivery" ON public.order_items
+  FOR SELECT TO authenticated
+  USING (
+    public.current_role() = 'delivery'::public.user_role
+    AND EXISTS (
+      SELECT 1
+      FROM public.order_assignments oa
+      WHERE oa.order_id = order_items.order_id
+        AND oa.delivery_user_id = auth.uid()
+        AND oa.unassigned_at IS NULL
+    )
+  );
+
+DROP POLICY IF EXISTS "order_assignments_read_delivery" ON public.order_assignments;
+CREATE POLICY "order_assignments_read_delivery" ON public.order_assignments
+  FOR SELECT TO authenticated
+  USING (public.current_role() = 'delivery'::public.user_role AND delivery_user_id = auth.uid());
+
+DROP POLICY IF EXISTS "order_assignments_write_staff" ON public.order_assignments;
+CREATE POLICY "order_assignments_write_staff" ON public.order_assignments
+  FOR ALL TO authenticated
+  USING (public.current_role()::text IN ('staff', 'manager'))
+  WITH CHECK (public.current_role()::text IN ('staff', 'manager'));
+
+DROP POLICY IF EXISTS "order_transitions_read" ON public.order_transitions;
+CREATE POLICY "order_transitions_read" ON public.order_transitions
+  FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "inventory_movements_read" ON public.inventory_movements;
+CREATE POLICY "inventory_movements_read" ON public.inventory_movements
+  FOR SELECT TO authenticated
+  USING (public.current_role()::text IN ('staff', 'manager'));
+
+-- ---------------------------------------------------------------------------
+-- 3) Anonymous storefront read access (published rows only, no PII)
+-- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS "categories_read_anon" ON public.categories;
+CREATE POLICY "categories_read_anon" ON public.categories
+  FOR SELECT TO anon USING (active = true);
+
+DROP POLICY IF EXISTS "products_read_anon" ON public.products;
+CREATE POLICY "products_read_anon" ON public.products
+  FOR SELECT TO anon USING (active = true AND available = true);
+
+DROP POLICY IF EXISTS "store_settings_read_anon" ON public.store_settings;
+CREATE POLICY "store_settings_read_anon" ON public.store_settings
+  FOR SELECT TO anon USING (true);
+
+DROP POLICY IF EXISTS "service_areas_read_anon" ON public.service_areas;
+CREATE POLICY "service_areas_read_anon" ON public.service_areas
+  FOR SELECT TO anon USING (active = true);
+
+-- ---------------------------------------------------------------------------
+-- 4) Views must respect the caller's RLS (they are owned by postgres)
+-- ---------------------------------------------------------------------------
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relname = 'catalog_products' AND c.relkind = 'v'
+  ) THEN
+    ALTER VIEW public.catalog_products SET (security_invoker = true);
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relname = 'catalog_categories' AND c.relkind = 'v'
+  ) THEN
+    ALTER VIEW public.catalog_categories SET (security_invoker = true);
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- 5) current_role() must ignore deactivated staff/rider accounts
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.current_role()
+RETURNS public.user_role
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $sql$
+  SELECT COALESCE(
+    (SELECT role FROM public.profiles WHERE id = auth.uid() AND is_active),
+    'customer'::public.user_role
+  );
+$sql$;
+
+-- ---------------------------------------------------------------------------
+-- 6) Lock down sensitive RPCs (default PUBLIC execute must be revoked)
+-- ---------------------------------------------------------------------------
+REVOKE EXECUTE ON FUNCTION public.place_order(jsonb, text) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.adjust_stock(uuid, bigint, public.inventory_reason, text) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.get_low_stock_products() FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.check_stock_reconciliation() FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.get_sales_report(timestamptz, timestamptz, public.order_status) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.get_cod_reconciliation(timestamptz, timestamptz) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.get_audit_logs(timestamptz, timestamptz, text, uuid, int, int, text) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.transition_order(uuid, public.order_status, text) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.assign_order(uuid, uuid) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.rider_update_status(uuid, public.order_status, text) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.set_rider_active(uuid, boolean) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.remove_order_item(uuid, uuid, text) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.create_rider(text, text, text) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.reset_rider_password(uuid) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.get_rider_orders() FROM PUBLIC, anon;
+
+-- Quotes are read-only and server-priced; anonymous carts still need them.
+REVOKE EXECUTE ON FUNCTION public.quote_cart(jsonb) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.quote_cart(jsonb) TO anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.compute_delivery_fee(bigint) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.compute_delivery_fee(bigint) TO anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 7) save_settings(patch) — manager only, validated, audited by trigger
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.save_settings(p_patch jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_settings public.store_settings%ROWTYPE;
+  v_store_open boolean;
+  v_delivery_fee bigint;
+  v_charge_threshold bigint;
+  v_free_threshold bigint;
+  v_mid_fee bigint;
+  v_max_order bigint;
+  v_tax_rate integer;
+  v_online boolean;
+BEGIN
+  IF public.current_role() <> 'manager'::public.user_role THEN
+    RETURN jsonb_build_object('error', 'FORBIDDEN', 'message', 'Manager required');
+  END IF;
+
+  IF p_patch IS NULL OR jsonb_typeof(p_patch) <> 'object' THEN
+    RETURN jsonb_build_object('error', 'VALIDATION_FAILED', 'message', 'Patch must be a JSON object');
+  END IF;
+
+  SELECT * INTO v_settings FROM public.store_settings WHERE id = true FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('error', 'NOT_FOUND', 'message', 'Store settings row not found');
+  END IF;
+
+  BEGIN
+    v_store_open := COALESCE((p_patch->>'store_open')::boolean, v_settings.store_open);
+    v_delivery_fee := COALESCE((p_patch->>'delivery_fee_paise')::bigint, v_settings.delivery_fee_paise);
+    v_charge_threshold := COALESCE((p_patch->>'delivery_charge_threshold_paise')::bigint, v_settings.delivery_charge_threshold_paise);
+    v_free_threshold := CASE
+      WHEN p_patch ? 'free_delivery_threshold_paise'
+        THEN NULLIF(p_patch->>'free_delivery_threshold_paise', '')::bigint
+      ELSE v_settings.free_delivery_threshold_paise
+    END;
+    v_mid_fee := CASE
+      WHEN p_patch ? 'mid_tier_fee_paise'
+        THEN NULLIF(p_patch->>'mid_tier_fee_paise', '')::bigint
+      ELSE v_settings.mid_tier_fee_paise
+    END;
+    v_max_order := CASE
+      WHEN p_patch ? 'max_order_paise'
+        THEN NULLIF(p_patch->>'max_order_paise', '')::bigint
+      ELSE v_settings.max_order_paise
+    END;
+    v_tax_rate := COALESCE((p_patch->>'tax_rate_bps')::integer, v_settings.tax_rate_bps);
+    v_online := COALESCE((p_patch->>'online_payment_enabled')::boolean, v_settings.online_payment_enabled);
+  EXCEPTION WHEN invalid_text_representation OR numeric_value_out_of_range THEN
+    RETURN jsonb_build_object('error', 'VALIDATION_FAILED', 'message', 'Invalid setting value type');
+  END;
+
+  IF v_online THEN
+    RETURN jsonb_build_object(
+      'error', 'PAYMENT_GATE_CLOSED',
+      'message', 'Online payments are disabled until the payment gate (M11) passes'
+    );
+  END IF;
+  IF v_delivery_fee < 0 OR v_charge_threshold < 0 OR v_tax_rate < 0 THEN
+    RETURN jsonb_build_object('error', 'VALIDATION_FAILED', 'message', 'Fees, thresholds and tax rate must be non-negative');
+  END IF;
+  IF v_free_threshold IS NOT NULL AND v_free_threshold < v_charge_threshold THEN
+    RETURN jsonb_build_object(
+      'error', 'VALIDATION_FAILED',
+      'message', 'Free-delivery threshold must be empty or greater than/equal to the delivery-charge threshold'
+    );
+  END IF;
+  IF v_mid_fee IS NOT NULL AND v_mid_fee < 0 THEN
+    RETURN jsonb_build_object('error', 'VALIDATION_FAILED', 'message', 'Mid-tier fee must be non-negative');
+  END IF;
+  IF v_max_order IS NOT NULL AND v_max_order < 0 THEN
+    RETURN jsonb_build_object('error', 'VALIDATION_FAILED', 'message', 'Maximum order amount must be non-negative');
+  END IF;
+  IF v_tax_rate > 10000 THEN
+    RETURN jsonb_build_object('error', 'VALIDATION_FAILED', 'message', 'Tax rate cannot exceed 100%');
+  END IF;
+
+  UPDATE public.store_settings
+  SET store_open = v_store_open,
+      timezone = COALESCE(NULLIF(p_patch->>'timezone', ''), timezone),
+      weekly_hours = CASE WHEN p_patch ? 'weekly_hours' THEN p_patch->'weekly_hours' ELSE weekly_hours END,
+      contact_phone = COALESCE(p_patch->>'contact_phone', contact_phone),
+      estimated_window_text = CASE WHEN p_patch ? 'estimated_window_text' THEN p_patch->>'estimated_window_text' ELSE estimated_window_text END,
+      delivery_fee_paise = v_delivery_fee,
+      delivery_charge_threshold_paise = v_charge_threshold,
+      free_delivery_threshold_paise = v_free_threshold,
+      mid_tier_fee_paise = v_mid_fee,
+      max_order_paise = v_max_order,
+      cancellation_policy_text = CASE WHEN p_patch ? 'cancellation_policy_text' THEN p_patch->>'cancellation_policy_text' ELSE cancellation_policy_text END,
+      tax_mode = COALESCE((p_patch->>'tax_mode')::public.tax_mode, tax_mode),
+      tax_rate_bps = v_tax_rate,
+      online_payment_enabled = false,
+      pos_price_override_enabled = CASE WHEN p_patch ? 'pos_price_override_enabled' THEN (p_patch->>'pos_price_override_enabled')::boolean ELSE pos_price_override_enabled END
+  WHERE id = true
+  RETURNING * INTO v_settings;
+
+  RETURN jsonb_build_object('success', true, 'settings', to_jsonb(v_settings));
+EXCEPTION
+  WHEN check_violation OR invalid_text_representation THEN
+    RETURN jsonb_build_object('error', 'VALIDATION_FAILED', 'message', 'Settings violate a validation constraint');
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.save_settings(jsonb) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.save_settings(jsonb) TO authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 8) complete_password_change() — lets the signed-in user clear the
+--    must_change_password flag after updating their password via Supabase Auth.
+--    Profiles are not self-updatable under RLS, so this needs a definer RPC.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.complete_password_change()
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_uid uuid := auth.uid();
+BEGIN
+  IF v_uid IS NULL THEN
+    RETURN jsonb_build_object('error', 'UNAUTHENTICATED', 'message', 'Sign in required');
+  END IF;
+
+  UPDATE public.profiles
+  SET must_change_password = false
+  WHERE id = v_uid AND is_active;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('error', 'FORBIDDEN', 'message', 'Active profile required');
+  END IF;
+
+  RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.complete_password_change() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.complete_password_change() TO authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 9) Stock is only writable through SECURITY DEFINER functions that also
+--    record an inventory movement. Table-level UPDATE/INSERT is replaced by a
+--    column allow-list that excludes stock_qty.
+-- ---------------------------------------------------------------------------
+REVOKE INSERT, UPDATE ON public.products FROM anon, authenticated;
+GRANT INSERT (
+  sku, name, description, category_id, image_path, quantity_type, price_paise,
+  price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, max_qty,
+  low_stock_threshold, active, available
+) ON public.products TO authenticated;
+GRANT UPDATE (
+  sku, name, description, category_id, image_path, quantity_type, price_paise,
+  price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, max_qty,
+  low_stock_threshold, active, available
+) ON public.products TO authenticated;
+
+
+-- >>> supabase/seed.sql
+-- ===========================================================================
+-- Balaji Provision Store — Synthetic Seed Data
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- Store settings — default single row
+-- ---------------------------------------------------------------------------
+INSERT INTO store_settings (
+  id, store_open, timezone, weekly_hours, contact_phone,
+  estimated_window_text, delivery_fee_paise, delivery_charge_threshold_paise,
+  free_delivery_threshold_paise, mid_tier_fee_paise, max_order_paise,
+  cancellation_policy_text, tax_mode, tax_rate_bps,
+  online_payment_enabled, pos_price_override_enabled
+) VALUES (
+  true,
+  true,
+  'Asia/Kolkata',
+  '{"mon":["08:00","22:00"],"tue":["08:00","22:00"],"wed":["08:00","22:00"],"thu":["08:00","22:00"],"fri":["08:00","22:00"],"sat":["08:00","22:00"],"sun":["08:00","22:00"]}'::jsonb,
+  '9837803293',
+  'Same-day delivery; the exact window is confirmed when the store accepts the order.',
+  3000,   -- ₹30 fee when order subtotal is below delivery-charge threshold
+  25000,  -- ₹250 threshold
+  25000,  -- ₹250 free delivery threshold
+  NULL,
+  NULL,
+  'Cancellation is allowed until the store accepts the order.',
+  'none', 0, false, false
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- Categories
+-- ---------------------------------------------------------------------------
+INSERT INTO catalog_categories (name, slug, sort_order) VALUES
+  ('Grains & Staples',  'grains-staples',  1),
+  ('Spices & Masalas',  'spices-masalas',  2),
+  ('Oils & Ghee',       'oils-ghee',       3),
+  ('Snacks & Namkeen',  'snacks-namkeen',  4),
+  ('Beverages',         'beverages',       5),
+  ('Personal Care',     'personal-care',   6),
+  ('Household',         'household',       7),
+  ('Dairy & Eggs',      'dairy-eggs',      8),
+  ('Fresh Produce',     'fresh-produce',   9)
+ON CONFLICT (slug) DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- Products — PACKED (price per pack; integer quantities only)
+-- ---------------------------------------------------------------------------
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('BASMATI-RICE-1KG',      'Basmati Rice 1 kg',              'Premium aged basmati rice',        (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 12000, 1, 'pack', '1 kg',   1, 1, 50, 10, true, true),
+('WHOLE-WHEAT-ATTA-5KG',  'Whole Wheat Atta 5 kg',        'Freshly ground whole wheat flour', (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 22000, 1, 'pack', '5 kg',   1, 1, 30,  5, true, true),
+('TOOR-DAL-1KG',          'Toor Dal 1 kg',                'Split pigeon peas',                (SELECT id FROM catalog_categories WHERE slug='grains-staples'),  'packed', 13000, 1, 'pack', '1 kg',   1, 1, 40, 10, true, true),
+('SUNFLOWER-OIL-1L',      'Sunflower Oil 1 L',            'Refined sunflower oil',            (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 14000, 1, 'pack', '1 L',    1, 1, 25,  5, true, true),
+('MUSTARD-OIL-1L',        'Cold-Pressed Mustard Oil 1 L', 'Cold-pressed mustard oil',         (SELECT id FROM catalog_categories WHERE slug='oils-ghee'),       'packed', 15000, 1, 'pack', '1 L',    1, 1, 20,  5, true, true),
+('TURMERIC-POWDER-200G',  'Turmeric Powder 200 g',        'Pure turmeric powder',             (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  6000, 1, 'pack', '200 g',  1, 1, 50, 10, true, true),
+('RED-CHILLI-POWDER-200G','Red Chilli Powder 200 g',      'Spicy red chilli powder',          (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  7000, 1, 'pack', '200 g',  1, 1, 45, 10, true, true),
+('IODIZED-SALT-1KG',      'Iodized Salt 1 kg',            'Iodized table salt',               (SELECT id FROM catalog_categories WHERE slug='spices-masalas'),  'packed',  2000, 1, 'pack', '1 kg',   1, 1, 60, 15, true, true),
+('ASSAM-TEA-250G',        'Assam CTC Tea 250 g',          'Strong Assam CTC tea',             (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  8000, 1, 'pack', '250 g',  1, 1, 35, 10, true, true),
+('INSTANT-COFFEE-50G',    'Instant Coffee 50 g',          'Classic instant coffee',           (SELECT id FROM catalog_categories WHERE slug='beverages'),       'packed',  9000, 1, 'pack', '50 g',   1, 1, 30,  5, true, true),
+('BIKANERI-BHUJIA-200G',  'Bikaneri Bhujia 200 g',        'Crispy gram flour snack',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5000, 1, 'pack', '200 g',  1, 1, 40, 10, true, true),
+('NAVRATAN-MIXTURE-200G', 'Navratan Mixture 200 g',       'Assorted savory mixture',          (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed',  5500, 1, 'pack', '200 g',  1, 1, 35, 10, true, true),
+('PREMIUM-CASHEWS-1KG',   'Premium Cashews 1 kg',         'Whole cashews, kiln roasted',      (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 25000, 1, 'pack', '1 kg',   1, 1, 15,  5, true, true),
+('MIXED-DRY-FRUITS-250G', 'Mixed Dry Fruits 250 g',       'Assorted dry fruits',              (SELECT id FROM catalog_categories WHERE slug='snacks-namkeen'),  'packed', 24999, 1, 'pack', '250 g',  1, 1, 20,  5, true, true);
+
+-- ---------------------------------------------------------------------------
+-- Products — WEIGHTED (price per kg unless noted; quantities in grams)
+-- ---------------------------------------------------------------------------
+INSERT INTO catalog_products (sku, name, description, category_id, quantity_type, price_paise, price_basis_qty, unit_label, pack_size_label, step_qty, min_qty, stock_qty, low_stock_threshold, active, available) VALUES
+('ONIONS-FRESH',     'Onions',           'Fresh red onions',     (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 50000,  5000, true, true),
+('POTATOES-FRESH',   'Potatoes',         'Fresh potatoes',       (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 3000, 1000, 'kg',   NULL, 10, 100, 80000, 10000, true, true),
+('TOMATOES-FRESH',   'Tomatoes',         'Fresh red tomatoes',   (SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 5000, 1000, 'kg',   NULL, 10, 100, 30000,  3000, true, true),
+('BANANAS-ROBUSTA',  'Bananas (Robusta)','Fresh robusta bananas',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 6000, 1000, 'kg',   NULL, 10, 100, 40000,  5000, true, true),
+('FRESH-CORIANDER',  'Fresh Coriander',  'Fresh coriander leaves',(SELECT id FROM catalog_categories WHERE slug='fresh-produce'), 'weighted', 1500,  100, '100 g', NULL, 10, 100,  5000,   500, true, true);
+
+-- ---------------------------------------------------------------------------
+-- Service areas
+-- ---------------------------------------------------------------------------
+INSERT INTO service_areas (kind, value, active) VALUES
+  ('pincode', '122001', true),
+  ('pincode', '122002', true)
+ON CONFLICT (kind, lower(value)) DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- Synthetic test identities (auth.users + profiles)
+-- ---------------------------------------------------------------------------
+INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at) VALUES
+('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'customer-a@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
+('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'customer-b@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now()),
+('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'rider-a@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
+('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'rider-b@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
+('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'staff-1@balaji-test.invalid',    'synthetic-placeholder', now(), now(), now()),
+('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000006', 'authenticated', 'authenticated', 'manager-1@balaji-test.invalid',  'synthetic-placeholder', now(), now(), now())
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_change_password) VALUES
+('aaaaaaaa-0000-0000-0000-000000000001', 'customer', 'Customer A',  '9837803293', NULL,        true, false),
+('aaaaaaaa-0000-0000-0000-000000000002', 'customer', 'Customer B',  '9837803293', NULL,        true, false),
+('aaaaaaaa-0000-0000-0000-000000000003', 'delivery', 'Rider A',     '9837803293', 'RIDER-A-001', true, true),
+('aaaaaaaa-0000-0000-0000-000000000004', 'delivery', 'Rider B',     '9837803293', 'RIDER-B-002', true, true),
+('aaaaaaaa-0000-0000-0000-000000000005', 'staff',    'Staff One',   '9837803293', 'STAFF-001',   true, false),
+('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
+ON CONFLICT (fy) DO NOTHING;

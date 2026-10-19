@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import { formatRupees } from "@/lib/money";
 import { formatRelativeTime } from "@/lib/format";
@@ -79,7 +79,8 @@ export default function InventoryPage() {
       .from("catalog_products")
       .select("*")
       .eq("active", true)
-      .order("name");
+      .order("name")
+      .limit(1000);
     if (error) {
       toast.error("Failed to load products");
       return;
@@ -134,31 +135,6 @@ export default function InventoryPage() {
     fetchAll();
   }, []);
 
-  const handleAdjustStock = async (
-    productId: string,
-    currentStock: number,
-    delta: number,
-    reason: string,
-  ) => {
-    const supabase = createClient();
-    const { data, error } = await supabase.rpc("adjust_stock", {
-      p_product_id: productId,
-      p_delta_qty: delta,
-      p_reason: reason as any,
-      p_note: `Manual adjustment: ${reason}`,
-    });
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    if (data.error) {
-      toast.error(data.error.message);
-      return;
-    }
-    toast.success(`Stock adjusted by ${delta > 0 ? "+" : ""}${delta}`);
-    fetchAll();
-  };
-
   const renderStockCell = (product: Product) => {
     const isLowStock = product.stock_qty > 0 && product.stock_qty <= product.low_stock_threshold;
     const isOutOfStock = product.stock_qty === 0;
@@ -210,6 +186,7 @@ export default function InventoryPage() {
         <button
           onClick={() => {
             setActiveTab("stock");
+            fetchAll();
           }}
           className="btn-primary"
         >
@@ -323,7 +300,7 @@ export default function InventoryPage() {
                             : "—"}
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <AdjustStockButton product={product} onRefresh={() => {}} />
+                          <AdjustStockButton product={product} onRefresh={fetchAll} />
                         </td>
                       </tr>
                     ))}
@@ -498,7 +475,7 @@ export default function InventoryPage() {
                             : `${product.low_stock_threshold - product.stock_qty} ${product.unit_label}`}
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <AdjustStockButton product={product} onRefresh={() => {}} />
+                          <AdjustStockButton product={product} onRefresh={fetchAll} />
                         </td>
                       </tr>
                     ))}
@@ -566,9 +543,14 @@ export default function InventoryPage() {
                           {item.discrepancy}
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <button className="px-3 py-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800">
-                            Investigate
-                          </button>
+                          {(() => {
+                            const product = products.find((p) => p.id === item.product_id);
+                            return product ? (
+                              <AdjustStockButton product={product} onRefresh={fetchAll} />
+                            ) : (
+                              <span className="text-xs text-gray-400">Inactive product</span>
+                            );
+                          })()}
                         </td>
                       </tr>
                     ))}
@@ -590,33 +572,53 @@ export default function InventoryPage() {
 
 function AdjustStockButton({ product, onRefresh }: { product: Product; onRefresh: () => void }) {
   const [open, setOpen] = useState(false);
-  const [delta, setDelta] = useState("");
-  const [reason, setReason] = useState("");
+  const [mode, setMode] = useState<"add" | "subtract">("add");
+  const [quantity, setQuantity] = useState("");
+  const [reason, setReason] = useState("manual_adjustment");
+  const [note, setNote] = useState("");
+  const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const supabase = createClient();
+  const unitLabel = product.quantity_type === "WEIGHTED" ? "grams" : "packs";
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!delta || !reason) return;
-    setSubmitting(true);
-    const deltaNum = parseInt(delta, 10);
-    const supabase = createClient();
-    const { data, error } = await supabase.rpc("adjust_stock", {
-      p_product_id: product.id,
-      p_delta_qty: deltaNum,
-      p_reason: "manual_adjustment",
-      p_note: reason,
-    });
-    if (error || data?.error) {
-      alert(error?.message || data?.error?.message || "Failed to adjust stock");
-    } else {
-      setOpen(false);
-      setDelta("");
-      setReason("");
-      window.location.reload();
+  const close = () => {
+    setOpen(false);
+    setError("");
+    setQuantity("");
+    setNote("");
+    setReason("manual_adjustment");
+    setMode("add");
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError("");
+    const parsed = Number(quantity);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      setError("Enter a whole number greater than zero");
+      return;
     }
-    setSubmitting(false);
+
+    setSubmitting(true);
+    try {
+      const supabase = createClient();
+      const { data, error: rpcError } = await supabase.rpc("adjust_stock", {
+        p_product_id: product.id,
+        p_delta_qty: mode === "subtract" ? -parsed : parsed,
+        p_reason: reason,
+        p_note: note.trim() || null,
+      });
+      if (rpcError) throw rpcError;
+      if (data?.error) throw new Error(data.message || data.error);
+
+      toast.success(`Stock adjusted by ${mode === "subtract" ? "-" : "+"}${parsed} ${unitLabel}`);
+      close();
+      onRefresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to adjust stock");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -625,10 +627,15 @@ function AdjustStockButton({ product, onRefresh }: { product: Product; onRefresh
         onClick={() => setOpen(true)}
         className="px-3 py-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg"
       >
-        <Plus className="h-4 w-4 mr-1" /> Adjust
+        <Plus className="h-4 w-4 mr-1 inline" /> Adjust
       </button>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Adjust stock for ${product.name}`}
+        >
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
             <h3 className="text-lg font-semibold mb-4">Adjust Stock: {product.name}</h3>
             <p className="text-sm text-gray-500 mb-4">
@@ -638,19 +645,21 @@ function AdjustStockButton({ product, onRefresh }: { product: Product; onRefresh
                 : `${product.stock_qty} ${product.unit_label}`}
             </p>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {error && (
+                <p role="alert" className="text-sm font-medium text-red-600">
+                  {error}
+                </p>
+              )}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Adjustment</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Adjustment ({unitLabel})
+                </label>
                 <div className="flex gap-2">
                   <select
-                    value={delta.startsWith("-") ? "subtract" : "add"}
-                    onChange={(e) =>
-                      setDelta(
-                        e.target.value +
-                          (delta.startsWith("-") ? "-" : "") +
-                          delta.replace(/[^0-9]/g, ""),
-                      )
-                    }
+                    value={mode}
+                    onChange={(e) => setMode(e.target.value as "add" | "subtract")}
                     className="w-1/3 px-3 py-2 border border-gray-300 rounded-md"
+                    aria-label="Adjustment direction"
                   >
                     <option value="add">Add</option>
                     <option value="subtract">Subtract</option>
@@ -658,12 +667,12 @@ function AdjustStockButton({ product, onRefresh }: { product: Product; onRefresh
                   <input
                     type="number"
                     min="1"
-                    placeholder="Quantity"
-                    value={delta.replace(/[^0-9]/g, "")}
-                    onChange={(e) =>
-                      setDelta(delta.startsWith("-") ? "-" + e.target.value : e.target.value)
-                    }
+                    step="1"
+                    placeholder={`Quantity in ${unitLabel}`}
+                    value={quantity}
+                    onChange={(e) => setQuantity(e.target.value)}
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
+                    aria-label={`Quantity in ${unitLabel}`}
                   />
                 </div>
               </div>
@@ -677,21 +686,28 @@ function AdjustStockButton({ product, onRefresh }: { product: Product; onRefresh
                 >
                   <option value="manual_adjustment">Manual Adjustment</option>
                   <option value="correction">Correction</option>
-                  <option value="damage">Damage</option>
-                  <option value="expired">Expired</option>
-                  <option value="return">Return</option>
                 </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Note</label>
+                <input
+                  type="text"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  placeholder="Optional reference or remark"
+                />
               </div>
               <div className="flex justify-end gap-3 pt-4 border-t">
                 <button
                   type="button"
-                  onClick={() => setOpen(false)}
+                  onClick={close}
                   className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
                 >
                   Cancel
                 </button>
                 <button type="submit" disabled={submitting} className="btn-primary">
-                  Apply Adjustment
+                  {submitting ? "Applying..." : "Apply Adjustment"}
                 </button>
               </div>
             </form>

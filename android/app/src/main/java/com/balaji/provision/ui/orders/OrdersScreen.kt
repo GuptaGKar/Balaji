@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.PendingActions
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
@@ -42,10 +43,12 @@ import com.balaji.provision.domain.model.formatPaise
 
 @Composable
 fun OrdersScreen(
+    onNavigateToSignIn: () -> Unit = {},
     viewModel: OrdersViewModel = hiltViewModel()
 ) {
     val orders by viewModel.orders.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
     
     Column(
         modifier = Modifier.fillMaxSize()
@@ -91,6 +94,28 @@ fun OrdersScreen(
             ) {
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
+        } else if (error != null && orders.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(24.dp)
+                ) {
+                    Text(error ?: "", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (error == "Sign in to see your orders.") {
+                        Button(onClick = onNavigateToSignIn) {
+                            Text("Sign In")
+                        }
+                    } else {
+                        Button(onClick = { viewModel.fetchOrders() }) {
+                            Text("Retry")
+                        }
+                    }
+                }
+            }
         } else if (orders.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -98,11 +123,15 @@ fun OrdersScreen(
             ) {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(24.dp)
                 ) {
-                    Text("📦", fontSize = 56.sp)
-                    Text("No orders placed yet", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    Text("Your placed orders will appear here", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("No orders to show", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Orders are linked to your customer account. Sign-in is not available in this build.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
                 }
             }
         } else {

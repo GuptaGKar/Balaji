@@ -19,8 +19,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.FlashOn
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -31,7 +29,6 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SnackbarHost
@@ -56,23 +53,26 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.balaji.provision.domain.model.formatPaise
+import com.balaji.provision.ui.auth.AuthViewModel
 import com.balaji.provision.ui.cart.CartViewModel
 import kotlinx.coroutines.launch
 
 @Composable
 fun CheckoutScreen(
     cartViewModel: CartViewModel = hiltViewModel(),
+    authViewModel: AuthViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit = {},
+    onNavigateToSignIn: () -> Unit = {},
     onOrderPlaced: () -> Unit = {}
 ) {
-    var name by remember { mutableStateOf("Shubham Gupta") }
-    var phone by remember { mutableStateOf("9837803293") }
-    var addressLines by remember { mutableStateOf("H.No 12, Main Market, Balaji Area") }
-    var landmark by remember { mutableStateOf("Near Balaji Store") }
-    var area by remember { mutableStateOf("Local Area") }
-    var city by remember { mutableStateOf("Delhi") }
-    var state by remember { mutableStateOf("Delhi") }
-    var postalCode by remember { mutableStateOf("110001") }
+    var name by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    var addressLines by remember { mutableStateOf("") }
+    var landmark by remember { mutableStateOf("") }
+    var area by remember { mutableStateOf("") }
+    var city by remember { mutableStateOf("") }
+    var state by remember { mutableStateOf("") }
+    var postalCode by remember { mutableStateOf("") }
     var customerNote by remember { mutableStateOf("") }
     
     var isLoading by remember { mutableStateOf(false) }
@@ -81,24 +81,15 @@ fun CheckoutScreen(
     
     val cart by cartViewModel.cart.collectAsState()
     val quote by cartViewModel.quote.collectAsState()
+    val authState by authViewModel.state.collectAsState()
     
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
 
-    fun autoFillSampleAddress() {
-        name = "Shubham Gupta"
-        phone = "9837803293"
-        addressLines = "Shop No. 4, Main Bazaar Road"
-        landmark = "Opposite Temple"
-        area = "Local Sector"
-        city = "Delhi"
-        state = "Delhi"
-        postalCode = "110001"
-    }
-
     fun validateForm(): Boolean {
-        return name.isNotBlank() && phone.isNotBlank() && addressLines.isNotBlank()
+        return name.isNotBlank() && phone.isNotBlank() && addressLines.isNotBlank() &&
+            area.isNotBlank() && city.isNotBlank() && state.isNotBlank() && postalCode.isNotBlank()
     }
 
     // Success Dialog on Order Confirmed
@@ -130,7 +121,7 @@ fun CheckoutScreen(
                     }
                     
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Order Placed Successfully! 🎉", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                        Text("Order Placed Successfully", fontWeight = FontWeight.Bold, fontSize = 20.sp)
                         Text("Order #${confirmedOrderNo}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
                     }
                     
@@ -154,8 +145,8 @@ fun CheckoutScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text("Estimated Delivery:", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("30 - 45 Mins ⚡", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF16A34A))
+                                Text("Delivery:", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("Timing confirmed by the store", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -238,13 +229,6 @@ fun CheckoutScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text("Delivery Address", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                            
-                            OutlinedButton(
-                                onClick = { autoFillSampleAddress() },
-                                shape = RoundedCornerShape(8.dp)
-                            ) {
-                                Text("Auto-Fill Address", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
                         }
                         
                         AddressForm(
@@ -366,6 +350,40 @@ fun CheckoutScreen(
                     }
                 }
                 
+                if (quote == null && cart.items.isNotEmpty()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                    ) {
+                        Text(
+                            "Delivery charge and total could not be loaded. Check your connection and try again.",
+                            modifier = Modifier.padding(12.dp),
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+
+                if (authState.session == null) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                "Sign in to place your order. Guest checkout is not available.",
+                                fontSize = 13.sp
+                            )
+                            Button(onClick = onNavigateToSignIn) {
+                                Text("Sign In")
+                            }
+                        }
+                    }
+                }
+
                 // Confirm Order Button
                 Button(
                     onClick = {
@@ -378,29 +396,35 @@ fun CheckoutScreen(
                                     address_lines = addressLines,
                                     landmark = landmark.ifBlank { null },
                                     area = area.ifBlank { null },
-                                    city = city.ifBlank { "Delhi" },
-                                    state = state.ifBlank { "Delhi" },
-                                    postal_code = postalCode.ifBlank { "110001" }
+                                    city = city,
+                                    state = state,
+                                    postal_code = postalCode
                                 )
                                 val remoteRes = cartViewModel.placeOrderRemote(addressReq, customerNote.ifBlank { null })
+                                isLoading = false
                                 if (remoteRes != null) {
                                     confirmedOrderNo = remoteRes.public_order_number
+                                    showSuccessDialog = true
                                 } else {
-                                    confirmedOrderNo = "BALAJI-" + (1000..9999).random()
+                                    snackbarHostState.showSnackbar(
+                                        if (authState.session == null) {
+                                            "Sign in to place your order."
+                                        } else {
+                                            "Order could not be placed. Check your connection and try again."
+                                        }
+                                    )
                                 }
-                                showSuccessDialog = true
-                                isLoading = false
                             }
                         } else {
                             coroutineScope.launch {
-                                snackbarHostState.showSnackbar("Please enter recipient name, phone, and address")
+                                snackbarHostState.showSnackbar("Please enter name, phone, full address, city, state and PIN code")
                             }
                         }
                     },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
-                    enabled = !isLoading,
+                    enabled = !isLoading && cart.items.isNotEmpty() && quote != null && authState.session != null,
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary

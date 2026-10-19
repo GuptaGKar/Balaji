@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import { storeSettingsSchema, type StoreSettings } from "@/lib/schemas";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { cn } from "@/lib/utils";
-import { Save, Loader2, Clock, Image as ImageIcon, Plus, Trash2 } from "lucide-react";
+import { Save, Loader2, Clock, Plus, Trash2, AlertTriangle } from "lucide-react";
 import { Toaster, toast } from "sonner";
 
 interface BannerItem {
@@ -16,130 +15,187 @@ interface BannerItem {
   image_url: string;
 }
 
-const defaultBanners: BannerItem[] = [
-  {
-    id: "b-1",
-    title: "Fresh Atta & Groceries Delivered ⚡",
-    subtitle: "Up to 30% OFF daily essentials",
-    image_url: "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&q=80",
-  },
-  {
-    id: "b-2",
-    title: "Free Local Home Delivery 🎉",
-    subtitle: "On all orders above ₹250",
-    image_url: "https://images.unsplash.com/photo-1578916171728-46686eac8d58?w=800&q=80",
-  },
-];
-
-const defaultSettings: StoreSettings = {
+const emptySettings: StoreSettings = {
   store_open: true,
   timezone: "Asia/Kolkata",
-  weekly_hours: {
-    operating_hours: ["08:00 AM", "10:00 PM"],
-    mon: ["08:00 AM", "10:00 PM"],
-  },
-  contact_phone: "9837803293",
-  estimated_window_text:
-    "Same-day delivery; the exact window is confirmed when the store accepts the order.",
-  delivery_fee_paise: 3000,
-  delivery_charge_threshold_paise: 25000,
-  free_delivery_threshold_paise: 25000,
+  weekly_hours: { operating_hours: ["08:00 AM", "10:00 PM"] },
+  contact_phone: "",
+  estimated_window_text: "",
+  delivery_fee_paise: 0,
+  delivery_charge_threshold_paise: 0,
+  free_delivery_threshold_paise: null,
   mid_tier_fee_paise: null,
   max_order_paise: null,
-  cancellation_policy_text: "Cancellation is allowed until the store accepts the order.",
+  cancellation_policy_text: "",
   tax_mode: "none",
   tax_rate_bps: 0,
   online_payment_enabled: false,
   pos_price_override_enabled: false,
 };
 
+const paiseToInput = (paise: number | null | undefined) =>
+  paise === null || paise === undefined ? "" : (paise / 100).toString();
+
+const parseRupees = (value: string): number | null => {
+  if (value.trim() === "") return null;
+  const rupees = Number(value);
+  if (!Number.isFinite(rupees) || rupees < 0) return NaN;
+  return Math.round(rupees * 100);
+};
+
 export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [openTime, setOpenTime] = useState("08:00 AM");
   const [closeTime, setCloseTime] = useState("10:00 PM");
-  const [deliveryFeeRupees, setDeliveryFeeRupees] = useState<number>(30);
-  const [freeDeliveryThresholdRupees, setFreeDeliveryThresholdRupees] = useState<number>(250);
-  const [banners, setBanners] = useState<BannerItem[]>(defaultBanners);
+  const [deliveryFeeRupees, setDeliveryFeeRupees] = useState("");
+  const [chargeThresholdRupees, setChargeThresholdRupees] = useState("");
+  const [freeThresholdRupees, setFreeThresholdRupees] = useState("");
+  const [midFeeRupees, setMidFeeRupees] = useState("");
+  const [maxOrderRupees, setMaxOrderRupees] = useState("");
+  const [banners, setBanners] = useState<BannerItem[]>([]);
+  const [savedWeeklyHours, setSavedWeeklyHours] = useState<Record<string, unknown>>({});
 
   const form = useForm<StoreSettings>({
     resolver: zodResolver(storeSettingsSchema),
-    defaultValues: defaultSettings,
+    defaultValues: emptySettings,
   });
 
-  useEffect(() => {
-    const fetchSettings = async () => {
-      const supabase = createClient();
-      const { data, error } = await supabase.from("store_settings").select("*").single();
-      if (!error && data) {
-        form.reset({
-          ...defaultSettings,
-          ...data,
-          free_delivery_threshold_paise: data.free_delivery_threshold_paise ?? null,
-          mid_tier_fee_paise: data.mid_tier_fee_paise ?? null,
-          max_order_paise: data.max_order_paise ?? null,
-        });
-        if (data.weekly_hours?.operating_hours?.[0]) setOpenTime(data.weekly_hours.operating_hours[0]);
-        if (data.weekly_hours?.operating_hours?.[1]) setCloseTime(data.weekly_hours.operating_hours[1]);
-        if (data.delivery_fee_paise != null) setDeliveryFeeRupees(data.delivery_fee_paise / 100);
-        if (data.delivery_charge_threshold_paise != null) setFreeDeliveryThresholdRupees(data.delivery_charge_threshold_paise / 100);
-        if (Array.isArray(data.weekly_hours?.promotional_banners)) {
-          setBanners(data.weekly_hours.promotional_banners);
-        }
-      }
+  const loadSettings = useCallback(async () => {
+    setLoading(true);
+    setLoadError("");
+    const supabase = createClient();
+    const { data, error } = await supabase.from("store_settings").select("*").single();
+    if (error || !data) {
+      setLoadError(error?.message || "Store settings were not found");
       setLoading(false);
-    };
-    fetchSettings();
+      return;
+    }
+
+    const settings = data as StoreSettings;
+    form.reset({
+      ...emptySettings,
+      ...settings,
+      free_delivery_threshold_paise: settings.free_delivery_threshold_paise ?? null,
+      mid_tier_fee_paise: settings.mid_tier_fee_paise ?? null,
+      max_order_paise: settings.max_order_paise ?? null,
+    });
+    setOpenTime(settings.weekly_hours?.operating_hours?.[0] || "08:00 AM");
+    setCloseTime(settings.weekly_hours?.operating_hours?.[1] || "10:00 PM");
+    setDeliveryFeeRupees(paiseToInput(settings.delivery_fee_paise));
+    setChargeThresholdRupees(paiseToInput(settings.delivery_charge_threshold_paise));
+    setFreeThresholdRupees(paiseToInput(settings.free_delivery_threshold_paise));
+    setMidFeeRupees(paiseToInput(settings.mid_tier_fee_paise));
+    setMaxOrderRupees(paiseToInput(settings.max_order_paise));
+    setBanners(
+      Array.isArray(settings.weekly_hours?.promotional_banners)
+        ? settings.weekly_hours.promotional_banners
+        : [],
+    );
+    setSavedWeeklyHours((settings.weekly_hours || {}) as Record<string, unknown>);
+    setLoading(false);
   }, [form]);
 
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
+
   const addBanner = () => {
-    const newB: BannerItem = {
+    const newBanner: BannerItem = {
       id: "b-" + Date.now(),
       title: "Special Offer Banner",
       subtitle: "Exclusive deals on groceries",
-      image_url: "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&q=80",
+      image_url: "",
     };
-    setBanners([...banners, newB]);
+    setBanners((current) => [...current, newBanner]);
   };
 
   const removeBanner = (id: string) => {
-    setBanners(banners.filter((b) => b.id !== id));
+    setBanners((current) => current.filter((banner) => banner.id !== id));
   };
 
   const updateBanner = (id: string, field: keyof BannerItem, value: string) => {
-    setBanners(banners.map((b) => (b.id === id ? { ...b, [field]: value } : b)));
+    setBanners((current) =>
+      current.map((banner) => (banner.id === id ? { ...banner, [field]: value } : banner)),
+    );
   };
 
   const onSubmit = async (data: StoreSettings) => {
+    setSaveError("");
+
+    const deliveryFee = parseRupees(deliveryFeeRupees);
+    const chargeThreshold = parseRupees(chargeThresholdRupees);
+    const freeThreshold = parseRupees(freeThresholdRupees);
+    const midFee = parseRupees(midFeeRupees);
+    const maxOrder = parseRupees(maxOrderRupees);
+
+    if (deliveryFee === null || Number.isNaN(deliveryFee)) {
+      setSaveError("Enter a valid delivery fee");
+      return;
+    }
+    if (chargeThreshold === null || Number.isNaN(chargeThreshold)) {
+      setSaveError("Enter a valid delivery-charge threshold");
+      return;
+    }
+    if (Number.isNaN(freeThreshold) || Number.isNaN(midFee) || Number.isNaN(maxOrder)) {
+      setSaveError("Enter valid amounts for thresholds and fees");
+      return;
+    }
+    if (freeThreshold !== null && freeThreshold < chargeThreshold) {
+      setSaveError("Free-delivery threshold must be empty or at least the delivery-charge threshold");
+      return;
+    }
+    if (!openTime.trim() || !closeTime.trim()) {
+      setSaveError("Opening and closing times are required");
+      return;
+    }
+    const invalidBanner = banners.find(
+      (banner) =>
+        !banner.title.trim() ||
+        !/^https?:\/\//i.test(banner.image_url.trim()),
+    );
+    if (invalidBanner) {
+      setSaveError("Every banner needs a title and an http(s) image URL");
+      return;
+    }
+
     setSaving(true);
     try {
       const supabase = createClient();
-      const updatedWeeklyHours = {
-        operating_hours: [openTime, closeTime],
+      const weeklyHours = {
+        ...savedWeeklyHours,
+        operating_hours: [openTime.trim(), closeTime.trim()],
         promotional_banners: banners,
       };
 
-      const calculatedDeliveryFeePaise = Math.round((deliveryFeeRupees || 0) * 100);
-      const calculatedThresholdPaise = Math.round((freeDeliveryThresholdRupees || 0) * 100);
-
-      const payload = {
-        id: true,
-        store_open: String(data.store_open) === "true" || data.store_open === true,
-        timezone: data.timezone || "Asia/Kolkata",
-        contact_phone: data.contact_phone || "9837803293",
-        estimated_window_text: data.estimated_window_text || "Same-day delivery window confirmed upon acceptance.",
-        delivery_fee_paise: calculatedDeliveryFeePaise,
-        delivery_charge_threshold_paise: calculatedThresholdPaise,
-        free_delivery_threshold_paise: calculatedThresholdPaise,
-        cancellation_policy_text: data.cancellation_policy_text || "Cancellation allowed before order acceptance.",
-        weekly_hours: updatedWeeklyHours,
-      };
-
-      const { error } = await supabase.from("store_settings").upsert(payload, { onConflict: "id" });
+      const { data: result, error } = await supabase.rpc("save_settings", {
+        p_patch: {
+          store_open: data.store_open,
+          timezone: data.timezone || "Asia/Kolkata",
+          weekly_hours: weeklyHours,
+          contact_phone: data.contact_phone || null,
+          estimated_window_text: data.estimated_window_text || null,
+          cancellation_policy_text: data.cancellation_policy_text || null,
+          delivery_fee_paise: deliveryFee,
+          delivery_charge_threshold_paise: chargeThreshold,
+          free_delivery_threshold_paise: freeThreshold,
+          mid_tier_fee_paise: midFee,
+          max_order_paise: maxOrder,
+          online_payment_enabled: false,
+        },
+      });
       if (error) throw error;
-      toast.success("Store settings & promotional banners saved successfully!");
+      if (result?.error) throw new Error(result.message || result.error);
+
+      const saved = result?.settings;
+      if (saved) {
+        setSavedWeeklyHours((saved.weekly_hours || {}) as Record<string, unknown>);
+      }
+      toast.success("Store settings and banners saved");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save store settings.");
+      setSaveError(err instanceof Error ? err.message : "Failed to save store settings");
     } finally {
       setSaving(false);
     }
@@ -153,21 +209,57 @@ export default function SettingsPage() {
     );
   }
 
+  if (loadError) {
+    return (
+      <div className="max-w-4xl">
+        <div
+          role="alert"
+          className="flex items-center justify-between rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-700"
+        >
+          <span className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5" /> {loadError}
+          </span>
+          <button onClick={loadSettings} className="font-bold underline">
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl space-y-6 pb-12">
       <div>
-        <h1 className="text-2xl font-extrabold text-slate-900">Store Settings & Operations</h1>
-        <p className="text-sm font-medium text-slate-500">Configure live store status, operating hours, delivery thresholds in ₹, and mobile app banners</p>
+        <h1 className="text-2xl font-extrabold text-slate-900">Store Settings &amp; Operations</h1>
+        <p className="text-sm font-medium text-slate-500">
+          Configure live store status, operating hours, delivery thresholds in ₹, and mobile app
+          banners
+        </p>
       </div>
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        {/* Store Basics */}
-        <Section title="Store Status & Operating Hours" description="Control live store availability and customer timing display">
+        {saveError && (
+          <div
+            role="alert"
+            className="flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-700"
+          >
+            <AlertTriangle className="h-5 w-5" /> {saveError}
+          </div>
+        )}
+
+        <Section
+          title="Store Status & Operating Hours"
+          description="Control live store availability and customer timing display"
+        >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Live Store Availability</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">
+                Live Store Availability
+              </label>
               <select
-                {...form.register("store_open")}
+                {...form.register("store_open", {
+                  setValueAs: (value) => value === "true" || value === true,
+                })}
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-semibold focus:ring-2 focus:ring-emerald-500"
               >
                 <option value="true">🟢 Store Open (Accepting Orders)</option>
@@ -176,7 +268,9 @@ export default function SettingsPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Contact Support Phone</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">
+                Contact Support Phone
+              </label>
               <input
                 {...form.register("contact_phone")}
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-emerald-500"
@@ -184,7 +278,9 @@ export default function SettingsPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Store Opening Time</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">
+                Store Opening Time
+              </label>
               <div className="relative">
                 <Clock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <input
@@ -198,7 +294,9 @@ export default function SettingsPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Store Closing Time</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">
+                Store Closing Time
+              </label>
               <div className="relative">
                 <Clock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <input
@@ -221,22 +319,39 @@ export default function SettingsPage() {
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm focus:ring-2 focus:ring-emerald-500"
               />
             </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-semibold text-slate-700 mb-1">
+                Cancellation Policy
+              </label>
+              <textarea
+                {...form.register("cancellation_policy_text")}
+                rows={2}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
           </div>
         </Section>
 
-        {/* Mobile App Promotional Banners */}
-        <Section title="Mobile App Promotional Banners" description="Manage rotating hero banners shown at the top of the Android App">
+        <Section
+          title="Mobile App Promotional Banners"
+          description="Manage rotating hero banners shown at the top of the Android app"
+        >
           <div className="space-y-4">
-            {banners.map((b, idx) => (
-              <div key={b.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+            {banners.map((banner, index) => (
+              <div
+                key={banner.id}
+                className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3"
+              >
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-lg">
-                    Banner #{idx + 1}
+                    Banner #{index + 1}
                   </span>
                   <button
                     type="button"
-                    onClick={() => removeBanner(b.id)}
+                    onClick={() => removeBanner(banner.id)}
                     className="p-1 text-slate-400 hover:text-red-600 rounded-lg"
+                    aria-label={`Remove banner ${index + 1}`}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -244,38 +359,48 @@ export default function SettingsPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Banner Headline Title</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Banner Headline Title
+                    </label>
                     <input
                       type="text"
-                      value={b.title}
-                      onChange={(e) => updateBanner(b.id, "title", e.target.value)}
+                      value={banner.title}
+                      onChange={(e) => updateBanner(banner.id, "title", e.target.value)}
                       className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Subtitle / Deal Offer</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Subtitle / Deal Offer
+                    </label>
                     <input
                       type="text"
-                      value={b.subtitle}
-                      onChange={(e) => updateBanner(b.id, "subtitle", e.target.value)}
+                      value={banner.subtitle}
+                      onChange={(e) => updateBanner(banner.id, "subtitle", e.target.value)}
                       className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Banner Image URL</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Banner Image URL
+                    </label>
                     <input
-                      type="text"
-                      value={b.image_url}
-                      onChange={(e) => updateBanner(b.id, "image_url", e.target.value)}
+                      type="url"
+                      value={banner.image_url}
+                      onChange={(e) => updateBanner(banner.id, "image_url", e.target.value)}
                       className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-mono focus:ring-2 focus:ring-emerald-500"
-                      placeholder="https://images.unsplash.com/..."
+                      placeholder="https://..."
                     />
                   </div>
                 </div>
               </div>
             ))}
+
+            {banners.length === 0 && (
+              <p className="text-sm text-slate-500">No promotional banners configured.</p>
+            )}
 
             <button
               type="button"
@@ -287,43 +412,105 @@ export default function SettingsPage() {
           </div>
         </Section>
 
-        {/* Delivery Fee Configuration (Rupees ₹) */}
         <Section
           title="Delivery Fee Configuration"
-          description="Set thresholds and delivery charges in Rupees (₹)"
+          description="Amounts are stored as integer paise and applied by the server pricing engine"
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">
-                Delivery Charge Below Threshold (₹)
+                Standard Delivery Fee (₹)
               </label>
               <input
                 type="number"
+                min="0"
+                step="0.01"
                 value={deliveryFeeRupees}
-                onChange={(e) => setDeliveryFeeRupees(parseFloat(e.target.value) || 0)}
+                onChange={(e) => setDeliveryFeeRupees(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-bold focus:ring-2 focus:ring-emerald-500"
                 placeholder="30"
               />
-              <span className="text-xs text-slate-500 mt-1 block">Flat delivery charge in Rupees (e.g. ₹30)</span>
+              <span className="text-xs text-slate-500 mt-1 block">
+                Charged when the eligible subtotal is below the delivery-charge threshold
+              </span>
             </div>
 
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">
-                Free Delivery Threshold (₹)
+                Delivery-Charge Threshold (₹)
               </label>
               <input
                 type="number"
-                value={freeDeliveryThresholdRupees}
-                onChange={(e) => setFreeDeliveryThresholdRupees(parseFloat(e.target.value) || 0)}
+                min="0"
+                step="0.01"
+                value={chargeThresholdRupees}
+                onChange={(e) => setChargeThresholdRupees(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-bold focus:ring-2 focus:ring-emerald-500"
-                placeholder="250"
+                placeholder="Enter amount"
               />
-              <span className="text-xs text-slate-500 mt-1 block">Orders above this amount get FREE delivery (e.g. ₹250)</span>
+              <span className="text-xs text-slate-500 mt-1 block">
+                Subtotal at which the standard fee stops applying (0 disables the fee)
+              </span>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">
+                Free-Delivery Threshold (₹)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={freeThresholdRupees}
+                onChange={(e) => setFreeThresholdRupees(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-bold focus:ring-2 focus:ring-emerald-500"
+                placeholder="Leave empty for no free-delivery tier"
+              />
+              <span className="text-xs text-slate-500 mt-1 block">
+                Optional; must be empty or at least the delivery-charge threshold
+              </span>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">
+                Mid-Tier Fee (₹)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={midFeeRupees}
+                onChange={(e) => setMidFeeRupees(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-bold focus:ring-2 focus:ring-emerald-500"
+                placeholder="Leave empty to reuse the standard fee"
+              />
+              <span className="text-xs text-slate-500 mt-1 block">
+                Optional fee between the charge threshold and free-delivery threshold
+              </span>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">
+                Maximum Order Amount (₹)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={maxOrderRupees}
+                onChange={(e) => setMaxOrderRupees(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-bold focus:ring-2 focus:ring-emerald-500"
+                placeholder="Leave empty for no cap"
+              />
+            </div>
+
+            <div className="md:col-span-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-800">
+              Online payments are disabled until the payment gate is approved. Saving settings
+              cannot enable them.
             </div>
           </div>
         </Section>
 
-        {/* Form Actions */}
         <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
           <button
             type="submit"
@@ -338,7 +525,7 @@ export default function SettingsPage() {
             ) : (
               <>
                 <Save className="h-4 w-4" />
-                Save Store Settings & Banners
+                Save Store Settings &amp; Banners
               </>
             )}
           </button>

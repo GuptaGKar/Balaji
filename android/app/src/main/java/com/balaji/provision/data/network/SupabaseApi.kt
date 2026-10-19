@@ -53,33 +53,24 @@ interface SupabaseApi {
         @Body body: PlaceOrderRequest
     ): Response<PlaceOrderResponse>
 
-    // Direct REST Order Creation Fallbacks
-    @POST("rest/v1/orders")
-    suspend fun createOrderDirect(
-        @Header("apikey") apiKey: String,
-        @Header("Authorization") auth: String,
-        @Header("Content-Type") contentType: String = "application/json",
-        @Header("Prefer") prefer: String = "return=representation",
-        @Body body: DirectOrderRequest
-    ): Response<List<OrderResponse>>
-
-    @POST("rest/v1/order_items")
-    suspend fun createOrderItemsDirect(
-        @Header("apikey") apiKey: String,
-        @Header("Authorization") auth: String,
-        @Header("Content-Type") contentType: String = "application/json",
-        @Header("Prefer") prefer: String = "return=representation",
-        @Body body: List<DirectOrderItemRequest>
-    ): Response<List<OrderItemResponse>>
-    
     // Orders
     @GET("rest/v1/orders")
     suspend fun getOrders(
         @Header("apikey") apiKey: String,
         @Header("Authorization") auth: String,
-        @Query("select") select: String = "*,order_items(*)",
-        @Query("order") order: String = "created_at.desc"
+        @Query("select") select: String = "id,public_order_number,status,payment_method,payment_status,item_subtotal_paise,delivery_fee_paise,tax_paise,grand_total_paise,created_at,order_items(id,sku_snapshot,name_snapshot,quantity_type_snapshot,unit_label_snapshot,price_basis_qty_snapshot,qty_base,unit_price_paise,line_total_paise,removed_at)",
+        @Query("order") order: String = "created_at.desc",
+        @Query("limit") limit: Int = 100
     ): Response<List<OrderResponse>>
+
+    // Store settings (public read)
+    @GET("rest/v1/store_settings")
+    suspend fun getStoreSettings(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Query("select") select: String = "store_open,contact_phone,estimated_window_text,timezone,weekly_hours,delivery_fee_paise,delivery_charge_threshold_paise,free_delivery_threshold_paise,mid_tier_fee_paise,max_order_paise,cancellation_policy_text,tax_mode,tax_rate_bps,online_payment_enabled",
+        @Query("limit") limit: Int = 1
+    ): Response<List<StoreSettingsResponse>>
     
     @GET("rest/v1/orders")
     suspend fun getOrderById(
@@ -183,35 +174,6 @@ data class PlaceOrderRequest(
 )
 
 @Serializable
-data class DirectOrderRequest(
-    val public_order_number: String,
-    val address_snapshot: AddressRequest,
-    val status: String = "pending_review",
-    val payment_method: String = "cod",
-    val payment_status: String = "unpaid",
-    val item_subtotal_paise: Long,
-    val discount_paise: Long = 0,
-    val delivery_fee_paise: Long = 0,
-    val tax_paise: Long = 0,
-    val grand_total_paise: Long,
-    val customer_note: String? = null
-)
-
-@Serializable
-data class DirectOrderItemRequest(
-    val order_id: String,
-    val product_id: String? = null,
-    val sku_snapshot: String,
-    val name_snapshot: String,
-    val quantity_type_snapshot: String,
-    val unit_label_snapshot: String,
-    val price_basis_qty_snapshot: Long,
-    val qty_base: Long,
-    val unit_price_paise: Long,
-    val line_total_paise: Long
-)
-
-@Serializable
 data class PlaceOrderPayload(
     val items: List<CartItemRequest>,
     val address: AddressRequest,
@@ -242,40 +204,35 @@ data class PlaceOrderResponse(
 data class OrderResponse(
     val id: String,
     val public_order_number: String,
-    val customer_id: String? = null,
-    val address_snapshot: JsonObject,
     val status: String,
-    val payment_method: String,
-    val payment_status: String,
-    val item_subtotal_paise: Long,
-    val discount_paise: Long,
-    val delivery_fee_paise: Long,
-    val tax_paise: Long,
     val grand_total_paise: Long,
-    val fee_breakdown: JsonObject? = null,
-    val customer_note: String? = null,
-    val assigned_to: String? = null,
     val created_at: String,
-    val accepted_at: String? = null,
-    val delivered_at: String? = null,
     val order_items: List<OrderItemResponse>? = null
 )
 
 @Serializable
 data class OrderItemResponse(
-    val id: String,
-    val order_id: String,
-    val product_id: String? = null,
-    val sku_snapshot: String,
     val name_snapshot: String,
-    val quantity_type_snapshot: String,
-    val unit_label_snapshot: String,
-    val price_basis_qty_snapshot: Long,
     val qty_base: Long,
-    val unit_price_paise: Long,
-    val line_total_paise: Long,
-    val removed_at: String? = null,
-    val removed_reason: String? = null
+    val line_total_paise: Long
+)
+
+@Serializable
+data class StoreSettingsResponse(
+    val store_open: Boolean = true,
+    val contact_phone: String? = null,
+    val estimated_window_text: String? = null,
+    val timezone: String? = null,
+    val weekly_hours: JsonObject? = null,
+    val delivery_fee_paise: Long? = null,
+    val delivery_charge_threshold_paise: Long? = null,
+    val free_delivery_threshold_paise: Long? = null,
+    val mid_tier_fee_paise: Long? = null,
+    val max_order_paise: Long? = null,
+    val cancellation_policy_text: String? = null,
+    val tax_mode: String? = null,
+    val tax_rate_bps: Int? = null,
+    val online_payment_enabled: Boolean = false
 )
 
 @Serializable

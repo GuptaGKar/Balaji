@@ -3,6 +3,7 @@ package com.balaji.provision.data.repository
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import com.balaji.provision.BuildConfig
+import com.balaji.provision.data.auth.AuthRepository
 import com.balaji.provision.data.network.AddressRequest
 import com.balaji.provision.data.network.CartItemRequest
 import com.balaji.provision.data.network.PlaceOrderPayload
@@ -13,7 +14,6 @@ import com.balaji.provision.data.network.QuoteCartResponse
 import com.balaji.provision.data.network.SupabaseApi
 import com.balaji.provision.domain.model.Cart
 import com.balaji.provision.domain.model.CartItem
-import com.balaji.provision.domain.model.QuantityType
 import com.balaji.provision.domain.model.QuoteBreakdown
 import dagger.Module
 import dagger.Provides
@@ -34,16 +34,16 @@ object CartModule {
     @Singleton
     fun provideCartRepository(
         api: SupabaseApi,
-        catalogRepository: CatalogRepository,
+        authRepository: AuthRepository,
         dataStore: DataStore<Preferences>,
         @Named("cartVersionKey") cartVersionKey: Preferences.Key<Int>
-    ): CartRepository = CartRepositoryImpl(api, catalogRepository, dataStore, cartVersionKey)
+    ): CartRepository = CartRepositoryImpl(api, authRepository, dataStore, cartVersionKey)
 }
 
 @Singleton
 class CartRepositoryImpl @Inject constructor(
     private val api: SupabaseApi,
-    private val catalogRepository: CatalogRepository,
+    private val authRepository: AuthRepository,
     private val dataStore: DataStore<Preferences>,
     @Named("cartVersionKey") private val cartVersionKey: Preferences.Key<Int>
 ) : CartRepository {
@@ -57,9 +57,24 @@ class CartRepositoryImpl @Inject constructor(
     override val quoteFlow: StateFlow<QuoteBreakdown?> = _quoteFlow.asStateFlow()
     
     private fun notifyStateChanged() {
-        val cart = Cart(items = inMemoryCartItems.toList())
-        _cartFlow.value = cart
-        _quoteFlow.value = calculateLocalQuote(inMemoryCartItems)
+        _cartFlow.value = Cart(items = inMemoryCartItems.toList())
+    }
+
+    private suspend fun refreshQuote() {
+        val items = inMemoryCartItems.toList()
+        if (items.isEmpty()) {
+            _quoteFlow.value = QuoteBreakdown()
+            return
+        }
+        _quoteFlow.value = try {
+            val request = QuoteCartRequest(items = items.map { CartItemRequest(it.productId, it.qtyBase) })
+            val anonKey = BuildConfig.SUPABASE_ANON_KEY
+            val response = api.quoteCart(apiKey = anonKey, auth = "Bearer $anonKey", body = request)
+            val body = response.body()
+            if (response.isSuccessful && body != null) mapToQuoteBreakdown(body) else null
+        } catch (e: Exception) {
+            null
+        }
     }
     
     override suspend fun getCart(): Cart {
@@ -75,6 +90,7 @@ class CartRepositoryImpl @Inject constructor(
             inMemoryCartItems.add(item)
         }
         notifyStateChanged()
+        refreshQuote()
         return _cartFlow.value
     }
     
@@ -90,43 +106,28 @@ class CartRepositoryImpl @Inject constructor(
             }
         }
         notifyStateChanged()
+        refreshQuote()
         return _cartFlow.value
     }
     
     override suspend fun removeItem(productId: String): Cart {
         inMemoryCartItems.removeAll { it.productId == productId }
         notifyStateChanged()
+        refreshQuote()
         return _cartFlow.value
     }
     
     override suspend fun clearCart() {
         inMemoryCartItems.clear()
         notifyStateChanged()
+        refreshQuote()
     }
     
-    override suspend fun getQuote(items: List<CartItem>): QuoteBreakdown {
-        if (items.isEmpty()) {
-            return QuoteBreakdown()
-        }
-        try {
-            val request = QuoteCartRequest(
-                items = items.map { CartItemRequest(it.productId, it.qtyBase) }
-            )
-            val anonKey = BuildConfig.SUPABASE_ANON_KEY
-            val response = api.quoteCart(apiKey = anonKey, auth = "Bearer $anonKey", body = request)
-            if (response.isSuccessful && response.body() != null) {
-                return mapToQuoteBreakdown(response.body()!!)
-            }
-        } catch (e: Exception) {
-            // Fallback for offline preview
-        }
-        return calculateLocalQuote(items)
-    }
-
     override suspend fun placeOrderRemote(address: AddressRequest, customerNote: String?): PlaceOrderResponse? {
         val items = inMemoryCartItems.map { CartItemRequest(it.productId, it.qtyBase) }
         if (items.isEmpty()) return null
 
+        val authToken = authRepository.authorizedToken() ?: return null
         val anonKey = BuildConfig.SUPABASE_ANON_KEY
         val payload = PlaceOrderPayload(
             items = items,
@@ -139,134 +140,14 @@ class CartRepositoryImpl @Inject constructor(
             p_idempotency_key = "IDEMP-" + System.currentTimeMillis() + "-" + (1000..9999).random()
         )
 
-        try {
-            val response = api.placeOrder(apiKey = anonKey, auth = "Bearer $anonKey", body = request)
-            if (response.isSuccessful && response.body() != null) {
-                return response.body()
-            }
+        return try {
+            val response = api.placeOrder(apiKey = anonKey, auth = "Bearer $authToken", body = request)
+            response.body().takeIf { response.isSuccessful }
         } catch (e: Exception) {
-            // Proceed to direct REST fallback
+            null
         }
-
-        // Direct REST API Order Placement Fallback
-        try {
-            val currentQuote = _quoteFlow.value ?: calculateLocalQuote(inMemoryCartItems)
-            val orderNo = "BALAJI-" + (1000..9999).random()
-            
-            val directOrder = com.balaji.provision.data.network.DirectOrderRequest(
-                public_order_number = orderNo,
-                address_snapshot = address,
-                status = "pending_review",
-                payment_method = "cod",
-                payment_status = "unpaid",
-                item_subtotal_paise = currentQuote.itemSubtotalPaise,
-                discount_paise = currentQuote.discountPaise,
-                delivery_fee_paise = currentQuote.deliveryFeePaise,
-                tax_paise = currentQuote.taxPaise,
-                grand_total_paise = currentQuote.grandTotalPaise,
-                customer_note = customerNote
-            )
-
-            val createRes = api.createOrderDirect(apiKey = anonKey, auth = "Bearer $anonKey", body = directOrder)
-            if (createRes.isSuccessful && !createRes.body().isNullOrEmpty()) {
-                val createdOrder = createRes.body()!![0]
-                
-                val lineItems = inMemoryCartItems.mapNotNull { item ->
-                    val product = catalogRepository.findProductById(item.productId) ?: return@mapNotNull null
-                    val lineTotal = if (product.quantityType == QuantityType.WEIGHTED) {
-                        (product.pricePaise.toDouble() * (item.qtyBase.toDouble() / product.priceBasisQty.toDouble())).toLong()
-                    } else {
-                        product.pricePaise * item.qtyBase
-                    }
-                    
-                    com.balaji.provision.data.network.DirectOrderItemRequest(
-                        order_id = createdOrder.id,
-                        product_id = product.id,
-                        sku_snapshot = product.sku,
-                        name_snapshot = product.name,
-                        quantity_type_snapshot = if (product.quantityType == QuantityType.WEIGHTED) "WEIGHTED" else "PACKED",
-                        unit_label_snapshot = product.unitLabel,
-                        price_basis_qty_snapshot = product.priceBasisQty,
-                        qty_base = item.qtyBase,
-                        unit_price_paise = product.pricePaise,
-                        line_total_paise = lineTotal
-                    )
-                }
-
-                if (lineItems.isNotEmpty()) {
-                    api.createOrderItemsDirect(apiKey = anonKey, auth = "Bearer $anonKey", body = lineItems)
-                }
-
-                return PlaceOrderResponse(
-                    order_id = createdOrder.id,
-                    public_order_number = createdOrder.public_order_number,
-                    breakdown = null
-                )
-            }
-        } catch (e: Exception) {
-            // Error
-        }
-
-        return null
     }
-    
-    private fun calculateLocalQuote(items: List<CartItem>): QuoteBreakdown {
-        val lines = items.mapNotNull { item ->
-            val product = catalogRepository.findProductById(item.productId) ?: return@mapNotNull null
-            
-            val lineTotal: Long
-            val displayQty: String
-            val unitPriceVal: Long
-            
-            if (product.quantityType == QuantityType.WEIGHTED) {
-                val grams = item.qtyBase
-                val kg = grams / 1000.0
-                displayQty = if (grams >= 1000 && grams % 500 == 0L) {
-                    if (kg == kg.toLong().toDouble()) "${kg.toLong()} kg" else "${kg} kg"
-                } else {
-                    "${grams} g"
-                }
-                unitPriceVal = product.pricePaise
-                lineTotal = (product.pricePaise.toDouble() * (grams.toDouble() / product.priceBasisQty.toDouble())).toLong()
-            } else {
-                val packs = item.qtyBase
-                displayQty = if (packs == 1L) "1 pack" else "${packs} packs"
-                unitPriceVal = product.pricePaise
-                lineTotal = product.pricePaise * packs
-            }
-            
-            QuoteBreakdown.Line(
-                productId = product.id,
-                name = product.name,
-                qtyBase = item.qtyBase,
-                displayQty = displayQty,
-                unitPricePaise = unitPriceVal,
-                lineTotalPaise = lineTotal,
-                available = product.isInStock,
-                error = null
-            )
-        }
-        
-        val itemSubtotal = lines.sumOf { it.lineTotalPaise }
-        val freeDeliveryThreshold = 25000L // ₹250 threshold
-        val deliveryFee = if (itemSubtotal >= freeDeliveryThreshold || itemSubtotal == 0L) 0L else 3000L // ₹30 fee
-        val belowThreshold = itemSubtotal < freeDeliveryThreshold && itemSubtotal > 0L
-        val amountToFree = if (belowThreshold) freeDeliveryThreshold - itemSubtotal else 0L
-        val grandTotal = itemSubtotal + deliveryFee
-        
-        return QuoteBreakdown(
-            lines = lines,
-            itemSubtotalPaise = itemSubtotal,
-            discountPaise = 0,
-            deliveryFeePaise = deliveryFee,
-            feeRuleNote = if (belowThreshold) "Delivery charge applicable for orders below ₹250" else "Free local delivery unlocked!",
-            taxPaise = 0,
-            grandTotalPaise = grandTotal,
-            belowChargeThreshold = belowThreshold,
-            amountToFreeDelivery = amountToFree
-        )
-    }
-    
+
     private fun mapToQuoteBreakdown(response: QuoteCartResponse): QuoteBreakdown {
         return QuoteBreakdown(
             lines = response.lines.map { l ->
@@ -301,6 +182,5 @@ interface CartRepository {
     suspend fun updateQuantity(productId: String, qtyBase: Long): Cart
     suspend fun removeItem(productId: String): Cart
     suspend fun clearCart()
-    suspend fun getQuote(items: List<CartItem>): QuoteBreakdown
     suspend fun placeOrderRemote(address: AddressRequest, customerNote: String?): PlaceOrderResponse?
 }

@@ -33,6 +33,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.balaji.provision.ui.auth.LoginScreen
 import com.balaji.provision.ui.cart.CartScreen
 import com.balaji.provision.ui.catalog.CatalogScreen
 import com.balaji.provision.ui.checkout.CheckoutScreen
@@ -105,14 +106,21 @@ fun AppNavHost(navController: NavHostController) {
         composable("checkout") {
             CheckoutScreen(
                 onNavigateBack = { navController.popBackStack() },
+                onNavigateToSignIn = { navController.navigate("auth") },
                 onOrderPlaced = { navigateToTab(navController, "orders") }
             )
         }
         composable("orders") {
-            OrdersScreen()
+            OrdersScreen(onNavigateToSignIn = { navController.navigate("auth") })
         }
         composable("profile") {
-            ProfileScreen()
+            ProfileScreen(onNavigateToSignIn = { navController.navigate("auth") })
+        }
+        composable("auth") {
+            LoginScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onSignedIn = { navController.popBackStack() }
+            )
         }
     }
 }
