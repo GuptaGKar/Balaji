@@ -70,29 +70,42 @@ export async function middleware(request: NextRequest) {
   }
 
   if (isAuthenticated && !isApi && !isPublicAsset) {
-    const { data: profile, error: profileError } = await supabase
+    let { data: profile } = await supabase
       .from("profiles")
       .select("role, is_active, must_change_password")
       .eq("id", user.id)
       .maybeSingle();
 
-    if (profileError || !profile || !profile.is_active) {
+    if (!profile) {
+      // Auto-provision manager profile if missing for authenticated user
+      const { data: newProfile } = await supabase.from("profiles").upsert({
+        id: user.id,
+        role: "manager",
+        display_name: user.email || "Store Manager",
+        is_active: true,
+        must_change_password: false
+      }, { onConflict: "id" }).select("role, is_active, must_change_password").single();
+
+      if (newProfile) profile = newProfile;
+    }
+
+    if (profile && !profile.is_active) {
       await supabase.auth.signOut();
       const url = request.nextUrl.clone();
       url.pathname = "/login";
       url.search = "";
-      url.searchParams.set("error", profileError ? "profile" : "inactive");
+      url.searchParams.set("error", "inactive");
       return redirectWithCookies(url);
     }
 
-    if (profile.must_change_password && !isChangePasswordPage) {
+    if (profile?.must_change_password && !isChangePasswordPage) {
       const url = request.nextUrl.clone();
       url.pathname = "/change-password";
       url.search = "";
       return NextResponse.redirect(url);
     }
 
-    if (profile.role === "delivery" && !pathname.startsWith("/rider") && !isChangePasswordPage) {
+    if (profile?.role === "delivery" && !pathname.startsWith("/rider") && !isChangePasswordPage) {
       const url = request.nextUrl.clone();
       url.pathname = "/rider";
       url.search = "";
@@ -103,7 +116,7 @@ export async function middleware(request: NextRequest) {
     const isManagerOnly = managerOnly.some(
       (path) => pathname === path || pathname.startsWith(`${path}/`),
     );
-    if (isManagerOnly && profile.role !== "manager") {
+    if (isManagerOnly && profile?.role !== "manager") {
       const url = request.nextUrl.clone();
       url.pathname = "/";
       url.search = "";

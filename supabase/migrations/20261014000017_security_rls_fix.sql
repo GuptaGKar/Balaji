@@ -1,12 +1,39 @@
 -- ===========================================================================
--- Migration 20261014000017: Security RLS Hardening, Customer Identity, Compound Indexes & Dashboard RPC
+-- Migration 20261014000017: Security RLS Hardening, Customer Identity, Compound Indexes & Auto Profile Trigger
 -- ===========================================================================
 
 -- 1. Performance Compound Indexes
 CREATE INDEX IF NOT EXISTS idx_orders_status_created_desc ON orders(status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_products_category_active_avail ON products(category_id, active, available);
 
--- 2. Secure RLS Policies for Categories and Products
+-- 2. Auto-Provision Manager Profile on Auth Signup Trigger
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
+BEGIN
+  INSERT INTO public.profiles (id, role, display_name, phone, is_active, must_change_password)
+  VALUES (
+    NEW.id,
+    COALESCE((NEW.raw_user_meta_data->>'role')::user_role, 'manager'::user_role),
+    COALESCE(NEW.raw_user_meta_data->>'display_name', NEW.email, 'Store Manager'),
+    NEW.phone,
+    true,
+    false
+  )
+  ON CONFLICT (id) DO UPDATE SET is_active = true;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- 3. Secure RLS Policies for Categories and Products
 DROP POLICY IF EXISTS "categories_read_active" ON categories;
 CREATE POLICY "categories_read_active" ON categories
   FOR SELECT TO public USING (active = true);
@@ -27,7 +54,7 @@ CREATE POLICY "products_write_manager" ON products
   USING (public.current_role() = 'manager'::user_role)
   WITH CHECK (public.current_role() = 'manager'::user_role);
 
--- 3. Secure RLS Policies for Store Settings
+-- 4. Secure RLS Policies for Store Settings
 DROP POLICY IF EXISTS "store_settings_read" ON store_settings;
 CREATE POLICY "store_settings_read" ON store_settings
   FOR SELECT TO public USING (true);
@@ -38,7 +65,7 @@ CREATE POLICY "store_settings_write" ON store_settings
   USING (public.current_role() = 'manager'::user_role)
   WITH CHECK (public.current_role() = 'manager'::user_role);
 
--- 4. Customer Isolation RLS Policies for Orders and Order Items
+-- 5. Customer Isolation RLS Policies for Orders and Order Items
 DROP POLICY IF EXISTS "orders_read_own" ON orders;
 CREATE POLICY "orders_read_own" ON orders
   FOR SELECT TO authenticated
@@ -61,7 +88,7 @@ CREATE POLICY "order_items_read_own" ON order_items
     )
   );
 
--- 5. Hardened place_order function enforcing server-side customer_id = auth.uid()
+-- 6. Hardened place_order function enforcing server-side customer_id = auth.uid()
 CREATE OR REPLACE FUNCTION public.place_order(
   p_payload jsonb,
   p_idempotency_key text
@@ -173,7 +200,7 @@ BEGIN
 END;
 $$;
 
--- 6. SECURITY INVOKER Function for Web Dashboard Stats (Asia/Kolkata day boundary)
+-- 7. SECURITY INVOKER Function for Web Dashboard Stats
 CREATE OR REPLACE FUNCTION public.get_dashboard_stats()
 RETURNS jsonb
 LANGUAGE plpgsql

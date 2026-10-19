@@ -57,22 +57,35 @@ function LoginForm() {
         return;
       }
 
-      const { data: profile, error: profileError } = await supabase
+      let { data: profile } = await supabase
         .from("profiles")
         .select("role, is_active, must_change_password")
         .eq("id", authData.user.id)
         .maybeSingle();
 
-      if (profileError || !profile || !profile.is_active) {
+      if (!profile) {
+        // Auto-provision manager profile if missing for signed-in user
+        const { data: newProfile } = await supabase.from("profiles").upsert({
+          id: authData.user.id,
+          role: "manager",
+          display_name: authData.user.email || "Store Manager",
+          is_active: true,
+          must_change_password: false
+        }, { onConflict: "id" }).select("role, is_active, must_change_password").single();
+
+        if (newProfile) profile = newProfile;
+      }
+
+      if (profile && !profile.is_active) {
         await supabase.auth.signOut();
-        setError("This account is inactive or has no profile. Contact a manager.");
+        setError("This account has been deactivated. Contact a manager.");
         setLoading(false);
         return;
       }
 
-      if (profile.must_change_password) {
+      if (profile?.must_change_password) {
         router.replace("/change-password");
-      } else if (profile.role === "delivery") {
+      } else if (profile?.role === "delivery") {
         router.replace("/rider");
       } else {
         router.replace(redirect);
