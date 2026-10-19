@@ -28,7 +28,7 @@ export default function CategoriesTab() {
   const fetchCategories = async () => {
     const supabase = createClient();
     const { data, error } = await supabase
-      .from("catalog_categories")
+      .from("categories")
       .select("*")
       .order("sort_order", { ascending: true });
     if (error) {
@@ -46,14 +46,17 @@ export default function CategoriesTab() {
   const onSubmit = async (data: Category) => {
     const supabase = createClient();
     try {
+      const generatedSlug = data.slug.trim() || data.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+      const payload = { ...data, slug: generatedSlug };
+
       if (editingId) {
-        const { error } = await supabase.from("catalog_categories").update(data).eq("id", editingId);
+        const { error } = await supabase.from("categories").update(payload).eq("id", editingId);
         if (error) throw error;
-        toast.success("Category updated");
+        toast.success("Category updated successfully!");
       } else {
-        const { error } = await supabase.from("catalog_categories").insert(data);
+        const { error } = await supabase.from("categories").insert(payload);
         if (error) throw error;
-        toast.success("Category created");
+        toast.success("Category created successfully!");
       }
       setEditingId(null);
       setCreating(false);
@@ -67,7 +70,7 @@ export default function CategoriesTab() {
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this category? Products in it will need to be reassigned.")) return;
     const supabase = createClient();
-    const { error } = await supabase.from("catalog_categories").delete().eq("id", id);
+    const { error } = await supabase.from("categories").delete().eq("id", id);
     if (error) {
       toast.error("Failed to delete");
       return;

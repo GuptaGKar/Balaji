@@ -56,8 +56,8 @@ export default function ProductsTab() {
   const fetchData = async () => {
     const supabase = createClient();
     const [productsRes, categoriesRes] = await Promise.all([
-      supabase.from("catalog_products").select("*, catalog_categories(name)").order("name"),
-      supabase.from("catalog_categories").select("id, name").eq("active", true).order("sort_order"),
+      supabase.from("products").select("*, categories(name)").order("name"),
+      supabase.from("categories").select("id, name").eq("active", true).order("sort_order"),
     ]);
     if (productsRes.error || categoriesRes.error) {
       toast.error("Failed to load data");
@@ -84,11 +84,11 @@ export default function ProductsTab() {
       };
 
       if (editingId) {
-        const { error } = await supabase.from("catalog_products").update(payload).eq("id", editingId);
+        const { error } = await supabase.from("products").update(payload).eq("id", editingId);
         if (error) throw error;
         toast.success("Product updated successfully!");
       } else {
-        const { error } = await supabase.from("catalog_products").insert(payload);
+        const { error } = await supabase.from("products").insert(payload);
         if (error) throw error;
         toast.success("Product created successfully!");
       }
@@ -104,7 +104,7 @@ export default function ProductsTab() {
   const handleDelete = async (id: string) => {
     if (!confirm("Archive this product? It will no longer be available for sale.")) return;
     const supabase = createClient();
-    const { error } = await supabase.from("catalog_products").update({ active: false }).eq("id", id);
+    const { error } = await supabase.from("products").update({ active: false }).eq("id", id);
     if (error) {
       toast.error("Failed to archive");
       return;
