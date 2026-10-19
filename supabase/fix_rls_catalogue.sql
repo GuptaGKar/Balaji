@@ -24,11 +24,6 @@ DROP POLICY IF EXISTS "profiles_all_public" ON profiles;
 CREATE POLICY "profiles_all_public" ON profiles
   FOR ALL TO public USING (true) WITH CHECK (true);
 
--- Ensure Default Guest Profile
-INSERT INTO profiles (id, role, display_name, phone, is_active)
-VALUES ('00000000-0000-0000-0000-000000000001', 'customer', 'App Customer', '9837803293', true)
-ON CONFLICT (id) DO NOTHING;
-
 -- 4. Categories Policies
 DROP POLICY IF EXISTS "categories_read_public" ON categories;
 DROP POLICY IF EXISTS "categories_read_active" ON categories;
