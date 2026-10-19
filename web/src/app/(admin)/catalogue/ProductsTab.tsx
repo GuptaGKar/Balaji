@@ -122,7 +122,7 @@ export default function ProductsTab() {
         ...data,
         sku: generatedSku,
         category_id: selectedCategoryId,
-        quantity_type: isWeighted ? "weighted" : "packed",
+        quantity_type: isWeighted ? "WEIGHTED" : "PACKED",
         price_paise: calculatedPricePaise > 0 ? calculatedPricePaise : 10000,
         price_basis_qty: isWeighted ? 1000 : 1,
         unit_label: isWeighted ? "kg" : "pack",
