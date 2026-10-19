@@ -115,7 +115,6 @@ export default function SettingsPage() {
     try {
       const supabase = createClient();
       const updatedWeeklyHours = {
-        ...(typeof data.weekly_hours === "object" ? data.weekly_hours : defaultSettings.weekly_hours),
         operating_hours: [openTime, closeTime],
         promotional_banners: banners,
       };
@@ -125,19 +124,22 @@ export default function SettingsPage() {
 
       const payload = {
         id: true,
-        ...data,
         store_open: String(data.store_open) === "true" || data.store_open === true,
-        weekly_hours: updatedWeeklyHours,
+        timezone: data.timezone || "Asia/Kolkata",
+        contact_phone: data.contact_phone || "9837803293",
+        estimated_window_text: data.estimated_window_text || "Same-day delivery window confirmed upon acceptance.",
         delivery_fee_paise: calculatedDeliveryFeePaise,
         delivery_charge_threshold_paise: calculatedThresholdPaise,
         free_delivery_threshold_paise: calculatedThresholdPaise,
+        cancellation_policy_text: data.cancellation_policy_text || "Cancellation allowed before order acceptance.",
+        weekly_hours: updatedWeeklyHours,
       };
 
-      const { error } = await supabase.from("store_settings").upsert(payload);
+      const { error } = await supabase.from("store_settings").upsert(payload, { onConflict: "id" });
       if (error) throw error;
-      toast.success("Store settings & promotional banners updated! App & Web synchronized.");
+      toast.success("Store settings & promotional banners saved successfully!");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save settings");
+      toast.error(err instanceof Error ? err.message : "Failed to save store settings.");
     } finally {
       setSaving(false);
     }
