@@ -20,7 +20,7 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
-        buildConfigField("String", "SUPABASE_ANON_KEY", "\"placeholder_anon_key\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"sb_publishable_pr_hXgQlfx4W-Z4HETIdBg_VoNIBEpo\"")
     }
 
     buildTypes {

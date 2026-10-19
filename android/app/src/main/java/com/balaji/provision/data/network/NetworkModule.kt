@@ -22,7 +22,7 @@ object NetworkModule {
     @Provides
     @Singleton
     @Named("supabaseUrl")
-    fun provideSupabaseUrl(): String = "https://placeholder.supabase.co/"
+    fun provideSupabaseUrl(): String = "https://czbwwnlnmhhzketyjnzt.supabase.co/"
     
     @Provides
     @Singleton
