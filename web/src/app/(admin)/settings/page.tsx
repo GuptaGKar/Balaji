@@ -58,6 +58,8 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [openTime, setOpenTime] = useState("08:00 AM");
   const [closeTime, setCloseTime] = useState("10:00 PM");
+  const [deliveryFeeRupees, setDeliveryFeeRupees] = useState<number>(30);
+  const [freeDeliveryThresholdRupees, setFreeDeliveryThresholdRupees] = useState<number>(250);
   const [banners, setBanners] = useState<BannerItem[]>(defaultBanners);
 
   const form = useForm<StoreSettings>({
@@ -79,6 +81,8 @@ export default function SettingsPage() {
         });
         if (data.weekly_hours?.operating_hours?.[0]) setOpenTime(data.weekly_hours.operating_hours[0]);
         if (data.weekly_hours?.operating_hours?.[1]) setCloseTime(data.weekly_hours.operating_hours[1]);
+        if (data.delivery_fee_paise != null) setDeliveryFeeRupees(data.delivery_fee_paise / 100);
+        if (data.delivery_charge_threshold_paise != null) setFreeDeliveryThresholdRupees(data.delivery_charge_threshold_paise / 100);
         if (Array.isArray(data.weekly_hours?.promotional_banners)) {
           setBanners(data.weekly_hours.promotional_banners);
         }
@@ -116,11 +120,17 @@ export default function SettingsPage() {
         promotional_banners: banners,
       };
 
+      const calculatedDeliveryFeePaise = Math.round((deliveryFeeRupees || 0) * 100);
+      const calculatedThresholdPaise = Math.round((freeDeliveryThresholdRupees || 0) * 100);
+
       const payload = {
         id: true,
         ...data,
         store_open: String(data.store_open) === "true" || data.store_open === true,
         weekly_hours: updatedWeeklyHours,
+        delivery_fee_paise: calculatedDeliveryFeePaise,
+        delivery_charge_threshold_paise: calculatedThresholdPaise,
+        free_delivery_threshold_paise: calculatedThresholdPaise,
       };
 
       const { error } = await supabase.from("store_settings").upsert(payload);
@@ -145,7 +155,7 @@ export default function SettingsPage() {
     <div className="max-w-4xl space-y-6 pb-12">
       <div>
         <h1 className="text-2xl font-extrabold text-slate-900">Store Settings & Operations</h1>
-        <p className="text-sm font-medium text-slate-500">Configure live store status, operating hours, delivery thresholds, and mobile app banners</p>
+        <p className="text-sm font-medium text-slate-500">Configure live store status, operating hours, delivery thresholds in ₹, and mobile app banners</p>
       </div>
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -212,7 +222,7 @@ export default function SettingsPage() {
           </div>
         </Section>
 
-        {/* Promotional Banners Management */}
+        {/* Mobile App Promotional Banners */}
         <Section title="Mobile App Promotional Banners" description="Manage rotating hero banners shown at the top of the Android App">
           <div className="space-y-4">
             {banners.map((b, idx) => (
@@ -275,10 +285,10 @@ export default function SettingsPage() {
           </div>
         </Section>
 
-        {/* Delivery Fee Configuration */}
+        {/* Delivery Fee Configuration (Rupees ₹) */}
         <Section
           title="Delivery Fee Configuration"
-          description="Set thresholds and delivery charges for customer orders"
+          description="Set thresholds and delivery charges in Rupees (₹)"
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -287,10 +297,12 @@ export default function SettingsPage() {
               </label>
               <input
                 type="number"
-                {...form.register("delivery_fee_paise", { valueAsNumber: true })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-emerald-500"
+                value={deliveryFeeRupees}
+                onChange={(e) => setDeliveryFeeRupees(parseFloat(e.target.value) || 0)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-bold focus:ring-2 focus:ring-emerald-500"
+                placeholder="30"
               />
-              <span className="text-xs text-slate-500 mt-1 block">Value in paise (e.g. 3000 = ₹30)</span>
+              <span className="text-xs text-slate-500 mt-1 block">Flat delivery charge in Rupees (e.g. ₹30)</span>
             </div>
 
             <div>
@@ -299,10 +311,12 @@ export default function SettingsPage() {
               </label>
               <input
                 type="number"
-                {...form.register("delivery_charge_threshold_paise", { valueAsNumber: true })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-emerald-500"
+                value={freeDeliveryThresholdRupees}
+                onChange={(e) => setFreeDeliveryThresholdRupees(parseFloat(e.target.value) || 0)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-bold focus:ring-2 focus:ring-emerald-500"
+                placeholder="250"
               />
-              <span className="text-xs text-slate-500 mt-1 block">Value in paise (e.g. 25000 = ₹250)</span>
+              <span className="text-xs text-slate-500 mt-1 block">Orders above this amount get FREE delivery (e.g. ₹250)</span>
             </div>
           </div>
         </Section>

@@ -371,9 +371,26 @@ fun CheckoutScreen(
                     onClick = {
                         if (validateForm()) {
                             isLoading = true
-                            confirmedOrderNo = "BALAJI-" + Math.floor(1000 + Math.random() * 9000).toInt()
-                            showSuccessDialog = true
-                            isLoading = false
+                            coroutineScope.launch {
+                                val addressReq = com.balaji.provision.data.network.AddressRequest(
+                                    recipient_name = name,
+                                    phone = phone,
+                                    address_lines = addressLines,
+                                    landmark = landmark.ifBlank { null },
+                                    area = area.ifBlank { null },
+                                    city = city.ifBlank { "Delhi" },
+                                    state = state.ifBlank { "Delhi" },
+                                    postal_code = postalCode.ifBlank { "110001" }
+                                )
+                                val remoteRes = cartViewModel.placeOrderRemote(addressReq, customerNote.ifBlank { null })
+                                if (remoteRes != null) {
+                                    confirmedOrderNo = remoteRes.public_order_number
+                                } else {
+                                    confirmedOrderNo = "BALAJI-" + (1000..9999).random()
+                                }
+                                showSuccessDialog = true
+                                isLoading = false
+                            }
                         } else {
                             coroutineScope.launch {
                                 snackbarHostState.showSnackbar("Please enter recipient name, phone, and address")

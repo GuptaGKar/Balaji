@@ -2,6 +2,8 @@ package com.balaji.provision.ui.cart
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.balaji.provision.data.network.AddressRequest
+import com.balaji.provision.data.network.PlaceOrderResponse
 import com.balaji.provision.data.repository.CartRepository
 import com.balaji.provision.domain.model.Cart
 import com.balaji.provision.domain.model.CartItem
@@ -59,6 +61,10 @@ class CartViewModel @Inject constructor(
                 _error.value = e.message
             }
         }
+    }
+    
+    suspend fun placeOrderRemote(address: AddressRequest, customerNote: String?): PlaceOrderResponse? {
+        return cartRepository.placeOrderRemote(address, customerNote)
     }
     
     fun clearError() {

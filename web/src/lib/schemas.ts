@@ -57,33 +57,23 @@ export type InventoryReason = z.infer<typeof inventoryReasonEnum>;
 export const taxModeEnum = z.enum(["none", "inclusive", "exclusive"]);
 export type TaxMode = z.infer<typeof taxModeEnum>;
 
-export const storeSettingsSchema = z
-  .object({
-    store_open: z.boolean(),
-    timezone: z.string(),
-    weekly_hours: z.record(z.array(z.string())),
-    contact_phone: z.string().min(10).max(15),
-    estimated_window_text: z.string().min(1),
-    delivery_fee_paise: z.number().int().min(0),
-    delivery_charge_threshold_paise: z.number().int().min(0),
-    free_delivery_threshold_paise: z.number().int().min(0).nullable(),
-    mid_tier_fee_paise: z.number().int().min(0).nullable(),
-    max_order_paise: z.number().int().min(0).nullable(),
-    cancellation_policy_text: z.string().min(1),
-    tax_mode: taxModeEnum.default("none"),
-    tax_rate_bps: z.number().int().min(0).max(10000).default(0),
-    online_payment_enabled: z.boolean().default(false),
-    pos_price_override_enabled: z.boolean().default(false),
-  })
-  .refine(
-    (data) =>
-      data.free_delivery_threshold_paise === null ||
-      data.free_delivery_threshold_paise >= data.delivery_charge_threshold_paise,
-    {
-      message: "Free-delivery threshold must be ≥ delivery-charge threshold",
-      path: ["free_delivery_threshold_paise"],
-    },
-  );
+export const storeSettingsSchema = z.object({
+  store_open: z.boolean().default(true),
+  timezone: z.string().default("Asia/Kolkata"),
+  weekly_hours: z.any().optional(),
+  contact_phone: z.string().optional().nullable(),
+  estimated_window_text: z.string().optional().nullable(),
+  delivery_fee_paise: z.number().optional().nullable(),
+  delivery_charge_threshold_paise: z.number().optional().nullable(),
+  free_delivery_threshold_paise: z.number().optional().nullable(),
+  mid_tier_fee_paise: z.number().optional().nullable(),
+  max_order_paise: z.number().optional().nullable(),
+  cancellation_policy_text: z.string().optional().nullable(),
+  tax_mode: taxModeEnum.optional().default("none"),
+  tax_rate_bps: z.number().optional().default(0),
+  online_payment_enabled: z.boolean().optional().default(false),
+  pos_price_override_enabled: z.boolean().optional().default(false),
+});
 
 export type StoreSettings = z.infer<typeof storeSettingsSchema>;
 

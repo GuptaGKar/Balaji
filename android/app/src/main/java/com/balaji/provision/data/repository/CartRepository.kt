@@ -2,19 +2,23 @@ package com.balaji.provision.data.repository
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.edit
+import com.balaji.provision.BuildConfig
+import com.balaji.provision.data.network.AddressRequest
+import com.balaji.provision.data.network.CartItemRequest
+import com.balaji.provision.data.network.PlaceOrderPayload
+import com.balaji.provision.data.network.PlaceOrderRequest
+import com.balaji.provision.data.network.PlaceOrderResponse
 import com.balaji.provision.data.network.QuoteCartRequest
 import com.balaji.provision.data.network.QuoteCartResponse
-import com.balaji.provision.data.network.CartItemRequest
 import com.balaji.provision.data.network.SupabaseApi
-import com.balaji.provision.domain.model.CartItem
 import com.balaji.provision.domain.model.Cart
+import com.balaji.provision.domain.model.CartItem
 import com.balaji.provision.domain.model.QuantityType
 import com.balaji.provision.domain.model.QuoteBreakdown
-import dagger.hilt.InstallIn
-import dagger.hilt.components.SingletonComponent
 import dagger.Module
 import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -108,14 +112,43 @@ class CartRepositoryImpl @Inject constructor(
             val request = QuoteCartRequest(
                 items = items.map { CartItemRequest(it.productId, it.qtyBase) }
             )
-            val response = api.quoteCart(apiKey = "", auth = "", body = request)
+            val anonKey = BuildConfig.SUPABASE_ANON_KEY
+            val response = api.quoteCart(apiKey = anonKey, auth = "Bearer $anonKey", body = request)
             if (response.isSuccessful && response.body() != null) {
                 return mapToQuoteBreakdown(response.body()!!)
             }
         } catch (e: Exception) {
-            // Fallback for offline or local preview
+            // Fallback for offline preview
         }
         return calculateLocalQuote(items)
+    }
+
+    override suspend fun placeOrderRemote(address: AddressRequest, customerNote: String?): PlaceOrderResponse? {
+        val items = inMemoryCartItems.map { CartItemRequest(it.productId, it.qtyBase) }
+        if (items.isEmpty()) return null
+
+        val payload = PlaceOrderPayload(
+            items = items,
+            address = address,
+            payment_method = "cod",
+            customer_note = customerNote
+        )
+        val request = PlaceOrderRequest(
+            payload = payload,
+            idempotency_key = "IDEMP-" + System.currentTimeMillis() + "-" + (1000..9999).random()
+        )
+
+        val anonKey = BuildConfig.SUPABASE_ANON_KEY
+        return try {
+            val response = api.placeOrder(apiKey = anonKey, auth = "Bearer $anonKey", body = request)
+            if (response.isSuccessful && response.body() != null) {
+                response.body()
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            null
+        }
     }
     
     private fun calculateLocalQuote(items: List<CartItem>): QuoteBreakdown {
@@ -210,4 +243,5 @@ interface CartRepository {
     suspend fun removeItem(productId: String): Cart
     suspend fun clearCart()
     suspend fun getQuote(items: List<CartItem>): QuoteBreakdown
+    suspend fun placeOrderRemote(address: AddressRequest, customerNote: String?): PlaceOrderResponse?
 }
