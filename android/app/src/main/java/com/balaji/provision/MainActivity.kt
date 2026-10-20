@@ -94,9 +94,7 @@ fun AppNavHost(navController: NavHostController) {
             )
         }
         composable("catalog") {
-            CatalogScreen(
-                onNavigateToCart = { navigateToTab(navController, "cart") }
-            )
+            CatalogScreen()
         }
         composable("cart") {
             CartScreen(
