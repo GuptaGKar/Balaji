@@ -97,7 +97,7 @@ class CartRepositoryImpl @Inject constructor(
 
     private suspend fun fetchQuote(items: List<CartItem>): QuoteBreakdown? {
         return try {
-            val request = QuoteCartRequest(items = items.map { CartItemRequest(it.productId, it.qtyBase) })
+            val request = QuoteCartRequest(p_items = items.map { CartItemRequest(it.productId, it.qtyBase) })
             val anonKey = BuildConfig.SUPABASE_ANON_KEY
             val response = api.quoteCart(apiKey = anonKey, auth = "Bearer $anonKey", body = request)
             val body = response.body()

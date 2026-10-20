@@ -142,7 +142,7 @@ data class CategoryResponse(
 
 @Serializable
 data class QuoteCartRequest(
-    val items: List<CartItemRequest>
+    val p_items: List<CartItemRequest>
 )
 
 @Serializable

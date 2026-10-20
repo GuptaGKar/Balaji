@@ -24,15 +24,7 @@ data class Cart(
 data class CartItem(
     val productId: String,
     val qtyBase: Long
-) {
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (other !is CartItem) return false
-        return productId == other.productId
-    }
-    
-    override fun hashCode(): Int = productId.hashCode()
-}
+)
 
 @Immutable
 @Serializable
