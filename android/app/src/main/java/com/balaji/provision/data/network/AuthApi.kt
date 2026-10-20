@@ -3,18 +3,25 @@ package com.balaji.provision.data.network
 import kotlinx.serialization.Serializable
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
 import retrofit2.http.Query
 
 interface AuthApi {
 
-    @POST("auth/v1/token")
-    suspend fun signIn(
+    @POST("auth/v1/otp")
+    suspend fun sendOtp(
         @Header("apikey") apiKey: String,
         @Header("Content-Type") contentType: String = "application/json",
-        @Query("grant_type") grantType: String = "password",
-        @Body body: AuthTokenRequest
+        @Body body: OtpRequest
+    ): Response<Unit>
+
+    @POST("auth/v1/verify")
+    suspend fun verifyOtp(
+        @Header("apikey") apiKey: String,
+        @Header("Content-Type") contentType: String = "application/json",
+        @Body body: VerifyOtpRequest
     ): Response<AuthTokenResponse>
 
     @POST("auth/v1/token")
@@ -25,12 +32,11 @@ interface AuthApi {
         @Body body: RefreshTokenRequest
     ): Response<AuthTokenResponse>
 
-    @POST("auth/v1/signup")
-    suspend fun signUp(
+    @GET("auth/v1/user")
+    suspend fun getUser(
         @Header("apikey") apiKey: String,
-        @Header("Content-Type") contentType: String = "application/json",
-        @Body body: AuthTokenRequest
-    ): Response<AuthTokenResponse>
+        @Header("Authorization") authorization: String
+    ): Response<AuthUser>
 
     @POST("auth/v1/logout")
     suspend fun logout(
@@ -40,9 +46,16 @@ interface AuthApi {
 }
 
 @Serializable
-data class AuthTokenRequest(
-    val email: String,
-    val password: String
+data class OtpRequest(
+    val phone: String,
+    val create_user: Boolean = true
+)
+
+@Serializable
+data class VerifyOtpRequest(
+    val phone: String,
+    val token: String,
+    val type: String = "sms"
 )
 
 @Serializable
@@ -53,7 +66,8 @@ data class RefreshTokenRequest(
 @Serializable
 data class AuthUser(
     val id: String,
-    val email: String? = null
+    val email: String? = null,
+    val phone: String? = null
 )
 
 @Serializable

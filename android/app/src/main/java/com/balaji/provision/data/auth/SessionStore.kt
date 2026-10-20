@@ -9,10 +9,11 @@ import javax.inject.Singleton
 
 data class AuthSession(
     val userId: String,
-    val email: String,
     val accessToken: String,
     val refreshToken: String,
-    val expiresAtMillis: Long
+    val expiresAtMillis: Long,
+    val email: String? = null,
+    val phone: String? = null
 )
 
 interface SessionStorage {
@@ -35,21 +36,23 @@ class SessionStore @Inject constructor(
 
     override fun load(): AuthSession? {
         val userId = preferences.getString(KEY_USER_ID, null) ?: return null
-        val email = preferences.getString(KEY_EMAIL, null) ?: return null
         val access = preferences.getString(KEY_ACCESS_TOKEN, null) ?: return null
         val refresh = preferences.getString(KEY_REFRESH_TOKEN, null) ?: return null
         val expiresAt = preferences.getLong(KEY_EXPIRES_AT, 0L)
-        return AuthSession(userId, email, access, refresh, expiresAt)
+        val email = preferences.getString(KEY_EMAIL, null)
+        val phone = preferences.getString(KEY_PHONE, null)
+        return AuthSession(userId, access, refresh, expiresAt, email, phone)
     }
 
     override fun save(session: AuthSession) {
-        preferences.edit()
-            .putString(KEY_USER_ID, session.userId)
-            .putString(KEY_EMAIL, session.email)
-            .putString(KEY_ACCESS_TOKEN, session.accessToken)
-            .putString(KEY_REFRESH_TOKEN, session.refreshToken)
-            .putLong(KEY_EXPIRES_AT, session.expiresAtMillis)
-            .apply()
+        preferences.edit().apply {
+            putString(KEY_USER_ID, session.userId)
+            putString(KEY_ACCESS_TOKEN, session.accessToken)
+            putString(KEY_REFRESH_TOKEN, session.refreshToken)
+            putLong(KEY_EXPIRES_AT, session.expiresAtMillis)
+            if (session.email == null) remove(KEY_EMAIL) else putString(KEY_EMAIL, session.email)
+            if (session.phone == null) remove(KEY_PHONE) else putString(KEY_PHONE, session.phone)
+        }.apply()
     }
 
     override fun clear() {
@@ -59,6 +62,7 @@ class SessionStore @Inject constructor(
     private companion object {
         const val KEY_USER_ID = "user_id"
         const val KEY_EMAIL = "email"
+        const val KEY_PHONE = "phone"
         const val KEY_ACCESS_TOKEN = "access_token"
         const val KEY_REFRESH_TOKEN = "refresh_token"
         const val KEY_EXPIRES_AT = "expires_at"

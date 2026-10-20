@@ -23,7 +23,7 @@ Seeded at M0 from IMPLEMENTATION_PLAN.md §2. PROVISIONAL items are safe default
 | D-FEE | Threshold/fee interplay | 3-parameter model (plan §4.4). Seed dev values are synthetic (fee ₹30 is a placeholder, **not** owner policy). |
 | D-ELIG | Eligible subtotal for thresholds | Merchandise subtotal **before** discounts and tax, **excluding** delivery fee. Isolated in one function `eligible_subtotal()`. |
 | D-STOCK | Stock deduction timing | Deduct at **order placement**; restore exactly once on reject/cancel/item removal. |
-| D-AUTH | Customer login | Behind an interface. Dev: email+password. Pilot recommendation: phone OTP (verify provider cost/DLT). No guest checkout. |
+| D-AUTH | Customer login | Android customer app: **phone OTP only** (Indian +91 numbers; new numbers auto-create a customer account). Web admin/staff/rider login unchanged. No guest checkout. SMS provider, DLT registration and cost are still owner decisions; phone auth remains disabled until configured. Existing email-only app accounts are not migrated. |
 | D-RIDER | Rider interface | `/rider` mobile-responsive area in the admin website. Rider statuses: `out_for_delivery`, `delivered` (+ `delivery_failed` with reason). |
 | D-RIDER-LOGIN | Rider auth | User ID + server-generated one-time password, forced change on first login. |
 | D-POD | Proof of delivery | Manager-visible status + timestamp only (no OTP/photo in MVP). |
@@ -163,6 +163,15 @@ Exact PIN codes/neighbourhoods · real delivery fee and free-delivery amount · 
 - **Web:** type-check, lint and production build passed (existing lint warnings only).
 - **Guard script passed.**
 - **Not applied to live Supabase.** Migrations 15→16→17→18 remain an owner-approved deployment step; live checkout/cancel verification and the SQL pgTAP suite remain pending.
+
+## Phone OTP auth decision (2026-10-20)
+
+- Owner approved **phone-only Android customer authentication**: a mobile number plus SMS OTP creates or signs in a customer. Web admin/staff/rider email login is unchanged.
+- Existing app accounts that only have email will no longer be able to sign in. This is an owner decision; no email-to-phone migration is included.
+- The Android client uses Supabase `/auth/v1/otp` and `/auth/v1/verify` directly. Normalization accepts Indian 10-digit numbers, optional `0` prefix, optional `91`/`+91`, and ignores spaces/hyphens.
+- OTP requests are limited to one every 60 seconds in the UI; Supabase server rate limits must also be configured. OTPs are never stored or logged by the app.
+- **Provider still BLOCKED:** live Supabase has phone auth disabled and no SMS provider. India-only pilot options: Textlocal (₹0.18–₹0.30/SMS, requires DLT entity/header/template approval, community-supported by Supabase) or Twilio (first-class Supabase support; Twilio documents its international India route as not requiring DLT at ~$0.083/SMS; domestic branded sender needs DLT). Recommended: Twilio for fastest pilot, Textlocal after DLT for lower India SMS cost.
+- Migration 18 must be applied to live **before enabling phone signups**; without it the live 017 trigger can provision new users as managers.
 
 ## M7 verification records (2026-10-14)
 

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -38,7 +39,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -50,12 +50,16 @@ fun LoginScreen(
     viewModel: AuthViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var isSignUp by remember { mutableStateOf(false) }
+    var phone by remember { mutableStateOf("") }
+    var otp by remember { mutableStateOf("") }
+    val isOtpStep = state.step == PhoneAuthStep.OTP
 
     LaunchedEffect(state.session) {
         if (state.session != null) onSignedIn()
+    }
+
+    LaunchedEffect(state.step) {
+        if (state.step == PhoneAuthStep.OTP) otp = ""
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -89,44 +93,130 @@ fun LoginScreen(
                 ) {
                     Icon(Icons.Default.Lock, contentDescription = null)
                     Text(
-                        "Sign in to place orders and see your order history.",
+                        "Sign in with your mobile number to place orders and see your order history.",
                         fontSize = 13.sp
                     )
                 }
             }
 
             Text(
-                if (isSignUp) "Create customer account" else "Sign in",
+                if (isOtpStep) "Enter the OTP" else "Sign in or create account",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
             )
 
-            OutlinedTextField(
-                value = email,
-                onValueChange = { email = it },
-                label = { Text("Email") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Email,
-                    imeAction = ImeAction.Next
-                ),
-                shape = RoundedCornerShape(12.dp)
-            )
+            if (!isOtpStep) {
+                OutlinedTextField(
+                    value = phone,
+                    onValueChange = { input ->
+                        phone = input.filter { it.isDigit() || it == '+' || it == ' ' || it == '-' }
+                    },
+                    label = { Text("Mobile number") },
+                    placeholder = { Text("98765 43210") },
+                    supportingText = { Text("Indian mobile number. Spaces, hyphens and +91 are accepted.") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    enabled = !state.isLoading,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Phone,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = { viewModel.sendOtp(phone) }
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                )
 
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = { Text(if (isSignUp) "Password (min 8 characters)" else "Password") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Done
-                ),
-                shape = RoundedCornerShape(12.dp)
-            )
+                Button(
+                    onClick = { viewModel.sendOtp(phone) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    enabled = !state.isLoading && phone.isNotBlank(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    if (state.isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(22.dp),
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    } else {
+                        Text("Send OTP", fontWeight = FontWeight.Bold)
+                    }
+                }
+            } else {
+                Text(
+                    "Enter the 6-digit code sent to ${state.phone}.",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                OutlinedTextField(
+                    value = otp,
+                    onValueChange = { input -> otp = input.filter(Char::isDigit).take(6) },
+                    label = { Text("One-time password") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    enabled = !state.isLoading,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = { if (otp.length == 6) viewModel.verifyOtp(otp) }
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Button(
+                    onClick = { viewModel.verifyOtp(otp) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    enabled = !state.isLoading && otp.length == 6,
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    if (state.isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(22.dp),
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    } else {
+                        Text("Verify and sign in", fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(
+                        onClick = {
+                            viewModel.changePhone()
+                            phone = state.phone
+                        },
+                        enabled = !state.isLoading
+                    ) {
+                        Text("Change number")
+                    }
+                    TextButton(
+                        onClick = {
+                            otp = ""
+                            viewModel.sendOtp(state.phone)
+                        },
+                        enabled = !state.isLoading && state.resendSeconds == 0
+                    ) {
+                        Text(
+                            if (state.resendSeconds > 0) {
+                                "Resend in ${state.resendSeconds}s"
+                            } else {
+                                "Resend OTP"
+                            }
+                        )
+                    }
+                }
+            }
 
             state.error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
@@ -135,39 +225,9 @@ fun LoginScreen(
                 Text(it, color = MaterialTheme.colorScheme.primary, fontSize = 13.sp)
             }
 
-            Button(
-                onClick = {
-                    if (isSignUp) viewModel.signUp(email, password) else viewModel.signIn(email, password)
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp),
-                enabled = !state.isLoading,
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                if (state.isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(22.dp),
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                } else {
-                    Text(if (isSignUp) "Create Account" else "Sign In", fontWeight = FontWeight.Bold)
-                }
-            }
-
-            TextButton(
-                onClick = {
-                    isSignUp = !isSignUp
-                    viewModel.clearMessages()
-                },
-                modifier = Modifier.align(Alignment.CenterHorizontally)
-            ) {
-                Text(if (isSignUp) "Already have an account? Sign in" else "New customer? Create an account")
-            }
-
             Spacer(Modifier.height(8.dp))
             Text(
-                "Use the email and password registered with the store. Guest checkout is not available.",
+                "New mobile numbers create a customer account automatically. Guest checkout is not available.",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

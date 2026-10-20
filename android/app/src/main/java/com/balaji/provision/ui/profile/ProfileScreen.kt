@@ -122,7 +122,7 @@ fun ProfileScreen(
 
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(
-                            session?.email ?: "Not signed in",
+                            session?.phone ?: session?.email ?: "Not signed in",
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
