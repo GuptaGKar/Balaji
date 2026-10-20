@@ -25,7 +25,9 @@ function LoginForm() {
       ? "This account has been deactivated. Contact a manager."
       : authError === "profile"
         ? "Your profile could not be loaded. Contact a manager."
-        : "",
+        : authError === "customer"
+          ? "Customer accounts use the mobile app. Ask a manager for staff access."
+          : "",
   );
   const [loading, setLoading] = useState(false);
 
@@ -57,26 +59,27 @@ function LoginForm() {
         return;
       }
 
-      let { data: profile } = await supabase
+      const { data: profile } = await supabase
         .from("profiles")
         .select("role, is_active, must_change_password")
         .eq("id", authData.user.id)
         .maybeSingle();
 
       if (!profile) {
-        // Auto-provision manager profile if missing for signed-in user
-        const { data: newProfile } = await supabase.from("profiles").upsert({
-          id: authData.user.id,
-          role: "manager",
-          display_name: authData.user.email || "Store Manager",
-          is_active: true,
-          must_change_password: false
-        }, { onConflict: "id" }).select("role, is_active, must_change_password").single();
-
-        if (newProfile) profile = newProfile;
+        await supabase.auth.signOut();
+        setError("Your profile could not be loaded. Contact a manager.");
+        setLoading(false);
+        return;
       }
 
-      if (profile && !profile.is_active) {
+      if (profile.role === "customer") {
+        await supabase.auth.signOut();
+        setError("Customer accounts use the mobile app. Ask a manager for staff access.");
+        setLoading(false);
+        return;
+      }
+
+      if (!profile.is_active) {
         await supabase.auth.signOut();
         setError("This account has been deactivated. Contact a manager.");
         setLoading(false);

@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.balaji.provision.data.repository.PlaceOrderResult
 import com.balaji.provision.domain.model.formatPaise
 import com.balaji.provision.ui.auth.AuthViewModel
 import com.balaji.provision.ui.cart.CartViewModel
@@ -88,8 +89,9 @@ fun CheckoutScreen(
     val scrollState = rememberScrollState()
 
     fun validateForm(): Boolean {
-        return name.isNotBlank() && phone.isNotBlank() && addressLines.isNotBlank() &&
-            area.isNotBlank() && city.isNotBlank() && state.isNotBlank() && postalCode.isNotBlank()
+        return name.isNotBlank() && phone.count { it.isDigit() } >= 10 &&
+            addressLines.isNotBlank() && area.isNotBlank() && city.isNotBlank() &&
+            state.isNotBlank() && postalCode.trim().length == 6
     }
 
     // Success Dialog on Order Confirmed
@@ -355,12 +357,19 @@ fun CheckoutScreen(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
                     ) {
-                        Text(
-                            "Delivery charge and total could not be loaded. Check your connection and try again.",
-                            modifier = Modifier.padding(12.dp),
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            fontSize = 13.sp
-                        )
+                        Column(Modifier.padding(12.dp)) {
+                            Text(
+                                "Delivery charge and total could not be loaded. Check your connection and try again.",
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                fontSize = 13.sp
+                            )
+                            Button(
+                                onClick = { cartViewModel.refreshQuote() },
+                                modifier = Modifier.padding(top = 8.dp)
+                            ) {
+                                Text("Retry total")
+                            }
+                        }
                     }
                 }
 
@@ -400,24 +409,26 @@ fun CheckoutScreen(
                                     state = state,
                                     postal_code = postalCode
                                 )
-                                val remoteRes = cartViewModel.placeOrderRemote(addressReq, customerNote.ifBlank { null })
-                                isLoading = false
-                                if (remoteRes != null) {
-                                    confirmedOrderNo = remoteRes.public_order_number
-                                    showSuccessDialog = true
-                                } else {
-                                    snackbarHostState.showSnackbar(
-                                        if (authState.session == null) {
-                                            "Sign in to place your order."
-                                        } else {
-                                            "Order could not be placed. Check your connection and try again."
-                                        }
-                                    )
+                                when (val result = cartViewModel.placeOrderRemote(
+                                    addressReq,
+                                    customerNote.ifBlank { null }
+                                )) {
+                                    is PlaceOrderResult.Success -> {
+                                        isLoading = false
+                                        confirmedOrderNo = result.response.public_order_number.orEmpty()
+                                        showSuccessDialog = true
+                                    }
+                                    is PlaceOrderResult.Failure -> {
+                                        isLoading = false
+                                        snackbarHostState.showSnackbar(result.message)
+                                    }
                                 }
                             }
                         } else {
                             coroutineScope.launch {
-                                snackbarHostState.showSnackbar("Please enter name, phone, full address, city, state and PIN code")
+                                snackbarHostState.showSnackbar(
+                                    "Enter name, a 10-digit phone, full address, city, state and 6-digit PIN code"
+                                )
                             }
                         }
                     },

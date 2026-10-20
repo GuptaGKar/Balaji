@@ -92,6 +92,8 @@ INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, e
 ('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000006', 'authenticated', 'authenticated', 'manager-1@balaji-test.invalid',  'synthetic-placeholder', now(), now(), now())
 ON CONFLICT (id) DO NOTHING;
 
+-- The auth.users trigger creates a customer profile for each seeded auth user.
+-- Upsert the synthetic roles so seed identities remain deterministic.
 INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_change_password) VALUES
 ('aaaaaaaa-0000-0000-0000-000000000001', 'customer', 'Customer A',  '9837803293', NULL,        true, false),
 ('aaaaaaaa-0000-0000-0000-000000000002', 'customer', 'Customer B',  '9837803293', NULL,        true, false),
@@ -99,7 +101,13 @@ INSERT INTO profiles (id, role, display_name, phone, login_id, is_active, must_c
 ('aaaaaaaa-0000-0000-0000-000000000004', 'delivery', 'Rider B',     '9837803293', 'RIDER-B-002', true, true),
 ('aaaaaaaa-0000-0000-0000-000000000005', 'staff',    'Staff One',   '9837803293', 'STAFF-001',   true, false),
 ('aaaaaaaa-0000-0000-0000-000000000006', 'manager',  'Manager One', '9837803293', 'MANAGER-001', true, false)
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+  role = EXCLUDED.role,
+  display_name = EXCLUDED.display_name,
+  phone = EXCLUDED.phone,
+  login_id = EXCLUDED.login_id,
+  is_active = EXCLUDED.is_active,
+  must_change_password = EXCLUDED.must_change_password;
 
 INSERT INTO bill_counters (fy, last_no) VALUES ('2026-27', 0)
 ON CONFLICT (fy) DO NOTHING;

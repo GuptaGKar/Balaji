@@ -3,10 +3,12 @@ package com.balaji.provision.ui.cart
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.balaji.provision.data.network.AddressRequest
-import com.balaji.provision.data.network.PlaceOrderResponse
 import com.balaji.provision.data.repository.CartRepository
+import com.balaji.provision.data.repository.CatalogRepository
+import com.balaji.provision.data.repository.PlaceOrderResult
 import com.balaji.provision.domain.model.Cart
 import com.balaji.provision.domain.model.CartItem
+import com.balaji.provision.domain.model.Product
 import com.balaji.provision.domain.model.QuoteBreakdown
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,7 +19,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class CartViewModel @Inject constructor(
-    private val cartRepository: CartRepository
+    private val cartRepository: CartRepository,
+    private val catalogRepository: CatalogRepository
 ) : ViewModel() {
     
     val cart: StateFlow<Cart> = cartRepository.cartFlow
@@ -63,7 +66,13 @@ class CartViewModel @Inject constructor(
         }
     }
     
-    suspend fun placeOrderRemote(address: AddressRequest, customerNote: String?): PlaceOrderResponse? {
+    fun refreshQuote() {
+        cartRepository.refreshQuote()
+    }
+
+    fun findProduct(productId: String): Product? = catalogRepository.findProductById(productId)
+
+    suspend fun placeOrderRemote(address: AddressRequest, customerNote: String?): PlaceOrderResult {
         return cartRepository.placeOrderRemote(address, customerNote)
     }
     

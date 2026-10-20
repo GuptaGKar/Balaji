@@ -53,12 +53,21 @@ interface SupabaseApi {
         @Body body: PlaceOrderRequest
     ): Response<PlaceOrderResponse>
 
+    @POST("rest/v1/rpc/cancel_my_order")
+    suspend fun cancelMyOrder(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Header("Content-Type") contentType: String = "application/json",
+        @Body body: CancelOrderRequest
+    ): Response<CancelOrderResponse>
+
     // Orders
     @GET("rest/v1/orders")
     suspend fun getOrders(
         @Header("apikey") apiKey: String,
         @Header("Authorization") auth: String,
-        @Query("select") select: String = "id,public_order_number,status,payment_method,payment_status,item_subtotal_paise,delivery_fee_paise,tax_paise,grand_total_paise,created_at,order_items(id,sku_snapshot,name_snapshot,quantity_type_snapshot,unit_label_snapshot,price_basis_qty_snapshot,qty_base,unit_price_paise,line_total_paise,removed_at)",
+        @Query("customer_id") customerId: String? = null,
+        @Query("select") select: String = "id,public_order_number,status,payment_method,payment_status,item_subtotal_paise,delivery_fee_paise,tax_paise,grand_total_paise,created_at,order_items(id,sku_snapshot,name_snapshot,quantity_type_snapshot,unit_label_snapshot,price_basis_qty_snapshot,qty_base,unit_price_paise,line_total_paise,removed_at,removed_reason)",
         @Query("order") order: String = "created_at.desc",
         @Query("limit") limit: Int = 100
     ): Response<List<OrderResponse>>
@@ -195,9 +204,27 @@ data class AddressRequest(
 
 @Serializable
 data class PlaceOrderResponse(
-    val order_id: String,
-    val public_order_number: String,
-    val breakdown: QuoteCartResponse? = null
+    val order_id: String? = null,
+    val public_order_number: String? = null,
+    val breakdown: QuoteCartResponse? = null,
+    val error: String? = null,
+    val message: String? = null
+)
+
+@Serializable
+data class CancelOrderRequest(
+    val p_order_id: String,
+    val p_reason: String? = null
+)
+
+@Serializable
+data class CancelOrderResponse(
+    val success: Boolean? = null,
+    val order_id: String? = null,
+    val status: String? = null,
+    val stock_restored: Boolean? = null,
+    val error: String? = null,
+    val message: String? = null
 )
 
 @Serializable
@@ -214,7 +241,11 @@ data class OrderResponse(
 data class OrderItemResponse(
     val name_snapshot: String,
     val qty_base: Long,
-    val line_total_paise: Long
+    val line_total_paise: Long,
+    val quantity_type_snapshot: String? = null,
+    val unit_label_snapshot: String? = null,
+    val removed_at: String? = null,
+    val removed_reason: String? = null
 )
 
 @Serializable

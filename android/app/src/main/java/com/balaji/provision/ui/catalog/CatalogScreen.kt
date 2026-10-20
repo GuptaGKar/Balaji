@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Scale
 import androidx.compose.material.icons.filled.Search
@@ -104,6 +105,25 @@ fun CatalogScreen(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Fresh catalogue",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        IconButton(onClick = { viewModel.loadData() }) {
+                            Icon(
+                                Icons.Default.Refresh,
+                                contentDescription = "Refresh catalogue",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { viewModel.setSearchQuery(it) },
@@ -131,6 +151,14 @@ fun CatalogScreen(
                         )
                     )
                     
+                    if (error != null && products.isNotEmpty()) {
+                        Text(
+                            error ?: "",
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 12.sp
+                        )
+                    }
+
                     // Category Chips
                     if (categories.isNotEmpty()) {
                         LazyRow(
@@ -215,7 +243,7 @@ fun CatalogScreen(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = if (cart.items.isEmpty()) 8.dp else 84.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(products, key = { it.id }) { product ->
@@ -240,6 +268,49 @@ fun CatalogScreen(
                                 }
                             }
                         )
+                    }
+                }
+            }
+        }
+
+        if (cart.items.isNotEmpty()) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.primary,
+                shadowElevation = 6.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "${cart.items.size} product${if (cart.items.size == 1) "" else "s"} in cart",
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                    Button(
+                        onClick = onNavigateToCart,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.onPrimary,
+                            contentColor = MaterialTheme.colorScheme.primary
+                        ),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.ShoppingCart,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.size(6.dp))
+                        Text("View Cart", fontWeight = FontWeight.Bold)
                     }
                 }
             }

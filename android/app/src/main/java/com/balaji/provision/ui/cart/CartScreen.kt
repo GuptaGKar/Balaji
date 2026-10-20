@@ -46,7 +46,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.balaji.provision.data.repository.CatalogRepository
 import com.balaji.provision.domain.model.CartItem
 import com.balaji.provision.domain.model.Product
 import com.balaji.provision.domain.model.QuantityType
@@ -57,7 +56,6 @@ import com.balaji.provision.ui.components.WeightedQuantityDialog
 @Composable
 fun CartScreen(
     viewModel: CartViewModel = hiltViewModel(),
-    catalogRepository: CatalogRepository = CatalogRepository(),
     onNavigateToCheckout: () -> Unit
 ) {
     val cart by viewModel.cart.collectAsState()
@@ -131,7 +129,6 @@ fun CartScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("🛒", fontSize = 56.sp)
                     Text("Your cart is currently empty", fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     Text(
                         "Explore our fresh catalogue and add groceries",
@@ -178,7 +175,6 @@ fun CartScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                Text("🎉", fontSize = 16.sp)
                                 Text(
                                     "Congratulations! You unlocked FREE Local Delivery!",
                                     fontSize = 13.sp,
@@ -199,7 +195,7 @@ fun CartScreen(
                 ) {
                     items(cart.items, key = { it.productId }) { item ->
                         val lineInfo = quote?.lines?.find { it.productId == item.productId }
-                        val product = catalogRepository.findProductById(item.productId)
+                        val product = viewModel.findProduct(item.productId)
                         
                         CartItemCard(
                             item = item,
@@ -225,6 +221,27 @@ fun CartScreen(
                                 quote = q,
                                 onCheckoutClick = onNavigateToCheckout
                             )
+                        }
+                    } ?: item(key = "quote_retry") {
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Column(Modifier.padding(16.dp)) {
+                                Text(
+                                    "Could not update your total. Check your connection.",
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    fontSize = 13.sp
+                                )
+                                Button(
+                                    onClick = { viewModel.refreshQuote() },
+                                    modifier = Modifier.padding(top = 8.dp)
+                                ) {
+                                    Text("Retry total")
+                                }
+                            }
                         }
                     }
                 }

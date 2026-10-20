@@ -60,6 +60,8 @@ type OrderItem = {
   qty_base: number;
   unit_price_paise: number;
   line_total_paise: number;
+  removed_at: string | null;
+  removed_reason: string | null;
 };
 
 function statusLabel(status: string) {
@@ -83,6 +85,7 @@ export default function OrdersPage() {
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [modalLoading, setModalLoading] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [removingItemId, setRemovingItemId] = useState<string | null>(null);
 
   const supabase = createClient();
 
@@ -135,7 +138,7 @@ export default function OrdersPage() {
     const { data, error } = await supabase
       .from("order_items")
       .select(
-        "id, sku_snapshot, name_snapshot, quantity_type_snapshot, unit_label_snapshot, qty_base, unit_price_paise, line_total_paise",
+        "id, sku_snapshot, name_snapshot, quantity_type_snapshot, unit_label_snapshot, qty_base, unit_price_paise, line_total_paise, removed_at, removed_reason",
       )
       .eq("order_id", order.id)
       .limit(200);
@@ -177,6 +180,59 @@ export default function OrdersPage() {
       toast.error(err instanceof Error ? err.message : "Failed to update status");
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  const removeUnavailableItem = async (order: Order, item: OrderItem) => {
+    const reason = window.prompt(
+      `Why is "${item.name_snapshot}" unavailable? The customer will see the updated bill.`,
+    );
+    if (!reason || !reason.trim()) {
+      toast.error("A reason is required to remove an item");
+      return;
+    }
+
+    setRemovingItemId(item.id);
+    try {
+      const { data, error } = await supabase.rpc("remove_order_item", {
+        p_order_id: order.id,
+        p_item_id: item.id,
+        p_reason: reason.trim(),
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.message || data.error);
+
+      const cancelled = data?.order_cancelled === true;
+      toast.success(
+        cancelled
+          ? "Item removed. No items remain, so the order was cancelled."
+          : "Item marked unavailable and the customer bill was recalculated",
+      );
+
+      setOrderItems((current) =>
+        current.map((row) =>
+          row.id === item.id
+            ? { ...row, removed_at: new Date().toISOString(), removed_reason: reason.trim() }
+            : row,
+        ),
+      );
+      setSelectedOrder((current) =>
+        current && current.id === order.id
+          ? {
+              ...current,
+              status: cancelled ? "cancelled" : current.status,
+              item_subtotal_paise: Number(data?.item_subtotal_paise ?? current.item_subtotal_paise),
+              delivery_fee_paise: Number(data?.delivery_fee_paise ?? current.delivery_fee_paise),
+              grand_total_paise: Number(data?.grand_total_paise ?? current.grand_total_paise),
+              payment_status: String(data?.payment_status ?? current.payment_status),
+            }
+          : current,
+      );
+      await fetchOrders();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to remove item");
+    } finally {
+      setRemovingItemId(null);
     }
   };
 
@@ -512,7 +568,14 @@ export default function OrdersPage() {
             </div>
 
             <div>
-              <h4 className="text-sm font-bold text-slate-900 mb-2">Order Line Items</h4>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <h4 className="text-sm font-bold text-slate-900">Order Line Items</h4>
+                {orderItems.some((item) => item.removed_at) && (
+                  <span className="text-[11px] font-bold text-red-700">
+                    Customer bill updated after unavailable-item removal
+                  </span>
+                )}
+              </div>
               {modalLoading ? (
                 <div className="flex items-center justify-center py-6">
                   <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
@@ -521,22 +584,51 @@ export default function OrdersPage() {
                 <p className="text-sm text-slate-500">No line items found for this order.</p>
               ) : (
                 <div className="space-y-2 border border-slate-200 rounded-2xl p-3 bg-slate-50">
-                  {orderItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between py-2 border-b border-slate-200 last:border-none text-xs"
-                    >
-                      <div>
-                        <p className="font-bold text-slate-900">{item.name_snapshot}</p>
-                        <p className="text-slate-500">
-                          {itemQuantity(item)} · {formatRupees(item.unit_price_paise || 0)}
-                        </p>
+                  {orderItems.map((item) => {
+                    const removed = item.removed_at != null;
+                    const canRemove =
+                      !removed &&
+                      ["pending_review", "accepted", "preparing"].includes(selectedOrder.status);
+                    return (
+                      <div
+                        key={item.id}
+                        className="flex items-center justify-between gap-3 py-2 border-b border-slate-200 last:border-none text-xs"
+                      >
+                        <div className="min-w-0">
+                          <p
+                            className={cn(
+                              "font-bold text-slate-900",
+                              removed && "line-through text-slate-400",
+                            )}
+                          >
+                            {item.name_snapshot}
+                          </p>
+                          <p className="text-slate-500">
+                            {itemQuantity(item)} · {formatRupees(item.unit_price_paise || 0)}
+                          </p>
+                          {removed && (
+                            <p className="text-[11px] font-bold text-red-600">
+                              NOT AVAILABLE{item.removed_reason ? ` · ${item.removed_reason}` : ""}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <p className={cn("font-extrabold", removed ? "text-slate-400 line-through" : "text-slate-900")}>
+                            {removed ? "Removed" : formatRupees(item.line_total_paise || 0)}
+                          </p>
+                          {canRemove && (
+                            <button
+                              onClick={() => removeUnavailableItem(selectedOrder, item)}
+                              disabled={removingItemId === item.id}
+                              className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 disabled:opacity-50"
+                            >
+                              {removingItemId === item.id ? "Removing..." : "Mark unavailable"}
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <p className="font-extrabold text-slate-900">
-                        {formatRupees(item.line_total_paise || 0)}
-                      </p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -569,6 +661,15 @@ export default function OrdersPage() {
                   "delivered",
                   "Mark Delivered",
                   "bg-green-700 hover:bg-green-800 !px-4 !py-2 !rounded-xl",
+                )}
+              {["pending_review", "accepted", "preparing", "ready_for_dispatch"].includes(
+                selectedOrder.status,
+              ) &&
+                actionButton(
+                  selectedOrder,
+                  "cancelled",
+                  "Cancel Order",
+                  "bg-slate-600 hover:bg-slate-700 !px-4 !py-2 !rounded-xl",
                 )}
               <button
                 onClick={() => setSelectedOrder(null)}

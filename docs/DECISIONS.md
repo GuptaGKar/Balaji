@@ -33,7 +33,8 @@ Seeded at M0 from IMPLEMENTATION_PLAN.md §2. PROVISIONAL items are safe default
 | D-WEIGHT | Weighted precision | Canonical unit = grams (integer). Min step configurable per product (default 10 g). Price basis stored per product (per kg default; per 100 g allowed). |
 | D-BILLFMT | Bill format | Print-friendly HTML (A4 + 80 mm thermal CSS) **and** PDF download. Customer sees own bill in-app as rendered data; PDF share P1. |
 | D-OVERRIDE | POS price override | **Off** by default. If enabled: manager-only, reason required, audited. |
-| D-ROLES | Role creation | `manager` can create `staff` and `delivery`. Creating a `manager` is done manually via SQL by the deployment owner. No self-service escalation. |
+| D-ROLES | Role creation | `manager` can create `staff` and `delivery`. Creating a `manager` is done manually via SQL by the deployment owner. No self-service escalation. New auth users are always provisioned as `customer`. |
+| D-CANCEL | Cancellation cut-off (PROVISIONAL) | Customer may cancel only while `pending_review`; after acceptance the app directs them to contact the store. Staff/manager may cancel or reject before dispatch with a required reason through `transition_order`. Stock is restored exactly once. Owner must confirm the final cut-off/refund policy. |
 | D-HOURS | Operating hours | Settings: `store_open` flag (manual pause) + weekly hours in store timezone `Asia/Kolkata`. Checkout rejected when closed/paused. |
 | D-DIST | Android distribution | Internal testing / signed APK for pilot. |
 
@@ -153,6 +154,16 @@ Exact PIN codes/neighbourhoods · real delivery fee and free-delivery amount · 
 - **Web checks PASS**: `npm run lint`, `tsc --noEmit`, `next build` (production build).
 - **Guard script PASS**: no `minimum_order`, no hard-coded 250/25000.
 
+## Security/checkout hotfix records (2026-10-20)
+
+- **Migration 18** (`20261014000018_checkout_cancel_order_edit.sql`) corrects the manager-by-default signup trigger, drops the direct staff `UPDATE orders` policy, restores stock/idempotency/address checks in `place_order`, adds `cancel_my_order` (pending review only), and makes unavailable-item removal recompute the bill or cancel an emptied order.
+- **New auth users are customers**; manager/web auto-provisioning was removed. Existing manager profiles require manual owner review.
+- **Local SQL harness from zero: 48/48 passed**, including new-identity role, customer cancellation/stock restore, accepted-order cancellation rejection, direct-update blocking, and final-item auto-cancel.
+- **Android:** 23 unit tests passed; debug APK assembled (`versionCode 2`, `versionName 1.1`).
+- **Web:** type-check, lint and production build passed (existing lint warnings only).
+- **Guard script passed.**
+- **Not applied to live Supabase.** Migrations 15→16→17→18 remain an owner-approved deployment step; live checkout/cancel verification and the SQL pgTAP suite remain pending.
+
 ## M7 verification records (2026-10-14)
 
 - **Migration 15 applied** (delivery workflow + order corrections). All 15 migrations apply from zero.
@@ -175,7 +186,7 @@ Exact PIN codes/neighbourhoods · real delivery fee and free-delivery amount · 
 4. **Assignment auto-cleanup** — terminal states (delivered/failed) auto-unassign rider via `unassigned_at`.
 5. **COD collection on delivery** — `rider_update_status` auto-collects grand total when status → delivered for COD orders.
 6. **`delivery_failed` remains terminal (PROVISIONAL)** — owner decision needed for retry/resolve (logged since M1).
-7. **Stock column decrement issue** — `products.stock_qty` not decrementing in `place_order` (investigating); `inventory_movements` authoritative.
+7. **Stock column decrement issue (fixed 2026-10-20)** — migration 18 restores `products.stock_qty` updates and keeps `inventory_movements` in sync in `place_order`, cancellation, and item removal.
 
 ## M8 gate readiness
 

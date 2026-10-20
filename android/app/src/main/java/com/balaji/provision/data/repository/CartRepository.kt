@@ -19,9 +19,18 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import retrofit2.Response
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
@@ -47,26 +56,47 @@ class CartRepositoryImpl @Inject constructor(
     private val dataStore: DataStore<Preferences>,
     @Named("cartVersionKey") private val cartVersionKey: Preferences.Key<Int>
 ) : CartRepository {
-    
+
+    private val cartLock = Any()
     private val inMemoryCartItems = mutableListOf<CartItem>()
-    
+
     private val _cartFlow = MutableStateFlow<Cart>(Cart.empty())
     override val cartFlow: StateFlow<Cart> = _cartFlow.asStateFlow()
-    
+
     private val _quoteFlow = MutableStateFlow<QuoteBreakdown?>(null)
     override val quoteFlow: StateFlow<QuoteBreakdown?> = _quoteFlow.asStateFlow()
-    
+
+    private val quoteScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var quoteJob: Job? = null
+    @Volatile private var quoteVersion = 0L
+
     private fun notifyStateChanged() {
-        _cartFlow.value = Cart(items = inMemoryCartItems.toList())
+        val snapshot = synchronized(cartLock) { inMemoryCartItems.toList() }
+        _cartFlow.value = Cart(items = snapshot)
     }
 
-    private suspend fun refreshQuote() {
-        val items = inMemoryCartItems.toList()
-        if (items.isEmpty()) {
+    private fun scheduleQuoteRefresh(debounceMillis: Long = 180L) {
+        val snapshot = synchronized(cartLock) { inMemoryCartItems.toList() }
+        quoteVersion += 1
+        val version = quoteVersion
+        quoteJob?.cancel()
+
+        if (snapshot.isEmpty()) {
             _quoteFlow.value = QuoteBreakdown()
             return
         }
-        _quoteFlow.value = try {
+
+        quoteJob = quoteScope.launch {
+            if (debounceMillis > 0) delay(debounceMillis)
+            val quote = fetchQuote(snapshot)
+            if (version == quoteVersion) {
+                _quoteFlow.value = quote
+            }
+        }
+    }
+
+    private suspend fun fetchQuote(items: List<CartItem>): QuoteBreakdown? {
+        return try {
             val request = QuoteCartRequest(items = items.map { CartItemRequest(it.productId, it.qtyBase) })
             val anonKey = BuildConfig.SUPABASE_ANON_KEY
             val response = api.quoteCart(apiKey = anonKey, auth = "Bearer $anonKey", body = request)
@@ -76,58 +106,70 @@ class CartRepositoryImpl @Inject constructor(
             null
         }
     }
-    
-    override suspend fun getCart(): Cart {
-        return _cartFlow.value
+
+    override fun refreshQuote() {
+        scheduleQuoteRefresh(debounceMillis = 0L)
     }
-    
+
+    override suspend fun getCart(): Cart = _cartFlow.value
+
     override suspend fun addItem(item: CartItem): Cart {
-        val existingIndex = inMemoryCartItems.indexOfFirst { it.productId == item.productId }
-        if (existingIndex >= 0) {
-            val existing = inMemoryCartItems[existingIndex]
-            inMemoryCartItems[existingIndex] = existing.copy(qtyBase = existing.qtyBase + item.qtyBase)
-        } else {
-            inMemoryCartItems.add(item)
-        }
-        notifyStateChanged()
-        refreshQuote()
-        return _cartFlow.value
-    }
-    
-    override suspend fun updateQuantity(productId: String, qtyBase: Long): Cart {
-        if (qtyBase <= 0) {
-            inMemoryCartItems.removeAll { it.productId == productId }
-        } else {
-            val index = inMemoryCartItems.indexOfFirst { it.productId == productId }
-            if (index >= 0) {
-                inMemoryCartItems[index] = CartItem(productId, qtyBase)
+        synchronized(cartLock) {
+            val existingIndex = inMemoryCartItems.indexOfFirst { it.productId == item.productId }
+            if (existingIndex >= 0) {
+                val existing = inMemoryCartItems[existingIndex]
+                inMemoryCartItems[existingIndex] = existing.copy(qtyBase = existing.qtyBase + item.qtyBase)
             } else {
-                inMemoryCartItems.add(CartItem(productId, qtyBase))
+                inMemoryCartItems.add(item)
             }
         }
         notifyStateChanged()
-        refreshQuote()
+        scheduleQuoteRefresh()
         return _cartFlow.value
     }
-    
-    override suspend fun removeItem(productId: String): Cart {
-        inMemoryCartItems.removeAll { it.productId == productId }
-        notifyStateChanged()
-        refreshQuote()
-        return _cartFlow.value
-    }
-    
-    override suspend fun clearCart() {
-        inMemoryCartItems.clear()
-        notifyStateChanged()
-        refreshQuote()
-    }
-    
-    override suspend fun placeOrderRemote(address: AddressRequest, customerNote: String?): PlaceOrderResponse? {
-        val items = inMemoryCartItems.map { CartItemRequest(it.productId, it.qtyBase) }
-        if (items.isEmpty()) return null
 
-        val authToken = authRepository.authorizedToken() ?: return null
+    override suspend fun updateQuantity(productId: String, qtyBase: Long): Cart {
+        synchronized(cartLock) {
+            if (qtyBase <= 0) {
+                inMemoryCartItems.removeAll { it.productId == productId }
+            } else {
+                val index = inMemoryCartItems.indexOfFirst { it.productId == productId }
+                if (index >= 0) {
+                    inMemoryCartItems[index] = CartItem(productId, qtyBase)
+                } else {
+                    inMemoryCartItems.add(CartItem(productId, qtyBase))
+                }
+            }
+        }
+        notifyStateChanged()
+        scheduleQuoteRefresh()
+        return _cartFlow.value
+    }
+
+    override suspend fun removeItem(productId: String): Cart {
+        synchronized(cartLock) {
+            inMemoryCartItems.removeAll { it.productId == productId }
+        }
+        notifyStateChanged()
+        scheduleQuoteRefresh()
+        return _cartFlow.value
+    }
+
+    override suspend fun clearCart() {
+        synchronized(cartLock) { inMemoryCartItems.clear() }
+        notifyStateChanged()
+        scheduleQuoteRefresh()
+    }
+
+    override suspend fun placeOrderRemote(address: AddressRequest, customerNote: String?): PlaceOrderResult {
+        val items = synchronized(cartLock) {
+            inMemoryCartItems.map { CartItemRequest(it.productId, it.qtyBase) }
+        }
+        if (items.isEmpty()) return PlaceOrderResult.Failure("Your cart is empty.")
+
+        val authToken = authRepository.authorizedToken()
+            ?: return PlaceOrderResult.Failure("Sign in to place your order.")
+
         val anonKey = BuildConfig.SUPABASE_ANON_KEY
         val payload = PlaceOrderPayload(
             items = items,
@@ -142,10 +184,29 @@ class CartRepositoryImpl @Inject constructor(
 
         return try {
             val response = api.placeOrder(apiKey = anonKey, auth = "Bearer $authToken", body = request)
-            response.body().takeIf { response.isSuccessful }
+            val body = response.body()
+            when {
+                !response.isSuccessful -> PlaceOrderResult.Failure(response.apiErrorMessage())
+                body == null -> PlaceOrderResult.Failure("The store did not confirm your order. Please try again.")
+                body.error != null -> PlaceOrderResult.Failure(body.message ?: body.error)
+                body.order_id.isNullOrBlank() || body.public_order_number.isNullOrBlank() ->
+                    PlaceOrderResult.Failure("The store did not confirm your order. Please try again.")
+                else -> PlaceOrderResult.Success(body)
+            }
         } catch (e: Exception) {
-            null
+            PlaceOrderResult.Failure("Could not reach the store. Check your connection and try again.")
         }
+    }
+
+    private fun Response<*>.apiErrorMessage(): String {
+        val raw = errorBody()?.string().orEmpty()
+        val parsed = runCatching {
+            Json { ignoreUnknownKeys = true }.decodeFromString<ApiErrorResponse>(raw)
+        }.getOrNull()
+        return parsed?.message
+            ?: parsed?.error_description
+            ?: parsed?.error
+            ?: "The request could not be completed. Please try again."
     }
 
     private fun mapToQuoteBreakdown(response: QuoteCartResponse): QuoteBreakdown {
@@ -174,13 +235,26 @@ class CartRepositoryImpl @Inject constructor(
     }
 }
 
+sealed interface PlaceOrderResult {
+    data class Success(val response: PlaceOrderResponse) : PlaceOrderResult
+    data class Failure(val message: String) : PlaceOrderResult
+}
+
+@Serializable
+private data class ApiErrorResponse(
+    val error: String? = null,
+    val message: String? = null,
+    val error_description: String? = null
+)
+
 interface CartRepository {
     val cartFlow: StateFlow<Cart>
     val quoteFlow: StateFlow<QuoteBreakdown?>
+    fun refreshQuote() {}
     suspend fun getCart(): Cart
     suspend fun addItem(item: CartItem): Cart
     suspend fun updateQuantity(productId: String, qtyBase: Long): Cart
     suspend fun removeItem(productId: String): Cart
     suspend fun clearCart()
-    suspend fun placeOrderRemote(address: AddressRequest, customerNote: String?): PlaceOrderResponse?
+    suspend fun placeOrderRemote(address: AddressRequest, customerNote: String?): PlaceOrderResult
 }

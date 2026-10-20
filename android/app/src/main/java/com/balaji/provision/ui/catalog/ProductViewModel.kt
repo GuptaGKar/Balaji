@@ -9,6 +9,8 @@ import com.balaji.provision.data.repository.CatalogRepository
 import com.balaji.provision.domain.model.Category
 import com.balaji.provision.domain.model.Product
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -41,22 +43,36 @@ class ProductViewModel @Inject constructor(
     val error = _error.asStateFlow()
     
     init {
+        // Show the last live catalogue immediately when returning to the tab,
+        // then refresh in the background.
+        if (catalogRepository.liveCategories.isNotEmpty()) {
+            _categories.value = catalogRepository.liveCategories
+            _allProducts.value = catalogRepository.liveProducts
+            filterProducts()
+        }
         loadData()
     }
     
     fun loadData() {
         viewModelScope.launch {
-            _isLoading.value = true
+            _isLoading.value = _allProducts.value.isEmpty()
             _error.value = null
             try {
-                val catResponse = api.getCategories(
-                    apiKey = BuildConfig.SUPABASE_ANON_KEY,
-                    auth = "Bearer ${BuildConfig.SUPABASE_ANON_KEY}"
-                )
-                val prodResponse = api.getProducts(
-                    apiKey = BuildConfig.SUPABASE_ANON_KEY,
-                    auth = "Bearer ${BuildConfig.SUPABASE_ANON_KEY}"
-                )
+                val (catResponse, prodResponse) = coroutineScope {
+                    val categories = async {
+                        api.getCategories(
+                            apiKey = BuildConfig.SUPABASE_ANON_KEY,
+                            auth = "Bearer ${BuildConfig.SUPABASE_ANON_KEY}"
+                        )
+                    }
+                    val products = async {
+                        api.getProducts(
+                            apiKey = BuildConfig.SUPABASE_ANON_KEY,
+                            auth = "Bearer ${BuildConfig.SUPABASE_ANON_KEY}"
+                        )
+                    }
+                    categories.await() to products.await()
+                }
                 
                 if (catResponse.isSuccessful && prodResponse.isSuccessful) {
                     val catList = catResponse.body()?.filter { it.active }?.map { it.toDomain() } ?: emptyList()
@@ -66,15 +82,14 @@ class ProductViewModel @Inject constructor(
                     catalogRepository.liveProducts = prodList
                     _categories.value = catList
                     _allProducts.value = prodList
+                    if (_selectedCategory.value !in catList.map { it.id }) {
+                        _selectedCategory.value = null
+                    }
                 } else {
-                    _categories.value = emptyList()
-                    _allProducts.value = emptyList()
-                    _error.value = "Could not load the catalogue. Please check your connection and try again."
+                    _error.value = "Could not refresh the catalogue. Pull to retry or check your connection."
                 }
             } catch (e: Exception) {
-                _categories.value = emptyList()
-                _allProducts.value = emptyList()
-                _error.value = "Could not load the catalogue. Please check your connection and try again."
+                _error.value = "Could not refresh the catalogue. Check your connection and try again."
             } finally {
                 filterProducts()
                 _isLoading.value = false

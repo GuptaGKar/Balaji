@@ -1,8 +1,9 @@
 package com.balaji.provision.ui.cart
 
 import com.balaji.provision.data.network.AddressRequest
-import com.balaji.provision.data.network.PlaceOrderResponse
 import com.balaji.provision.data.repository.CartRepository
+import com.balaji.provision.data.repository.CatalogRepository
+import com.balaji.provision.data.repository.PlaceOrderResult
 import com.balaji.provision.domain.model.Cart
 import com.balaji.provision.domain.model.CartItem
 import com.balaji.provision.domain.model.QuoteBreakdown
@@ -32,7 +33,7 @@ class CartViewModelTest {
     fun setup() {
         Dispatchers.setMain(dispatcher)
         repository = FakeCartRepository()
-        viewModel = CartViewModel(repository)
+        viewModel = CartViewModel(repository, CatalogRepository())
     }
 
     @After
@@ -118,6 +119,6 @@ class CartViewModelTest {
         override suspend fun placeOrderRemote(
             address: AddressRequest,
             customerNote: String?
-        ): PlaceOrderResponse? = null
+        ): PlaceOrderResult = PlaceOrderResult.Failure("not configured")
     }
 }
