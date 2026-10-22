@@ -1,9 +1,9 @@
 package com.balaji.provision.ui.cart
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,18 +11,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LocalShipping
-import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Scale
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
@@ -40,28 +39,36 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.balaji.provision.domain.model.CartItem
 import com.balaji.provision.domain.model.Product
 import com.balaji.provision.domain.model.QuantityType
 import com.balaji.provision.domain.model.QuoteBreakdown
 import com.balaji.provision.domain.model.formatPaise
+import com.balaji.provision.ui.components.EmptyState
+import com.balaji.provision.ui.components.MoneyText
+import com.balaji.provision.ui.components.ProductThumb
+import com.balaji.provision.ui.components.QuantityStepper
+import com.balaji.provision.ui.components.StatusPill
+import com.balaji.provision.ui.components.StickyBottomBar
+import com.balaji.provision.ui.components.StoreTopBar
+import com.balaji.provision.ui.components.SummaryRow
 import com.balaji.provision.ui.components.WeightedQuantityDialog
+import com.balaji.provision.ui.theme.appColors
 
 @Composable
 fun CartScreen(
     viewModel: CartViewModel = hiltViewModel(),
-    onNavigateToCheckout: () -> Unit
+    onNavigateToCheckout: () -> Unit,
+    onNavigateToCatalog: () -> Unit = {}
 ) {
     val cart by viewModel.cart.collectAsState()
     val quote by viewModel.quote.collectAsState()
     val error by viewModel.error.collectAsState()
-    
+
     var weightedProductDialog by remember { mutableStateOf<Pair<Product, Long>?>(null) }
 
     weightedProductDialog?.let { (prod, currentGrams) ->
@@ -75,128 +82,59 @@ fun CartScreen(
         )
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize()
-    ) {
-        // Top Header
-        Surface(
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 2.dp
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.ShoppingCart,
-                        contentDescription = "Cart",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(28.dp)
-                    )
-                    Text("Your Grocery Basket", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                }
-                
-                if (cart.items.isNotEmpty()) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer
-                    ) {
-                        Text(
-                            "${cart.items.size} items",
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                }
-            }
+    Column(modifier = Modifier.fillMaxSize()) {
+        StoreTopBar(
+            title = "Your basket",
+            subtitle = if (cart.items.isEmpty()) {
+                "Nothing added yet"
+            } else {
+                "${cart.items.size} ${if (cart.items.size == 1) "item" else "items"} ready to deliver"
+            },
+            leadingIcon = Icons.Default.ShoppingCart
+        )
+
+        error?.let { errorMsg ->
+            Text(
+                text = errorMsg,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+            )
         }
-        
+
         if (cart.items.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text("Your cart is currently empty", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    Text(
-                        "Explore our fresh catalogue and add groceries",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                EmptyState(
+                    icon = Icons.Default.ShoppingCart,
+                    title = "Your basket is empty",
+                    message = "Browse the catalogue and add the groceries you need. They will be waiting here for checkout.",
+                    actionLabel = "Browse catalogue",
+                    onAction = onNavigateToCatalog
+                )
             }
         } else {
-            Column(
-                modifier = Modifier.fillMaxSize()
-            ) {
-                // Free Delivery Banner
+            Column(modifier = Modifier.weight(1f)) {
                 quote?.let { q ->
-                    if (q.belowChargeThreshold && q.amountToFreeDelivery > 0) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.tertiaryContainer,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.LocalShipping,
-                                    contentDescription = "Delivery",
-                                    tint = MaterialTheme.colorScheme.onTertiaryContainer
-                                )
-                                Text(
-                                    "Add ${formatPaise(q.amountToFreeDelivery)} more for FREE Local Delivery!",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onTertiaryContainer
-                                )
-                            }
-                        }
-                    } else if (!q.belowChargeThreshold) {
-                        Surface(
-                            color = Color(0xFFDCFCE7),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Text(
-                                    "Congratulations! You unlocked FREE Local Delivery!",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF15803D)
-                                )
-                            }
-                        }
-                    }
+                    DeliveryPromiseBanner(quote = q)
                 }
-                
-                // Scrollable Item List + Order Summary
+
                 LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = 12.dp,
+                        bottom = 104.dp
+                    ),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(cart.items, key = { it.productId }) { item ->
                         val lineInfo = quote?.lines?.find { it.productId == item.productId }
                         val product = viewModel.findProduct(item.productId)
-                        
+
                         CartItemCard(
                             item = item,
                             lineInfo = lineInfo,
@@ -212,28 +150,23 @@ fun CartScreen(
                             }
                         )
                     }
-                    
-                    // Total Value Card dynamically positioned below the list
+
                     quote?.let { q ->
                         item(key = "order_summary") {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            OrderSummaryCard(
-                                quote = q,
-                                onCheckoutClick = onNavigateToCheckout
-                            )
+                            OrderSummaryCard(quote = q)
                         }
                     } ?: item(key = "quote_retry") {
                         Card(
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.errorContainer
                             ),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(16.dp)
                         ) {
                             Column(Modifier.padding(16.dp)) {
                                 Text(
                                     "Could not update your total. Check your connection.",
                                     color = MaterialTheme.colorScheme.onErrorContainer,
-                                    fontSize = 13.sp
+                                    style = MaterialTheme.typography.bodyMedium
                                 )
                                 Button(
                                     onClick = { viewModel.refreshQuote() },
@@ -246,13 +179,74 @@ fun CartScreen(
                     }
                 }
             }
+
+            StickyBottomBar {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Total payable (COD)",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    MoneyText(
+                        text = formatPaise(quote?.grandTotalPaise ?: 0L),
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Button(
+                    onClick = onNavigateToCheckout,
+                    enabled = quote != null,
+                    modifier = Modifier.height(48.dp),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Proceed to checkout")
+                }
+            }
         }
-        
-        error?.let { errorMsg ->
+    }
+}
+
+@Composable
+private fun DeliveryPromiseBanner(quote: QuoteBreakdown) {
+    val unlocked = !quote.belowChargeThreshold
+    if (!unlocked && quote.amountToFreeDelivery <= 0L) return
+    Surface(
+        color = if (unlocked) {
+            MaterialTheme.appColors.successContainer
+        } else {
+            MaterialTheme.appColors.warningContainer
+        },
+        shape = RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(
+                imageVector = if (unlocked) Icons.Default.CheckCircle else Icons.Default.LocalShipping,
+                contentDescription = null,
+                tint = if (unlocked) {
+                    MaterialTheme.appColors.onSuccessContainer
+                } else {
+                    MaterialTheme.appColors.onWarningContainer
+                },
+                modifier = Modifier.size(20.dp)
+            )
             Text(
-                text = errorMsg,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(16.dp)
+                text = if (unlocked) {
+                    "You unlocked FREE local delivery!"
+                } else {
+                    "Add ${formatPaise(quote.amountToFreeDelivery)} more for FREE local delivery"
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = if (unlocked) {
+                    MaterialTheme.appColors.onSuccessContainer
+                } else {
+                    MaterialTheme.appColors.onWarningContainer
+                }
             )
         }
     }
@@ -268,81 +262,79 @@ fun CartItemCard(
     onRemove: () -> Unit
 ) {
     val isWeighted = product?.quantityType == QuantityType.WEIGHTED ||
-                     (lineInfo?.displayQty?.contains("g") == true || lineInfo?.displayQty?.contains("kg") == true) ||
-                     item.qtyBase >= 100
+        (lineInfo?.displayQty?.contains("g") == true || lineInfo?.displayQty?.contains("kg") == true) ||
+        item.qtyBase >= 100
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Column(Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(14.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(if (isWeighted) "⚖️" else "🛍️", fontSize = 24.sp)
-                }
-                
+                ProductThumb(
+                    name = lineInfo?.name ?: product?.name ?: item.productId,
+                    size = 52,
+                    imageUrl = product?.imagePath
+                )
+
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     Text(
                         lineInfo?.name ?: product?.name ?: "Item #${item.productId}",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        maxLines = 2
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        "Unit Rate: ${lineInfo?.let { formatPaise(it.unitPricePaise) } ?: (product?.let { formatPaise(it.pricePaise) } ?: "-")}",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp
+                        "Unit rate ${lineInfo?.let { formatPaise(it.unitPricePaise) } ?: (product?.let { formatPaise(it.pricePaise) } ?: "-")}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Text(
-                        lineInfo?.let { formatPaise(it.lineTotalPaise) } ?: (product?.let { formatPaise(it.pricePaise) } ?: "-"),
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 16.sp,
+                    MoneyText(
+                        text = lineInfo?.let { formatPaise(it.lineTotalPaise) }
+                            ?: (product?.let { formatPaise(it.pricePaise) } ?: "-"),
+                        style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
-                
+
                 IconButton(onClick = onRemove) {
                     Icon(
                         Icons.Default.Delete,
-                        contentDescription = "Remove",
-                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
+                        contentDescription = "Remove ${lineInfo?.name ?: product?.name ?: "item"} from basket",
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.85f)
                     )
                 }
             }
-            
-            Spacer(modifier = Modifier.height(10.dp))
-            
+
+            Divider(
+                modifier = Modifier.padding(vertical = 10.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    "Selected: ${lineInfo?.displayQty ?: if (isWeighted) "${item.qtyBase} g" else "${item.qtyBase} packs"}",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
+                StatusPill(
+                    text = lineInfo?.displayQty ?: if (isWeighted) "${item.qtyBase} g" else "${item.qtyBase} packs",
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                
+
                 if (isWeighted) {
-                    // Custom Weight Adjustment Button (NO +/- buttons)
                     val targetProd = product ?: Product(
                         id = item.productId,
                         sku = "WEIGHTED",
@@ -363,49 +355,30 @@ fun CartItemCard(
                         active = true,
                         available = true
                     )
-                    
+
                     OutlinedButton(
                         onClick = { onEditWeight(targetProd) },
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(Icons.Default.Scale, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.size(4.dp))
-                        Text("Set Weight (g / kg)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Icon(
+                            Icons.Default.Scale,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Set weight", style = MaterialTheme.typography.labelLarge)
                     }
                 } else {
-                    // + / - Stepper for Packed Items
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                        ) {
-                            val step = product?.stepQty ?: 1L
-                            IconButton(
-                                onClick = { onQuantityChange(item.qtyBase - step) },
-                                modifier = Modifier.size(28.dp)
-                            ) {
-                                Icon(Icons.Default.Remove, contentDescription = "Decrease", modifier = Modifier.size(14.dp))
-                            }
-                            
-                            Text(
-                                item.qtyBase.toString(),
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 8.dp)
-                            )
-                            
-                            IconButton(
-                                onClick = { onQuantityChange(item.qtyBase + step) },
-                                modifier = Modifier.size(28.dp)
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = "Increase", modifier = Modifier.size(14.dp))
-                            }
-                        }
-                    }
+                    val step = product?.stepQty ?: 1L
+                    QuantityStepper(
+                        value = item.qtyBase,
+                        onDecrease = { onQuantityChange(item.qtyBase - step) },
+                        onIncrease = { onQuantityChange(item.qtyBase + step) },
+                        decreaseContentDescription = "Decrease quantity of ${lineInfo?.name ?: product?.name ?: "item"}",
+                        increaseContentDescription = "Increase quantity of ${lineInfo?.name ?: product?.name ?: "item"}",
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
                 }
             }
         }
@@ -413,76 +386,72 @@ fun CartItemCard(
 }
 
 @Composable
-fun OrderSummaryCard(
-    quote: QuoteBreakdown,
-    onCheckoutClick: () -> Unit
-) {
-    Surface(
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 4.dp,
-        shape = RoundedCornerShape(16.dp),
+fun OrderSummaryCard(quote: QuoteBreakdown) {
+    Card(
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Order Summary", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text(
+                "Order summary",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
             Divider(color = MaterialTheme.colorScheme.outlineVariant)
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text("Item Subtotal", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(formatPaise(quote.itemSubtotalPaise), fontWeight = FontWeight.Medium)
-            }
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text("Delivery Charge", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(
-                    if (quote.deliveryFeePaise == 0L) "FREE" else formatPaise(quote.deliveryFeePaise),
-                    fontWeight = FontWeight.Bold,
-                    color = if (quote.deliveryFeePaise == 0L) Color(0xFF16A34A) else MaterialTheme.colorScheme.onSurface
+
+            SummaryRow(label = "Item subtotal", value = formatPaise(quote.itemSubtotalPaise))
+
+            if (quote.discountPaise > 0L) {
+                SummaryRow(
+                    label = "Discount",
+                    value = "-${formatPaise(quote.discountPaise)}",
+                    valueColor = MaterialTheme.appColors.success
                 )
             }
-            
-            Divider(color = MaterialTheme.colorScheme.outlineVariant)
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text("Grand Total", fontWeight = FontWeight.Bold)
-                    Text("Cash on Delivery (COD)", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+            SummaryRow(
+                label = "Delivery charge",
+                value = if (quote.deliveryFeePaise == 0L) "FREE" else formatPaise(quote.deliveryFeePaise),
+                valueColor = if (quote.deliveryFeePaise == 0L) {
+                    MaterialTheme.appColors.success
+                } else {
+                    MaterialTheme.colorScheme.onSurface
                 }
+            )
+
+            if (quote.taxPaise > 0L) {
+                SummaryRow(label = "Tax", value = formatPaise(quote.taxPaise))
+            }
+
+            if (quote.feeRuleNote.isNotBlank()) {
                 Text(
-                    formatPaise(quote.grandTotalPaise),
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 20.sp,
-                    color = MaterialTheme.colorScheme.primary
+                    quote.feeRuleNote,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            
-            Spacer(modifier = Modifier.height(6.dp))
-            
-            Button(
-                onClick = onCheckoutClick,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
-            ) {
-                Text("Proceed to Checkout", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            }
+
+            Divider(color = MaterialTheme.colorScheme.outlineVariant)
+
+            SummaryRow(
+                label = "Grand total",
+                value = formatPaise(quote.grandTotalPaise),
+                emphasise = true,
+                valueColor = MaterialTheme.colorScheme.primary
+            )
+
+            Text(
+                "Cash on Delivery (COD)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

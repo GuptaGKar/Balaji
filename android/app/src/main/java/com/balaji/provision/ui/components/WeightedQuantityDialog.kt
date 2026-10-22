@@ -144,8 +144,16 @@ fun WeightedQuantityDialog(
                             )
                         }
                         Column {
-                            Text("Custom Weight", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                            Text(product.name, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                "Choose weight",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                product.name,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                     
@@ -180,7 +188,11 @@ fun WeightedQuantityDialog(
                 }
                 
                 // Quick Weight Preset Chips
-                Text("Quick Selection", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "Quick selection",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -195,10 +207,16 @@ fun WeightedQuantityDialog(
                         FilterChip(
                             selected = inputText == preset,
                             onClick = { inputText = preset },
-                            label = { Text(if (selectedUnit == WeightUnit.GRAMS) "${preset}g" else "${preset}kg", fontSize = 12.sp) },
+                            label = {
+                                Text(
+                                    if (selectedUnit == WeightUnit.GRAMS) "${preset}g" else "${preset}kg",
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                            },
+                            shape = RoundedCornerShape(50),
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                selectedLabelColor = Color.White
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary
                             )
                         )
                     }
@@ -217,7 +235,7 @@ fun WeightedQuantityDialog(
                     suffix = { Text(if (selectedUnit == WeightUnit.GRAMS) "g" else "kg", fontWeight = FontWeight.Bold) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(14.dp),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = MaterialTheme.colorScheme.primary
@@ -236,20 +254,27 @@ fun WeightedQuantityDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text("Total Weight", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                "Total weight",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                             Text(
                                 formatWeightGrams(calculatedGrams),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
-                        
+
                         Column(horizontalAlignment = Alignment.End) {
-                            Text("Calculated Price", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
-                                formatPaise(calculatedPricePaise),
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 20.sp,
+                                "Calculated price",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            MoneyText(
+                                text = formatPaise(calculatedPricePaise),
+                                style = MaterialTheme.typography.titleLarge,
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
@@ -260,7 +285,7 @@ fun WeightedQuantityDialog(
                     Text(
                         "Please select between ${product.minQty}g and ${product.maxOrderQty}g",
                         color = MaterialTheme.colorScheme.error,
-                        fontSize = 12.sp,
+                        style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -277,12 +302,12 @@ fun WeightedQuantityDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary
                     )
                 ) {
-                    Text("Confirm & Add to Basket", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("Confirm & add to basket", style = MaterialTheme.typography.titleSmall)
                 }
             }
         }
@@ -299,16 +324,20 @@ fun UnitToggleButton(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(8.dp),
-        color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
         modifier = modifier
     ) {
         Text(
             text = label,
-            modifier = Modifier.padding(vertical = 10.dp),
+            modifier = Modifier.padding(vertical = 12.dp),
             textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.labelLarge,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            fontSize = 13.sp,
-            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+            color = if (isSelected) {
+                MaterialTheme.colorScheme.onPrimary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            }
         )
     }
 }

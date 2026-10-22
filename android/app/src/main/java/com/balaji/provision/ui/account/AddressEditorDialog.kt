@@ -82,7 +82,12 @@ fun AddressEditorDialog(
 
     AlertDialog(
         onDismissRequest = { if (!isSaving) onDismiss() },
-        title = { Text(if (initial == null) "Add delivery address" else "Edit delivery address") },
+        title = {
+            Text(
+                text = if (initial == null) "Add delivery address" else "Edit delivery address",
+                style = MaterialTheme.typography.titleMedium
+            )
+        },
         text = {
             Column(
                 modifier = Modifier
@@ -180,11 +185,19 @@ fun AddressEditorDialog(
                         checked = isDefault,
                         onCheckedChange = null
                     )
-                    Text("Make this my default delivery address")
+                    Text(
+                        text = "Make this my default delivery address",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                 }
                 val error = localError ?: serverError
                 if (error != null) {
-                    Text(error, color = MaterialTheme.colorScheme.error)
+                    Text(
+                        text = error,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
             }
         },

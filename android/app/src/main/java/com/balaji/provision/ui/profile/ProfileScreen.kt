@@ -7,10 +7,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,6 +24,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -54,6 +57,7 @@ import com.balaji.provision.domain.model.SavedAddress
 import com.balaji.provision.ui.account.AccountViewModel
 import com.balaji.provision.ui.account.AddressEditorDialog
 import com.balaji.provision.ui.account.SavedAddressCard
+import com.balaji.provision.ui.components.StoreTopBar
 import com.balaji.provision.ui.auth.AuthViewModel
 import com.balaji.provision.ui.home.HomeViewModel
 
@@ -176,26 +180,11 @@ fun ProfileScreen(
             .fillMaxSize()
             .verticalScroll(scrollState)
     ) {
-        Surface(
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 2.dp
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Icon(
-                    Icons.Default.Person,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(28.dp)
-                )
-                Text("My Profile & Account", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            }
-        }
+        StoreTopBar(
+            title = "Profile & account",
+            subtitle = if (session != null) "Your details and saved addresses" else "Sign in to manage your account",
+            leadingIcon = Icons.Default.Person
+        )
 
         Column(
             modifier = Modifier.padding(16.dp),
@@ -234,26 +223,29 @@ fun ProfileScreen(
                     ) {
                         Text(
                             displayName,
-                            fontSize = 19.sp,
-                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                         Text(
                             verifiedPhone ?: "Not signed in",
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
                         )
                         Text(
                             if (session != null) "Customer account" else "Sign in to place orders and view order history.",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
                         )
                     }
 
                     if (session != null) {
-                        OutlinedButton(onClick = { showEditProfile = true }) {
+                        OutlinedButton(
+                            onClick = { showEditProfile = true },
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
                             Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Text(" Edit", fontSize = 12.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Edit", style = MaterialTheme.typography.labelLarge)
                         }
                     }
                 }
@@ -283,7 +275,11 @@ fun ProfileScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("Saved Addresses", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(
+                            "Saved addresses",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                         if (session != null) {
                             TextButton(
                                 onClick = {
@@ -307,7 +303,7 @@ fun ProfileScreen(
                             Text(
                                 "No saved addresses yet. Add one so checkout is faster.",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 13.sp
+                                style = MaterialTheme.typography.bodyMedium
                             )
                             Button(
                                 onClick = {
@@ -339,7 +335,7 @@ fun ProfileScreen(
                             Text(
                                 accountState.error.orEmpty(),
                                 color = MaterialTheme.colorScheme.error,
-                                fontSize = 13.sp
+                                style = MaterialTheme.typography.bodySmall
                             )
                             TextButton(onClick = { accountViewModel.refresh() }) {
                                 Text("Retry")
@@ -349,18 +345,22 @@ fun ProfileScreen(
                         Text(
                             "Sign in to save addresses for faster checkout.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 13.sp
+                            style = MaterialTheme.typography.bodyMedium
                         )
                     }
                 }
             }
 
             if (session != null) {
-                Button(
+                OutlinedButton(
                     onClick = { authViewModel.signOut() },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
                 ) {
-                    Text("Sign Out")
+                    Text("Sign out", style = MaterialTheme.typography.labelLarge)
                 }
             }
 
@@ -378,7 +378,11 @@ fun ProfileScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(Icons.Default.Store, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Text("Balaji Provision Store", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(
+                            "Balaji Provision Store",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                     Divider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant)
                     InfoRow("Application Version", BuildConfig.VERSION_NAME)
@@ -414,21 +418,27 @@ private fun EditProfileDialog(
                     onValueChange = { name = it },
                     label = { Text("Your name") },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp)
                 )
                 Text(
                     "Mobile: ${phone ?: "Not available"}",
+                    style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
-                    fontSize = 14.sp
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     "Your mobile number is verified and used to sign in. Change the contact number on an address instead.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp
+                    style = MaterialTheme.typography.bodySmall
                 )
                 val message = localError ?: error
                 if (message != null) {
-                    Text(message, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                    Text(
+                        message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
             }
         },
@@ -468,11 +478,15 @@ fun InfoRow(label: String, value: String, onClick: (() -> Unit)? = null) {
             .padding(vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+        Text(
+            label,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium
+        )
         Text(
             value,
+            style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
-            fontSize = 13.sp,
             color = if (onClick != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
         )
     }

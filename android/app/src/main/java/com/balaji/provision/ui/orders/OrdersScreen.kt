@@ -14,15 +14,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ListAlt
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.PendingActions
+import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -44,13 +43,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.balaji.provision.domain.model.formatPaise
 import com.balaji.provision.domain.model.formatWeightGrams
+import com.balaji.provision.ui.components.EmptyState
+import com.balaji.provision.ui.components.ErrorState
+import com.balaji.provision.ui.components.LoadingState
+import com.balaji.provision.ui.components.MoneyText
+import com.balaji.provision.ui.components.StatusPill
+import com.balaji.provision.ui.components.StoreTopBar
+import com.balaji.provision.ui.theme.appColors
 import kotlinx.coroutines.launch
 
 @Composable
@@ -70,30 +76,15 @@ fun OrdersScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Surface(
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 2.dp
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.ListAlt,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(28.dp)
-                        )
-                        Text("Your Orders", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    }
-
+            StoreTopBar(
+                title = "My orders",
+                subtitle = if (orders.isEmpty()) {
+                    "Your delivery history"
+                } else {
+                    "${orders.size} ${if (orders.size == 1) "order" else "orders"}"
+                },
+                leadingIcon = Icons.Default.ReceiptLong,
+                trailing = {
                     IconButton(onClick = { viewModel.fetchOrders() }) {
                         Icon(
                             Icons.Default.Refresh,
@@ -102,37 +93,28 @@ fun OrdersScreen(
                         )
                     }
                 }
-            }
+            )
 
             when {
-                isLoading && orders.isEmpty() -> Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                }
+                isLoading && orders.isEmpty() -> LoadingState(message = "Loading your orders...")
 
                 error != null && orders.isEmpty() -> Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(24.dp)
+                    if (error?.contains("Sign in", ignoreCase = true) == true ||
+                        error?.contains("session expired", ignoreCase = true) == true
                     ) {
-                        Text(
-                            error ?: "",
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        ErrorState(
+                            message = error.orEmpty(),
+                            actionLabel = "Sign in",
+                            onAction = onNavigateToSignIn
                         )
-                        if (error?.contains("Sign in", ignoreCase = true) == true ||
-                            error?.contains("session expired", ignoreCase = true) == true
-                        ) {
-                            Button(onClick = onNavigateToSignIn) { Text("Sign In") }
-                        } else {
-                            Button(onClick = { viewModel.fetchOrders() }) { Text("Retry") }
-                        }
+                    } else {
+                        ErrorState(
+                            message = error.orEmpty(),
+                            onAction = { viewModel.fetchOrders() }
+                        )
                     }
                 }
 
@@ -140,17 +122,11 @@ fun OrdersScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(24.dp)
-                    ) {
-                        Text("No orders yet", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                        Text(
-                            "Your placed orders will appear here.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    EmptyState(
+                        icon = Icons.Default.ReceiptLong,
+                        title = "No orders yet",
+                        message = "Your placed orders will appear here with live status updates."
+                    )
                 }
 
                 else -> LazyColumn(
@@ -192,7 +168,8 @@ fun OrdersScreen(
                         onValueChange = { cancelReason = it },
                         label = { Text("Reason (optional)") },
                         modifier = Modifier.fillMaxWidth(),
-                        maxLines = 3
+                        maxLines = 3,
+                        shape = RoundedCornerShape(14.dp)
                     )
                 }
             },
@@ -230,22 +207,31 @@ fun OrdersScreen(
 fun OrderCard(order: OrderView, onCancel: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Column(Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
-                Column {
-                    Text("#${order.publicOrderNumber}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "#${order.publicOrderNumber}",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                     Text(
                         order.createdAt,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "${order.items.size} ${if (order.items.size == 1) "item" else "items"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 OrderStatusChip(status = order.status)
@@ -254,7 +240,7 @@ fun OrderCard(order: OrderView, onCancel: () -> Unit) {
             if (order.hasRemovedItems) {
                 Surface(
                     color = MaterialTheme.colorScheme.errorContainer,
-                    shape = RoundedCornerShape(8.dp),
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 10.dp)
@@ -262,8 +248,8 @@ fun OrderCard(order: OrderView, onCancel: () -> Unit) {
                     Text(
                         "Some items were unavailable and removed by the store. Your bill has been updated.",
                         color = MaterialTheme.colorScheme.onErrorContainer,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(10.dp)
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(12.dp)
                     )
                 }
             }
@@ -273,7 +259,7 @@ fun OrderCard(order: OrderView, onCancel: () -> Unit) {
                 color = MaterialTheme.colorScheme.outlineVariant
             )
 
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 order.items.forEach { item ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -283,8 +269,7 @@ fun OrderCard(order: OrderView, onCancel: () -> Unit) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 item.name,
-                                fontSize = 13.sp,
-                                maxLines = 2,
+                                style = MaterialTheme.typography.bodyMedium,
                                 textDecoration = if (item.removed) TextDecoration.LineThrough else null,
                                 color = if (item.removed) {
                                     MaterialTheme.colorScheme.onSurfaceVariant
@@ -294,22 +279,21 @@ fun OrderCard(order: OrderView, onCancel: () -> Unit) {
                             )
                             Text(
                                 itemQuantity(item),
-                                fontSize = 11.sp,
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             if (item.removed) {
                                 Text(
                                     "Not available",
-                                    fontSize = 11.sp,
+                                    style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.error
                                 )
                             }
                         }
-                        Text(
-                            if (item.removed) "Removed" else formatPaise(item.lineTotalPaise),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
+                        MoneyText(
+                            text = if (item.removed) "Removed" else formatPaise(item.lineTotalPaise),
+                            style = MaterialTheme.typography.bodyMedium,
                             color = if (item.removed) {
                                 MaterialTheme.colorScheme.onSurfaceVariant
                             } else {
@@ -332,30 +316,22 @@ fun OrderCard(order: OrderView, onCancel: () -> Unit) {
             ) {
                 Column {
                     Text(
-                        "Grand Total",
-                        fontSize = 12.sp,
+                        "Grand total",
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Text(
-                        formatPaise(order.grandTotalPaise),
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 18.sp,
+                    MoneyText(
+                        text = formatPaise(order.grandTotalPaise),
+                        style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
 
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer
-                ) {
-                    Text(
-                        "Cash on Delivery",
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
+                StatusPill(
+                    text = "Cash on Delivery",
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
             }
 
             if (order.canCancel) {
@@ -363,10 +339,10 @@ fun OrderCard(order: OrderView, onCancel: () -> Unit) {
                     onClick = onCancel,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 12.dp),
-                    shape = RoundedCornerShape(10.dp)
+                        .padding(top = 14.dp),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Cancel order", fontWeight = FontWeight.Bold)
+                    Text("Cancel order", style = MaterialTheme.typography.labelLarge)
                 }
             }
         }
@@ -383,29 +359,66 @@ private fun itemQuantity(item: OrderItemView): String {
 
 @Composable
 fun OrderStatusChip(status: String) {
-    val (color, label, icon) = when (status.lowercase()) {
-        "pending_review" -> Triple(Color(0xFFD97706), "PENDING REVIEW", Icons.Default.PendingActions)
-        "accepted" -> Triple(Color(0xFF2563EB), "ACCEPTED", Icons.Default.CheckCircle)
-        "preparing" -> Triple(Color(0xFF7C3AED), "PREPARING", Icons.Default.LocalShipping)
-        "ready_for_dispatch" -> Triple(Color(0xFF4F46E5), "READY FOR DISPATCH", Icons.Default.LocalShipping)
-        "out_for_delivery" -> Triple(Color(0xFF059669), "OUT FOR DELIVERY", Icons.Default.LocalShipping)
-        "delivered" -> Triple(Color(0xFF16A34A), "DELIVERED", Icons.Default.CheckCircle)
-        "cancelled", "rejected", "delivery_failed" ->
-            Triple(Color(0xFFDC2626), status.replace('_', ' ').uppercase(), Icons.Default.Close)
-        else -> Triple(Color(0xFF6B7280), status.uppercase(), Icons.Default.PendingActions)
-    }
+    val containerColor: Color
+    val contentColor: Color
+    val label: String
+    val icon: ImageVector
 
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = color.copy(alpha = 0.15f)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(14.dp))
-            Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color)
+    when (status.lowercase()) {
+        "pending_review" -> {
+            containerColor = MaterialTheme.appColors.warningContainer
+            contentColor = MaterialTheme.appColors.onWarningContainer
+            label = "Pending review"
+            icon = Icons.Default.PendingActions
+        }
+        "accepted" -> {
+            containerColor = MaterialTheme.appColors.infoContainer
+            contentColor = MaterialTheme.appColors.onInfoContainer
+            label = "Accepted"
+            icon = Icons.Default.CheckCircle
+        }
+        "preparing" -> {
+            containerColor = MaterialTheme.appColors.infoContainer
+            contentColor = MaterialTheme.appColors.onInfoContainer
+            label = "Preparing"
+            icon = Icons.Default.LocalShipping
+        }
+        "ready_for_dispatch" -> {
+            containerColor = MaterialTheme.appColors.infoContainer
+            contentColor = MaterialTheme.appColors.onInfoContainer
+            label = "Ready for dispatch"
+            icon = Icons.Default.LocalShipping
+        }
+        "out_for_delivery" -> {
+            containerColor = MaterialTheme.appColors.successContainer
+            contentColor = MaterialTheme.appColors.onSuccessContainer
+            label = "Out for delivery"
+            icon = Icons.Default.LocalShipping
+        }
+        "delivered" -> {
+            containerColor = MaterialTheme.appColors.successContainer
+            contentColor = MaterialTheme.appColors.onSuccessContainer
+            label = "Delivered"
+            icon = Icons.Default.CheckCircle
+        }
+        "cancelled", "rejected", "delivery_failed" -> {
+            containerColor = MaterialTheme.colorScheme.errorContainer
+            contentColor = MaterialTheme.colorScheme.onErrorContainer
+            label = status.replace('_', ' ').replaceFirstChar { it.uppercase() }
+            icon = Icons.Default.Close
+        }
+        else -> {
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+            label = status.replace('_', ' ').replaceFirstChar { it.uppercase() }
+            icon = Icons.Default.PendingActions
         }
     }
+
+    StatusPill(
+        text = label,
+        icon = icon,
+        containerColor = containerColor,
+        contentColor = contentColor
+    )
 }

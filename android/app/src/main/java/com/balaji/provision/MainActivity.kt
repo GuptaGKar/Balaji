@@ -12,6 +12,8 @@ import androidx.compose.material.icons.filled.ListAlt
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Store
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -21,6 +23,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -33,8 +36,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.balaji.provision.ui.auth.LoginScreen
 import com.balaji.provision.ui.cart.CartScreen
+import com.balaji.provision.ui.cart.CartViewModel
 import com.balaji.provision.ui.catalog.CatalogScreen
 import com.balaji.provision.ui.checkout.CheckoutScreen
 import com.balaji.provision.ui.home.HomeScreen
@@ -59,9 +64,11 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainAppScreen() {
     val navController = rememberNavController()
-    
+    val cartViewModel: CartViewModel = hiltViewModel()
+    val cart by cartViewModel.cart.collectAsState()
+
     Scaffold(
-        bottomBar = { BottomNavigationBar(navController) }
+        bottomBar = { BottomNavigationBar(navController, cart.items.size) }
     ) { innerPadding ->
         Box(
             modifier = Modifier
@@ -94,11 +101,12 @@ fun AppNavHost(navController: NavHostController) {
             )
         }
         composable("catalog") {
-            CatalogScreen()
+            CatalogScreen(onNavigateToCart = { navigateToTab(navController, "cart") })
         }
         composable("cart") {
             CartScreen(
-                onNavigateToCheckout = { navController.navigate("checkout") }
+                onNavigateToCheckout = { navController.navigate("checkout") },
+                onNavigateToCatalog = { navigateToTab(navController, "catalog") }
             )
         }
         composable("checkout") {
@@ -124,7 +132,7 @@ fun AppNavHost(navController: NavHostController) {
 }
 
 @Composable
-fun BottomNavigationBar(navController: NavHostController) {
+fun BottomNavigationBar(navController: NavHostController, cartCount: Int) {
     val destinations = listOf(
         NavItem("home", "Home", Icons.Default.Home),
         NavItem("catalog", "Catalog", Icons.Default.Store),
@@ -137,17 +145,35 @@ fun BottomNavigationBar(navController: NavHostController) {
     val currentRoute = navBackStackEntry?.destination?.route
 
     NavigationBar(
-        tonalElevation = 8.dp,
+        tonalElevation = 3.dp,
         containerColor = MaterialTheme.colorScheme.surface
     ) {
         destinations.forEach { item ->
             val selected = currentRoute == item.route
             NavigationBarItem(
                 icon = {
-                    Icon(
-                        item.icon,
-                        contentDescription = item.label
-                    )
+                    if (item.route == "cart" && cartCount > 0) {
+                        BadgedBox(
+                            badge = {
+                                Badge(containerColor = MaterialTheme.colorScheme.primary) {
+                                    Text(
+                                        text = if (cartCount > 99) "99+" else cartCount.toString(),
+                                        color = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                }
+                            }
+                        ) {
+                            Icon(
+                                item.icon,
+                                contentDescription = item.label
+                            )
+                        }
+                    } else {
+                        Icon(
+                            item.icon,
+                            contentDescription = item.label
+                        )
+                    }
                 },
                 label = {
                     Text(
@@ -158,9 +184,11 @@ fun BottomNavigationBar(navController: NavHostController) {
                 },
                 selected = selected,
                 colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                    selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     selectedTextColor = MaterialTheme.colorScheme.primary,
-                    indicatorColor = MaterialTheme.colorScheme.primaryContainer
+                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                 ),
                 onClick = {
                     navigateToTab(navController, item.route)

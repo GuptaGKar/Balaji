@@ -1,7 +1,6 @@
 package com.balaji.provision.ui.checkout
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,13 +11,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
@@ -29,7 +28,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -49,7 +47,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -64,6 +61,12 @@ import com.balaji.provision.ui.account.AccountViewModel
 import com.balaji.provision.ui.account.AddressEditorDialog
 import com.balaji.provision.ui.auth.AuthViewModel
 import com.balaji.provision.ui.cart.CartViewModel
+import com.balaji.provision.ui.components.MoneyText
+import com.balaji.provision.ui.components.StatusPill
+import com.balaji.provision.ui.components.StickyBottomBar
+import com.balaji.provision.ui.components.StoreTopBar
+import com.balaji.provision.ui.components.SummaryRow
+import com.balaji.provision.ui.theme.appColors
 import kotlinx.coroutines.launch
 
 @Composable
@@ -149,51 +152,42 @@ fun CheckoutScreen(
                     Box(
                         modifier = Modifier
                             .size(72.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFFDCFCE7)),
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(MaterialTheme.appColors.successContainer),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.Default.CheckCircle,
                             contentDescription = null,
-                            tint = Color(0xFF16A34A),
-                            modifier = Modifier.size(44.dp)
+                            tint = MaterialTheme.appColors.success,
+                            modifier = Modifier.size(40.dp)
                         )
                     }
 
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Order Placed Successfully", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                        Text(
+                            "Order placed successfully",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                         Text(
                             "Order #${confirmedOrderNo}",
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 16.sp
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
 
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(14.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(
-                            modifier = Modifier.padding(12.dp),
+                            modifier = Modifier.padding(14.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Payment:", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("Cash on Delivery (COD)", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                            }
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Delivery:", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("Timing confirmed by the store", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                            }
+                            SummaryRow(label = "Payment", value = "Cash on Delivery (COD)")
+                            SummaryRow(label = "Delivery", value = "Timing confirmed by the store")
                         }
                     }
 
@@ -205,13 +199,16 @@ fun CheckoutScreen(
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp),
-                        shape = RoundedCornerShape(12.dp),
+                            .height(50.dp),
+                        shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary
                         )
                     ) {
-                        Text("Track Order in My Orders", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Text(
+                            "Track order in My Orders",
+                            style = MaterialTheme.typography.titleSmall
+                        )
                     }
                 }
             }
@@ -220,46 +217,28 @@ fun CheckoutScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Surface(
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 2.dp
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    Text(
-                        text = "Checkout",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(start = 8.dp)
-                    )
-                }
-            }
+            StoreTopBar(
+                title = "Checkout",
+                subtitle = "Review and confirm your order",
+                onBack = onNavigateBack
+            )
 
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .weight(1f)
                     .verticalScroll(scrollState)
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 12.dp, bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
+                // Delivery address
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surface
                     ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp),
@@ -270,7 +249,11 @@ fun CheckoutScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Delivery Address", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(
+                                "Delivery address",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                             if (session != null) {
                                 TextButton(
                                     onClick = {
@@ -293,23 +276,28 @@ fun CheckoutScreen(
                         if (session == null) {
                             Text(
                                 "Sign in to place your order. Guest checkout is not available.",
-                                fontSize = 13.sp
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Button(onClick = onNavigateToSignIn) {
-                                Text("Sign In")
+                                Text("Sign in")
                             }
                         } else if (accountState.isLoading && accountState.addresses.isEmpty()) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.Center
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                CircularProgressIndicator(modifier = Modifier.size(28.dp))
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 3.dp
+                                )
                             }
                         } else if (accountState.addresses.isEmpty()) {
                             Text(
                                 "Add a delivery address once and reuse it for every order.",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 13.sp
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Button(
                                 onClick = {
@@ -320,16 +308,6 @@ fun CheckoutScreen(
                             ) {
                                 Text("Add delivery address")
                             }
-                            if (accountState.error != null) {
-                                Text(
-                                    accountState.error.orEmpty(),
-                                    color = MaterialTheme.colorScheme.error,
-                                    fontSize = 13.sp
-                                )
-                                TextButton(onClick = { accountViewModel.refresh() }) {
-                                    Text("Retry")
-                                }
-                            }
                         } else {
                             accountState.addresses.forEach { address ->
                                 CheckoutAddressOption(
@@ -338,42 +316,48 @@ fun CheckoutScreen(
                                     onSelect = { selectedAddressId = address.id }
                                 )
                             }
-                            if (accountState.error != null) {
-                                Text(
-                                    accountState.error.orEmpty(),
-                                    color = MaterialTheme.colorScheme.error,
-                                    fontSize = 13.sp
-                                )
-                                TextButton(onClick = { accountViewModel.refresh() }) {
-                                    Text("Retry")
-                                }
+                        }
+
+                        if (accountState.error != null) {
+                            Text(
+                                accountState.error.orEmpty(),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            TextButton(onClick = { accountViewModel.refresh() }) {
+                                Text("Retry")
                             }
                         }
                     }
                 }
 
+                // Payment method
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surface
                     ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text("Payment Method", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(
+                            "Payment method",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                         Divider(color = MaterialTheme.colorScheme.outlineVariant)
 
                         Surface(
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(14.dp),
                             color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
-                                modifier = Modifier.padding(12.dp),
+                                modifier = Modifier.padding(14.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
@@ -383,10 +367,14 @@ fun CheckoutScreen(
                                     tint = MaterialTheme.colorScheme.primary
                                 )
                                 Column {
-                                    Text("Cash on Delivery (COD)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Text(
+                                        "Cash on Delivery (COD)",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
                                     Text(
                                         "Pay in cash when groceries arrive at your doorstep",
-                                        fontSize = 12.sp,
+                                        style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
@@ -395,72 +383,67 @@ fun CheckoutScreen(
                     }
                 }
 
+                // Order summary
                 quote?.let { q ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(18.dp),
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surface
                         ),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Text("Amount To Pay", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(
+                                "Amount to pay",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                             Divider(color = MaterialTheme.colorScheme.outlineVariant)
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Items Total", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
-                                Text(formatPaise(q.itemSubtotalPaise), fontWeight = FontWeight.Medium, fontSize = 13.sp)
-                            }
+                            SummaryRow(label = "Items total", value = formatPaise(q.itemSubtotalPaise))
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Delivery Fee", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
-                                Text(
-                                    if (q.deliveryFeePaise == 0L) "FREE" else formatPaise(q.deliveryFeePaise),
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (q.deliveryFeePaise == 0L) Color(0xFF16A34A) else MaterialTheme.colorScheme.onSurface,
-                                    fontSize = 13.sp
-                                )
-                            }
+                            SummaryRow(
+                                label = "Delivery fee",
+                                value = if (q.deliveryFeePaise == 0L) "FREE" else formatPaise(q.deliveryFeePaise),
+                                valueColor = if (q.deliveryFeePaise == 0L) {
+                                    MaterialTheme.appColors.success
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                }
+                            )
 
                             Divider(color = MaterialTheme.colorScheme.outlineVariant)
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Grand Total (COD)", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                Text(
-                                    formatPaise(q.grandTotalPaise),
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 18.sp,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
+                            SummaryRow(
+                                label = "Grand total (COD)",
+                                value = formatPaise(q.grandTotalPaise),
+                                emphasise = true,
+                                valueColor = MaterialTheme.colorScheme.primary
+                            )
                         }
                     }
                 }
 
+                // Delivery instructions
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surface
                     ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
                     Column(Modifier.padding(16.dp)) {
-                        Text("Delivery Instructions (Optional)", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Spacer(modifier = Modifier.size(8.dp))
+                        Text(
+                            "Delivery instructions (optional)",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
 
                         OutlinedTextField(
                             value = customerNote,
@@ -468,7 +451,7 @@ fun CheckoutScreen(
                             placeholder = { Text("e.g., Leave at door, call on arrival...") },
                             modifier = Modifier.fillMaxWidth(),
                             maxLines = 2,
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(14.dp)
                         )
                     }
                 }
@@ -476,13 +459,15 @@ fun CheckoutScreen(
                 if (quote == null && cart.items.isNotEmpty()) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
+                        )
                     ) {
-                        Column(Modifier.padding(12.dp)) {
+                        Column(Modifier.padding(14.dp)) {
                             Text(
                                 "Delivery charge and total could not be loaded. Check your connection and try again.",
                                 color = MaterialTheme.colorScheme.onErrorContainer,
-                                fontSize = 13.sp
+                                style = MaterialTheme.typography.bodyMedium
                             )
                             Button(
                                 onClick = { cartViewModel.refreshQuote() },
@@ -493,7 +478,21 @@ fun CheckoutScreen(
                         }
                     }
                 }
+            }
 
+            StickyBottomBar {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Total payable (COD)",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    MoneyText(
+                        text = formatPaise(quote?.grandTotalPaise ?: 0L),
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
                 Button(
                     onClick = {
                         val address = selectedAddress
@@ -531,12 +530,10 @@ fun CheckoutScreen(
                             }
                         }
                     },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
                     enabled = !isLoading && cart.items.isNotEmpty() && quote != null &&
                         session != null && selectedAddress != null,
-                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.height(50.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary
                     )
@@ -544,26 +541,24 @@ fun CheckoutScreen(
                     if (isLoading) {
                         CircularProgressIndicator(
                             color = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(22.dp),
+                            strokeWidth = 2.dp
                         )
                     } else {
-                        Text("Confirm Order (Cash on Delivery)", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(
+                            "Place order",
+                            style = MaterialTheme.typography.titleSmall
+                        )
                     }
-                }
-
-                if (session != null && selectedAddress == null && !accountState.isLoading) {
-                    Text(
-                        "Select a saved address or add a new one to continue.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp
-                    )
                 }
             }
         }
 
         SnackbarHost(
             hostState = snackbarHostState,
-            modifier = Modifier.align(Alignment.BottomCenter)
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 96.dp, start = 16.dp, end = 16.dp)
         )
     }
 }
@@ -582,19 +577,22 @@ private fun CheckoutAddressOption(
                 role = Role.RadioButton,
                 onClick = onSelect
             ),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (selected) {
                 MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
             } else {
                 MaterialTheme.colorScheme.surface
             }
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (selected) 2.dp else 0.dp
         )
     ) {
         Row(
             modifier = Modifier.padding(10.dp),
             verticalAlignment = Alignment.Top,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             RadioButton(selected = selected, onClick = onSelect)
             Icon(
@@ -617,26 +615,26 @@ private fun CheckoutAddressOption(
                 ) {
                     Text(
                         address.label.ifBlank { "Address" },
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     if (address.isDefault) {
-                        Text(
-                            "Default",
-                            color = MaterialTheme.colorScheme.primary,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
+                        StatusPill(
+                            text = "Default",
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
                         )
                     }
                 }
                 Text(
                     "${address.recipientName} · ${address.phone}",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     address.fullAddress(),
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
