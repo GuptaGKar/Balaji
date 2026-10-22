@@ -89,14 +89,56 @@ interface SupabaseApi {
         @Query("select") select: String = "*,order_items(*)"
     ): Response<List<OrderResponse>>
     
+    // Profile
+    @GET("rest/v1/profiles")
+    suspend fun getProfile(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Query("id") id: String,
+        @Query("select") select: String
+    ): Response<List<ProfileResponse>>
+
+    @POST("rest/v1/rpc/update_my_profile")
+    suspend fun updateMyProfile(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Header("Content-Type") contentType: String = "application/json",
+        @Body body: UpdateMyProfileRequest
+    ): Response<ProfileResponse>
+
     // Addresses
     @GET("rest/v1/addresses")
     suspend fun getAddresses(
         @Header("apikey") apiKey: String,
         @Header("Authorization") auth: String,
         @Query("customer_id") customerId: String,
-        @Query("select") select: String = "*"
+        @Query("select") select: String,
+        @Query("order") order: String
     ): Response<List<AddressResponse>>
+
+    @POST("rest/v1/rpc/save_my_address")
+    suspend fun saveMyAddress(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Header("Content-Type") contentType: String = "application/json",
+        @Body body: SaveMyAddressRequest
+    ): Response<SaveMyAddressResponse>
+
+    @POST("rest/v1/rpc/set_default_my_address")
+    suspend fun setDefaultAddress(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Header("Content-Type") contentType: String = "application/json",
+        @Body body: SetDefaultAddressRequest
+    ): Response<SetDefaultAddressResponse>
+
+    @POST("rest/v1/rpc/delete_my_address")
+    suspend fun deleteAddress(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Header("Content-Type") contentType: String = "application/json",
+        @Body body: DeleteAddressRequest
+    ): Response<DeleteAddressResponse>
     
     @POST("rest/v1/addresses")
     suspend fun createAddress(
@@ -267,6 +309,20 @@ data class StoreSettingsResponse(
 )
 
 @Serializable
+data class ProfileResponse(
+    val display_name: String? = null,
+    val phone: String? = null,
+    val role: String? = null,
+    val error: String? = null,
+    val message: String? = null
+)
+
+@Serializable
+data class UpdateMyProfileRequest(
+    val p_display_name: String
+)
+
+@Serializable
 data class AddressResponse(
     val id: String,
     val customer_id: String,
@@ -280,6 +336,53 @@ data class AddressResponse(
     val state: String? = null,
     val postal_code: String,
     val is_default: Boolean
+)
+
+@Serializable
+data class SaveMyAddressRequest(
+    val p_id: String?,
+    val p_label: String,
+    val p_recipient_name: String,
+    val p_phone: String,
+    val p_address_lines: String,
+    val p_landmark: String?,
+    val p_area: String?,
+    val p_city: String,
+    val p_state: String,
+    val p_postal_code: String,
+    val p_is_default: Boolean
+)
+
+@Serializable
+data class SaveMyAddressResponse(
+    val address: AddressResponse? = null,
+    val error: String? = null,
+    val message: String? = null
+)
+
+@Serializable
+data class SetDefaultAddressRequest(
+    val p_id: String
+)
+
+@Serializable
+data class SetDefaultAddressResponse(
+    val success: Boolean? = null,
+    val address: AddressResponse? = null,
+    val error: String? = null,
+    val message: String? = null
+)
+
+@Serializable
+data class DeleteAddressRequest(
+    val p_id: String
+)
+
+@Serializable
+data class DeleteAddressResponse(
+    val success: Boolean? = null,
+    val error: String? = null,
+    val message: String? = null
 )
 
 fun CategoryResponse.toDomain(): Category = Category(

@@ -35,7 +35,7 @@ class AuthRepositoryTest {
         val result = repository.requestOtp("+91 98765-43210")
 
         assertEquals(OtpResult.Sent, result)
-        verify(api).sendOtp(anyString(), anyString(), eq(OtpRequest(phone = "+919876543210")))
+        verify(api).sendOtp(anyString(), anyString(), eq(OtpRequest(phone = "+919876543210", create_user = true)))
     }
 
     @Test
@@ -44,6 +44,21 @@ class AuthRepositoryTest {
 
         assertTrue(result is OtpResult.Failure)
         verifyNoInteractions(api)
+    }
+
+    @Test
+    fun `request otp explains disabled phone provider`() = runTest {
+        val body = """{"code":400,"error_code":"phone_provider_disabled","msg":"Unsupported phone provider"}"""
+            .toResponseBody("application/json".toMediaType())
+        `when`(api.sendOtp(anyString(), anyString(), any<OtpRequest>()))
+            .thenReturn(Response.error(400, body))
+
+        val result = repository.requestOtp("9876543210")
+
+        assertEquals(
+            "Phone sign-in isn't enabled yet. Please contact the store.",
+            (result as OtpResult.Failure).message
+        )
     }
 
     @Test

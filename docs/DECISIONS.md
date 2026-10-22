@@ -23,7 +23,7 @@ Seeded at M0 from IMPLEMENTATION_PLAN.md §2. PROVISIONAL items are safe default
 | D-FEE | Threshold/fee interplay | 3-parameter model (plan §4.4). Seed dev values are synthetic (fee ₹30 is a placeholder, **not** owner policy). |
 | D-ELIG | Eligible subtotal for thresholds | Merchandise subtotal **before** discounts and tax, **excluding** delivery fee. Isolated in one function `eligible_subtotal()`. |
 | D-STOCK | Stock deduction timing | Deduct at **order placement**; restore exactly once on reject/cancel/item removal. |
-| D-AUTH | Customer login | Android customer app: **phone OTP only** (Indian +91 numbers; new numbers auto-create a customer account). Web admin/staff/rider login unchanged. No guest checkout. SMS provider, DLT registration and cost are still owner decisions; phone auth remains disabled until configured. Existing email-only app accounts are not migrated. |
+| D-AUTH | Customer login | Android customer app: **phone OTP only** (Indian +91 numbers; new numbers auto-create a customer account). Web admin/staff/rider login unchanged. No guest checkout. Owner selected **2Factor** managed SMS via the Supabase Send SMS Hook on 2026-10-21, superseding the own-SIM gateway. Phone auth was enabled on 2026-10-21 after migration 18 and the hook deployment; a real SMS/verify end-to-end test is still pending. Existing email-only app accounts are not migrated. |
 | D-RIDER | Rider interface | `/rider` mobile-responsive area in the admin website. Rider statuses: `out_for_delivery`, `delivered` (+ `delivery_failed` with reason). |
 | D-RIDER-LOGIN | Rider auth | User ID + server-generated one-time password, forced change on first login. |
 | D-POD | Proof of delivery | Manager-visible status + timestamp only (no OTP/photo in MVP). |
@@ -170,8 +170,53 @@ Exact PIN codes/neighbourhoods · real delivery fee and free-delivery amount · 
 - Existing app accounts that only have email will no longer be able to sign in. This is an owner decision; no email-to-phone migration is included.
 - The Android client uses Supabase `/auth/v1/otp` and `/auth/v1/verify` directly. Normalization accepts Indian 10-digit numbers, optional `0` prefix, optional `91`/`+91`, and ignores spaces/hyphens.
 - OTP requests are limited to one every 60 seconds in the UI; Supabase server rate limits must also be configured. OTPs are never stored or logged by the app.
-- **Provider still BLOCKED:** live Supabase has phone auth disabled and no SMS provider. India-only pilot options: Textlocal (₹0.18–₹0.30/SMS, requires DLT entity/header/template approval, community-supported by Supabase) or Twilio (first-class Supabase support; Twilio documents its international India route as not requiring DLT at ~$0.083/SMS; domestic branded sender needs DLT). Recommended: Twilio for fastest pilot, Textlocal after DLT for lower India SMS cost.
+- **Provider path:** Textlocal and Twilio were evaluated earlier (Textlocal ~₹0.18–₹0.30/SMS + DLT; Twilio ~$0.083/SMS on its international route). The owner first chose the own-SIM gateway below, then replaced it with 2Factor on 2026-10-21. Live Supabase phone auth was enabled on 2026-10-21.
 - Migration 18 must be applied to live **before enabling phone signups**; without it the live 017 trigger can provision new users as managers.
+
+## SMS provider change: 2Factor (2026-10-21)
+
+- Owner rejected the own-SIM gateway/tunnel as too complex and chose the lower-cost managed India provider **2Factor**.
+- Cost comparison at the time: 2Factor manual OTP ~₹0.17/SMS at ≤100k/month (transactional ~₹0.15); MSG91 ~₹0.25 at the 5,000-SMS tier; Fast2SMS OTP API ~₹0.35; add 18% GST. Confirm current rates, minimum recharge, and template rules with 2Factor.
+- Architecture: Android → Supabase `/auth/v1/otp` → Send SMS Hook → 2Factor manual OTP API → SMS. Supabase still generates, stores, rate-limits, and verifies the OTP; 2Factor only delivers the Supabase OTP.
+- Hook behavior: `SMS_PROVIDER=2factor`; posts to `https://2factor.in/API/V1/{api_key}/SMS/{10-digit phone}/{otp}/{template_name}` (template segment omitted when unset). Uses `TWOFACTOR_API_KEY` and `TWOFACTOR_TEMPLATE_NAME`; no gateway, tunnel, or Cloudflare.
+- Required: 2Factor account/API key, DLT entity/header/template, approved OTP template, and `SEND_SMS_HOOK_SECRET`. 2Factor advertises assisted DLT onboarding. Disable 2Factor IP restrictions or allow Supabase Edge egress.
+- The own-SIM gateway section below is **superseded** and retained only as an optional fallback; do not deploy it for the current path.
+- Live phone auth was enabled on 2026-10-21 after migration 18 and hook deployment. An earlier request delivered a voice call instead of SMS; after provider template/fallback review, OTP verification now succeeds end-to-end and the verified auth phone is saved on the customer profile. Continue monitoring SMS vs. voice delivery and keep the approved SMS template configured.
+
+## Customer profile and saved addresses (2026-10-21)
+
+- Customers can edit their display name and manage multiple saved delivery addresses. The verified mobile number is their login identity and is not editable from the profile.
+- Profile updates go through `update_my_profile`, not a direct `profiles` UPDATE policy, so customers cannot change role or activation state.
+- Addresses remain owned rows with existing customer RLS. `save_my_address`, `set_default_my_address` and `delete_my_address` enforce ownership in `SECURITY DEFINER` functions with `search_path=''`.
+- Exactly one default address per customer is enforced by partial unique index `uq_addresses_one_default_per_customer`. The first saved address becomes default; editing an existing default preserves it; deleting the default promotes the next address.
+- Android checkout no longer asks for a new address when saved addresses exist. The user selects a saved address, may add another without leaving checkout, and the selected values are sent to `place_order` as the order address snapshot. Guest checkout remains disabled.
+- UX assumption: there is no forced post-OTP profile-completion screen; users can edit their name and add addresses from Profile or add an address at checkout. Revisit if first-run completion is required.
+- Migration `20261021000019_customer_profile_addresses.sql` was applied live on 2026-10-22. Verification confirmed all four RPCs, the unique default-address index, zero customers with multiple defaults, and phone backfill for the existing customer profile. A rollback-only live QA also verified first-address defaulting, moving the default marker, cross-customer delete denial, and default promotion after delete. Authenticated execute grants are present; anon execute is denied on all four RPCs. pgTAP test `016_customer_profile_addresses.sql` remains unrun because local Supabase/Docker is unavailable. Android unit tests currently pass 51/51, including profile/address repository, validation, serialization, and account-view-model coverage.
+
+## Own-SIM SMS gateway decision (2026-10-20) — superseded 2026-10-21
+
+- **Superseded by the 2Factor decision above.** Retained only as an optional fallback; do not deploy this path unless the owner reverses the 2Factor decision.
+- Owner confirmed mobile-number verification is mandatory and chose a **self-hosted Android SIM gateway** instead of a paid SMS provider. This is a provisional pilot decision; it must be re-evaluated after real-device reliability and carrier testing.
+- Architecture: Android app → Supabase `/auth/v1/otp` → Supabase Auth **Send SMS Hook** → Edge Function `send-sms-hook` → hardened SIM gateway → dedicated phone/SIM. Supabase Auth still generates, stores, rate-limits and verifies the OTP; no custom OTP or session-minting code is used.
+- The Edge Function verifies the Standard Webhooks signature, accepts only `+91` mobile numbers and 6-digit OTPs, forwards over HTTPS, and never logs or stores the phone number or OTP. Gateway errors are returned as generic hook errors.
+- **Current upstream `SMS-Gateway-Free` is not acceptable as-is:** it stores OTP bodies and API keys in Room, logs API-key prefixes, exposes history/status/config endpoints, binds HTTP on all interfaces, and has no message integrity/replay protection.
+- Required before enabling live phone auth:
+  - Hardened gateway that does not persist OTPs/API keys, removes history/status/config/bulk endpoints, disables Android backup, drops unused SMS/contact permissions, removes sensitive logs, and validates the API key.
+  - Dedicated always-on Android phone with a working SIM, charger, stable network, battery optimization disabled, and the gateway foreground service running. A shared phone is acceptable only for a controlled pilot with the owner’s explicit acceptance; production requires a dedicated phone/SIM.
+  - Public HTTPS endpoint (Cloudflare Tunnel/Tailscale Funnel or equivalent) with access control; the Supabase Edge Function cannot reach a private LAN IP.
+  - `SEND_SMS_HOOK_SECRET`, `SMS_GATEWAY_URL`, and `SMS_GATEWAY_API_KEY` configured as server-only secrets; optional Cloudflare Access service token.
+  - Supabase phone auth enabled only after migration 18 is applied, `auth.sms.enable_confirmations=true`, OTP expiry/rate limits reviewed, and a real OTP end-to-end test passes.
+  - Carrier/DLT/terms review. A consumer SIM used for A2P OTP traffic can be throttled, blocked, or violate carrier terms; this is accepted only for a low-volume pilot.
+- Reliability limitation: the hook has a 5-second budget and the gateway returns “queued”, not “delivered”. A queued SMS can still fail; delivery receipts are asynchronous and are not checked by the hook.
+- Implemented hook/config files: `supabase/functions/send-sms-hook/`, `supabase/config.toml`, `.env.example`. Live deployment is **not done**; the Android app remains unable to receive OTP until the gateway, HTTPS endpoint and Supabase hook are configured.
+
+### Gateway implementation status (2026-10-20)
+
+- Minimal hardened gateway built at `tools/sms-gateway`: Kotlin/Compose Android app, foreground service, boot receiver, Wi-Fi and partial wake locks, encrypted API key, constant-time API-key check, `POST /api/send` only, no history/config/status endpoints, no OTP or phone-number persistence, no sensitive logs.
+- Gateway contract: `POST /api/send` with `X-API-Key`, JSON `{phone_number, message, request_id}`; returns `200 {"success":true}` after handing the SMS to the Android radio, generic errors otherwise. Global limits are 10/minute and 60/hour.
+- Build/test results: **19/19 JVM tests pass** (policy, rate limiter, request handler, real NanoHTTPD loopback integration); `lintDebug` passes with 0 errors; debug APK at `tools/sms-gateway/app/build/outputs/apk/debug/app-debug.apk`. Tests use a fake SMS transport and send no real messages. The pilot APK is `android:debuggable`; disable USB debugging after install and produce a signed release before broader use.
+- Still pending before live phone auth: install and run on a real phone, Cloudflare hostname/domain + Access service token, Supabase secrets and hook deploy, migration 18, and a real OTP end-to-end test.
+- Current controls are HTTPS, Cloudflare Access, a 256-bit API key, and global rate limits. Still pending hardening: HMAC/replay protection, per-number rate limiting, and delivery-receipt handling. The shared phone/SIM remains pilot-only; a dedicated phone + SIM is required before production.
 
 ## M7 verification records (2026-10-14)
 

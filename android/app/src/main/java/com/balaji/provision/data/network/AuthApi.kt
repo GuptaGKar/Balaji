@@ -48,14 +48,14 @@ interface AuthApi {
 @Serializable
 data class OtpRequest(
     val phone: String,
-    val create_user: Boolean = true
+    val create_user: Boolean
 )
 
 @Serializable
 data class VerifyOtpRequest(
     val phone: String,
     val token: String,
-    val type: String = "sms"
+    val type: String
 )
 
 @Serializable
@@ -81,6 +81,7 @@ data class AuthTokenResponse(
 @Serializable
 data class AuthErrorResponse(
     val error: String? = null,
+    val error_code: String? = null,
     val error_description: String? = null,
     val msg: String? = null,
     val message: String? = null

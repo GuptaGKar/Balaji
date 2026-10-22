@@ -44,7 +44,7 @@ class AuthRepository @Inject constructor(
         return try {
             val response = api.sendOtp(
                 apiKey = BuildConfig.SUPABASE_ANON_KEY,
-                body = OtpRequest(phone = phone)
+                body = OtpRequest(phone = phone, create_user = true)
             )
             if (response.isSuccessful) {
                 OtpResult.Sent
@@ -70,7 +70,7 @@ class AuthRepository @Inject constructor(
         ) {
             api.verifyOtp(
                 apiKey = BuildConfig.SUPABASE_ANON_KEY,
-                body = VerifyOtpRequest(phone = phone, token = token)
+                body = VerifyOtpRequest(phone = phone, token = token, type = "sms")
             )
         }
     }
@@ -190,9 +190,14 @@ class AuthRepository @Inject constructor(
     private fun retrofit2.Response<*>.errorMessage(fallback: String): String {
         val raw = errorBody()?.string().orEmpty()
         val parsed = runCatching { json.decodeFromString<AuthErrorResponse>(raw) }.getOrNull()
-        return parsed?.error_description
+        val serverMessage = parsed?.error_description
             ?: parsed?.msg
             ?: parsed?.message
-            ?: fallback
+        if (parsed?.error_code == "phone_provider_disabled" ||
+            serverMessage.equals("Unsupported phone provider", ignoreCase = true)
+        ) {
+            return "Phone sign-in isn't enabled yet. Please contact the store."
+        }
+        return serverMessage ?: fallback
     }
 }
