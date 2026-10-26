@@ -54,4 +54,42 @@ class PriceFormattingTest {
     fun `formatPrice weighted per g`() {
         assertEquals("₹5.00 / g", formatPrice(500, 1, QuantityType.WEIGHTED))
     }
+
+    @Test
+    fun `product discount calculation with mrp`() {
+        val discountedProduct = Product(
+            id = "prod-1",
+            sku = "SKU-1",
+            name = "Aashirvaad Atta 5kg",
+            description = null,
+            categoryId = "cat-1",
+            imagePath = null,
+            quantityType = QuantityType.PACKED,
+            pricePaise = 25000,
+            mrpPaise = 30000,
+            priceBasisQty = 1,
+            unitLabel = "pack",
+            packSizeLabel = "5 kg",
+            stepQty = 1,
+            minQty = 1,
+            maxQty = 10,
+            stockQty = 50,
+            lowStockThreshold = 5,
+            active = true,
+            available = true
+        )
+        assertTrue(discountedProduct.hasDiscount)
+        assertEquals(16, discountedProduct.discountPercent)
+        assertEquals("₹300.00 / pack", discountedProduct.displayMrp)
+
+        val nonDiscountedProduct = discountedProduct.copy(mrpPaise = 25000)
+        assertFalse(nonDiscountedProduct.hasDiscount)
+        assertEquals(0, nonDiscountedProduct.discountPercent)
+        assertNull(nonDiscountedProduct.displayMrp)
+
+        val nullMrpProduct = discountedProduct.copy(mrpPaise = null)
+        assertFalse(nullMrpProduct.hasDiscount)
+        assertEquals(0, nullMrpProduct.discountPercent)
+        assertNull(nullMrpProduct.displayMrp)
+    }
 }
