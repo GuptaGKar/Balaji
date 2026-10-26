@@ -584,29 +584,26 @@ fun OrderSummaryCard(quote: QuoteBreakdown) {
 
             SummaryRow(label = "Item subtotal", value = formatPaise(quote.itemSubtotalPaise))
 
-            if (quote.discountPaise > 0L) {
-                SummaryRow(
+            when {
+                // Coupon applied — show its code and saving amount
+                quote.couponApplied && quote.couponCode != null -> {
+                    val isFreeDelivery = quote.discountPaise == 0L
+                    SummaryRow(
+                        label = "Coupon (${quote.couponCode})",
+                        value = if (isFreeDelivery) "FREE delivery" else "-${formatPaise(quote.discountPaise)}",
+                        valueColor = MaterialTheme.appColors.success
+                    )
+                }
+                // No coupon — show generic item discount if any (e.g. future bulk/promo)
+                quote.discountPaise > 0L -> SummaryRow(
                     label = "Discount",
                     value = "-${formatPaise(quote.discountPaise)}",
                     valueColor = MaterialTheme.appColors.success
                 )
             }
 
-            // Coupon savings
-            if (quote.couponApplied && quote.couponCode != null) {
-                SummaryRow(
-                    label = "Coupon (${quote.couponCode})",
-                    value = if (quote.deliveryFeePaise == 0L && quote.discountPaise == 0L) {
-                        "FREE delivery"
-                    } else {
-                        "-${formatPaise(quote.discountPaise)}"
-                    },
-                    valueColor = MaterialTheme.appColors.success
-                )
-            }
-
             SummaryRow(
-                label = "Delivery charge",
+                label = "Delivery",
                 value = if (quote.deliveryFeePaise == 0L) "FREE" else formatPaise(quote.deliveryFeePaise),
                 valueColor = if (quote.deliveryFeePaise == 0L) {
                     MaterialTheme.appColors.success

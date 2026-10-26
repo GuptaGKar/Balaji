@@ -191,7 +191,7 @@ fun CatalogScreen(
                     expanded = sortMenuOpen,
                     onDismissRequest = { sortMenuOpen = false }
                 ) {
-                    SortOption.values().forEach { option ->
+                    SortOption.entries.forEach { option ->
                         DropdownMenuItem(
                             text = {
                                 Text(

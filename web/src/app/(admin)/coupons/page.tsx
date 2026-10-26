@@ -43,6 +43,8 @@ type Coupon = {
   category?: { name: string } | null;
 };
 
+const supabase = createClient();
+
 export default function CouponsPage() {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -54,15 +56,15 @@ export default function CouponsPage() {
   // Form states
   const [code, setCode] = useState("");
   const [description, setDescription] = useState("");
-  const [discountType, setDiscountType] = useState<"percent_off" | "rupees_off" | "free_delivery">("percent_off");
+  const [discountType, setDiscountType] = useState<"percent_off" | "rupees_off" | "free_delivery">(
+    "percent_off",
+  );
   const [discountValue, setDiscountValue] = useState("");
   const [categoryId, setCategoryId] = useState<string>("all");
   const [minOrderRupees, setMinOrderRupees] = useState("");
   const [maxDiscountRupees, setMaxDiscountRupees] = useState("");
   const [usageLimit, setUsageLimit] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
-
-  const supabase = createClient();
 
   const fetchCouponsAndCategories = useCallback(async () => {
     try {
@@ -85,7 +87,7 @@ export default function CouponsPage() {
     } finally {
       setLoading(false);
     }
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
     fetchCouponsAndCategories();
@@ -101,7 +103,7 @@ export default function CouponsPage() {
 
       if (error) throw error;
       setCoupons((prev) =>
-        prev.map((c) => (c.id === coupon.id ? { ...c, active: nextActive } : c))
+        prev.map((c) => (c.id === coupon.id ? { ...c, active: nextActive } : c)),
       );
       toast.success(`Coupon ${coupon.code} is now ${nextActive ? "Active" : "Disabled"}`);
     } catch (err: unknown) {
@@ -148,7 +150,9 @@ export default function CouponsPage() {
     }
 
     const minOrderPaise = minOrderRupees ? Math.round(parseFloat(minOrderRupees) * 100) : 0;
-    const maxDiscountPaise = maxDiscountRupees ? Math.round(parseFloat(maxDiscountRupees) * 100) : null;
+    const maxDiscountPaise = maxDiscountRupees
+      ? Math.round(parseFloat(maxDiscountRupees) * 100)
+      : null;
     const limit = usageLimit ? parseInt(usageLimit, 10) : null;
 
     try {
@@ -196,7 +200,7 @@ export default function CouponsPage() {
   const filteredCoupons = coupons.filter(
     (c) =>
       c.code.toLowerCase().includes(search.toLowerCase()) ||
-      c.description.toLowerCase().includes(search.toLowerCase())
+      c.description.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
@@ -210,7 +214,8 @@ export default function CouponsPage() {
             <Tag className="h-6 w-6 text-emerald-600" /> Coupons & Offers
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Create and manage promo codes, category-specific discounts, and free delivery thresholds.
+            Create and manage promo codes, category-specific discounts, and free delivery
+            thresholds.
           </p>
         </div>
         <button
@@ -321,13 +326,28 @@ export default function CouponsPage() {
                       </td>
                       <td className="px-4 py-4 text-xs space-y-1">
                         {coupon.min_order_paise > 0 && (
-                          <div>Min order: <span className="font-semibold text-slate-800">{formatRupees(coupon.min_order_paise)}</span></div>
+                          <div>
+                            Min order:{" "}
+                            <span className="font-semibold text-slate-800">
+                              {formatRupees(coupon.min_order_paise)}
+                            </span>
+                          </div>
                         )}
                         {coupon.max_discount_paise && (
-                          <div>Max cap: <span className="font-semibold text-slate-800">{formatRupees(coupon.max_discount_paise)}</span></div>
+                          <div>
+                            Max cap:{" "}
+                            <span className="font-semibold text-slate-800">
+                              {formatRupees(coupon.max_discount_paise)}
+                            </span>
+                          </div>
                         )}
                         {coupon.expires_at ? (
-                          <div className={cn("flex items-center gap-1", isExpired ? "text-rose-600 font-semibold" : "text-slate-500")}>
+                          <div
+                            className={cn(
+                              "flex items-center gap-1",
+                              isExpired ? "text-rose-600 font-semibold" : "text-slate-500",
+                            )}
+                          >
                             <Calendar className="h-3 w-3" />
                             {isExpired ? "Expired " : "Expires "}
                             {new Date(coupon.expires_at).toLocaleDateString()}
@@ -339,7 +359,9 @@ export default function CouponsPage() {
                       <td className="px-4 py-4 text-xs">
                         <span className="font-semibold text-slate-800">{coupon.times_used}</span>
                         {coupon.usage_limit ? ` / ${coupon.usage_limit}` : " used"}
-                        {isMaxed && <p className="text-[11px] text-amber-600 font-medium">Limit reached</p>}
+                        {isMaxed && (
+                          <p className="text-[11px] text-amber-600 font-medium">Limit reached</p>
+                        )}
                       </td>
                       <td className="px-4 py-4">
                         <button
@@ -348,7 +370,7 @@ export default function CouponsPage() {
                             "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition cursor-pointer",
                             coupon.active && !isExpired && !isMaxed
                               ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
-                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200",
                           )}
                         >
                           {coupon.active && !isExpired && !isMaxed ? (
@@ -420,7 +442,9 @@ export default function CouponsPage() {
                   <select
                     value={discountType}
                     onChange={(e) =>
-                      setDiscountType(e.target.value as "percent_off" | "rupees_off" | "free_delivery")
+                      setDiscountType(
+                        e.target.value as "percent_off" | "rupees_off" | "free_delivery",
+                      )
                     }
                     className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                   >
@@ -434,7 +458,9 @@ export default function CouponsPage() {
               {discountType !== "free_delivery" && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    {discountType === "percent_off" ? "Discount Percentage (%) *" : "Discount Amount (₹) *"}
+                    {discountType === "percent_off"
+                      ? "Discount Percentage (%) *"
+                      : "Discount Amount (₹) *"}
                   </label>
                   <input
                     type="number"
@@ -483,7 +509,23 @@ export default function CouponsPage() {
                     className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                   />
                 </div>
-                {discountType === "percent_off" ? (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Usage Limit (Optional)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="e.g. 100"
+                    value={usageLimit}
+                    onChange={(e) => setUsageLimit(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {discountType === "percent_off" && (
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
                       Max Discount Cap (₹)
@@ -495,38 +537,6 @@ export default function CouponsPage() {
                       placeholder="e.g. 100"
                       value={maxDiscountRupees}
                       onChange={(e) => setMaxDiscountRupees(e.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                    />
-                  </div>
-                ) : (
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Usage Limit (Optional)
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      placeholder="e.g. 50"
-                      value={usageLimit}
-                      onChange={(e) => setUsageLimit(e.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                {discountType === "percent_off" && (
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Usage Limit (Optional)
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      placeholder="e.g. 100"
-                      value={usageLimit}
-                      onChange={(e) => setUsageLimit(e.target.value)}
                       className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                     />
                   </div>

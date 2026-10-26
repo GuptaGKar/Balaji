@@ -35,12 +35,12 @@ import androidx.compose.material.icons.filled.Grain
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LocalCafe
 import androidx.compose.material.icons.filled.LocalDrink
+import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingBasket
 import androidx.compose.material.icons.filled.Spa
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -716,7 +716,7 @@ fun FreeDeliveryProgress(
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Icon(
-                imageVector = if (unlocked) Icons.Default.Check else Icons.Default.Warning,
+                imageVector = if (unlocked) Icons.Default.Check else Icons.Default.LocalShipping,
                 contentDescription = null,
                 tint = accent,
                 modifier = Modifier.size(16.dp)
