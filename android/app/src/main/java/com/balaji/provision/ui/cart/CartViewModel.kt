@@ -42,6 +42,10 @@ class CartViewModel @Inject constructor(
     
     private val _error = MutableStateFlow<String?>(null)
     val error = _error.asStateFlow()
+
+    /** The raw text the user typed in the coupon field (before Apply). */
+    private val _couponInput = MutableStateFlow("")
+    val couponInput: StateFlow<String> = _couponInput.asStateFlow()
     
     fun addItem(productId: String, qtyBase: Long = 1) {
         viewModelScope.launch {
@@ -79,6 +83,25 @@ class CartViewModel @Inject constructor(
     
     fun refreshQuote() {
         cartRepository.refreshQuote()
+    }
+
+    /** Update the typed coupon code without applying it yet. */
+    fun onCouponInputChange(value: String) {
+        _couponInput.value = value
+    }
+
+    /** Apply the current coupon input and trigger a re-quote. */
+    fun applyCoupon() {
+        val code = _couponInput.value.trim()
+        if (code.isNotEmpty()) {
+            cartRepository.applyCoupon(code)
+        }
+    }
+
+    /** Remove any applied coupon and trigger a re-quote. */
+    fun removeCoupon() {
+        _couponInput.value = ""
+        cartRepository.removeCoupon()
     }
 
     fun findProduct(productId: String): Product? = catalogRepository.findProductById(productId)
@@ -131,5 +154,6 @@ class CartViewModel @Inject constructor(
         viewModelScope.launch {
             cartRepository.clearCart()
         }
+        removeCoupon()
     }
 }

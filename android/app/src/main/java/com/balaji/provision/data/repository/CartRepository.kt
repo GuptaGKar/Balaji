@@ -73,6 +73,8 @@ class CartRepositoryImpl @Inject constructor(
     private var pendingOrderKey: String? = null
     private var pendingOrderSignature: String? = null
 
+    @Volatile private var pendingCouponCode: String? = null
+
     private val _cartFlow = MutableStateFlow<Cart>(Cart.empty())
     override val cartFlow: StateFlow<Cart> = _cartFlow.asStateFlow()
 
@@ -157,7 +159,10 @@ class CartRepositoryImpl @Inject constructor(
 
     private suspend fun fetchQuote(items: List<CartItem>): QuoteBreakdown? {
         return try {
-            val request = QuoteCartRequest(p_items = items.map { CartItemRequest(it.productId, it.qtyBase) })
+            val request = QuoteCartRequest(
+                p_items = items.map { CartItemRequest(it.productId, it.qtyBase) },
+                p_coupon_code = pendingCouponCode?.takeIf { it.isNotBlank() }
+            )
             val anonKey = BuildConfig.SUPABASE_ANON_KEY
             val response = api.quoteCart(apiKey = anonKey, auth = "Bearer $anonKey", body = request)
             val body = response.body()
@@ -247,7 +252,8 @@ class CartRepositoryImpl @Inject constructor(
             items = items,
             address = address,
             payment_method = "cod",
-            customer_note = customerNote
+            customer_note = customerNote,
+            coupon_code = pendingCouponCode?.takeIf { it.isNotBlank() }
         )
 
         // Reuse the key for retries of the exact same order so a lost response
@@ -308,6 +314,16 @@ class CartRepositoryImpl @Inject constructor(
             ?: "The request could not be completed. Please try again."
     }
 
+    override fun applyCoupon(code: String) {
+        pendingCouponCode = code.trim().uppercase()
+        scheduleQuoteRefresh(debounceMillis = 0L)
+    }
+
+    override fun removeCoupon() {
+        pendingCouponCode = null
+        scheduleQuoteRefresh(debounceMillis = 0L)
+    }
+
     private fun mapToQuoteBreakdown(response: QuoteCartResponse): QuoteBreakdown {
         return QuoteBreakdown(
             lines = response.lines.map { l ->
@@ -329,7 +345,10 @@ class CartRepositoryImpl @Inject constructor(
             taxPaise = response.tax_paise,
             grandTotalPaise = response.grand_total_paise,
             belowChargeThreshold = response.below_charge_threshold,
-            amountToFreeDelivery = response.amount_to_free_delivery
+            amountToFreeDelivery = response.amount_to_free_delivery,
+            couponCode = response.coupon_code,
+            couponApplied = response.coupon_applied,
+            couponError = response.coupon_error
         )
     }
 }
@@ -350,6 +369,8 @@ interface CartRepository {
     val cartFlow: StateFlow<Cart>
     val quoteFlow: StateFlow<QuoteBreakdown?>
     fun refreshQuote() {}
+    fun applyCoupon(code: String) {}
+    fun removeCoupon() {}
     suspend fun getCart(): Cart
     suspend fun addItem(item: CartItem): Cart
     suspend fun updateQuantity(productId: String, qtyBase: Long): Cart

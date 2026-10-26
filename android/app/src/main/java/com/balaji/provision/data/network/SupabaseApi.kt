@@ -296,7 +296,8 @@ data class CategoryResponse(
 
 @Serializable
 data class QuoteCartRequest(
-    val p_items: List<CartItemRequest>
+    val p_items: List<CartItemRequest>,
+    val p_coupon_code: String? = null
 )
 
 @Serializable
@@ -315,7 +316,10 @@ data class QuoteCartResponse(
     val tax_paise: Long,
     val grand_total_paise: Long,
     val below_charge_threshold: Boolean,
-    val amount_to_free_delivery: Long
+    val amount_to_free_delivery: Long,
+    val coupon_code: String? = null,
+    val coupon_applied: Boolean = false,
+    val coupon_error: String? = null
 )
 
 @Serializable
@@ -341,8 +345,10 @@ data class PlaceOrderPayload(
     val items: List<CartItemRequest>,
     val address: AddressRequest,
     val payment_method: String = "cod",
-    val customer_note: String? = null
+    val customer_note: String? = null,
+    val coupon_code: String? = null
 )
+
 
 @Serializable
 data class AddressRequest(

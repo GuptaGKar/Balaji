@@ -1,5 +1,8 @@
 package com.balaji.provision.ui.cart
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,9 +18,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Scale
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.AlertDialog
@@ -29,9 +37,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -40,7 +50,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -73,6 +85,7 @@ fun CartScreen(
     val cart by viewModel.cart.collectAsState()
     val quote by viewModel.quote.collectAsState()
     val error by viewModel.error.collectAsState()
+    val couponInput by viewModel.couponInput.collectAsState()
     val homeState by homeViewModel.state.collectAsState()
     val unavailableLines = quote?.lines?.filter { !it.available }.orEmpty()
 
@@ -224,6 +237,18 @@ fun CartScreen(
                                 )
                             }
                         }
+                    }
+
+                    item(key = "coupon") {
+                        CouponCard(
+                            couponInput = couponInput,
+                            appliedCode = quote?.couponCode,
+                            couponApplied = quote?.couponApplied == true,
+                            couponError = quote?.couponError,
+                            onInputChange = viewModel::onCouponInputChange,
+                            onApply = viewModel::applyCoupon,
+                            onRemove = viewModel::removeCoupon
+                        )
                     }
 
                     items(cart.items, key = { it.productId }) { item ->
@@ -567,6 +592,19 @@ fun OrderSummaryCard(quote: QuoteBreakdown) {
                 )
             }
 
+            // Coupon savings
+            if (quote.couponApplied && quote.couponCode != null) {
+                SummaryRow(
+                    label = "Coupon (${quote.couponCode})",
+                    value = if (quote.deliveryFeePaise == 0L && quote.discountPaise == 0L) {
+                        "FREE delivery"
+                    } else {
+                        "-${formatPaise(quote.discountPaise)}"
+                    },
+                    valueColor = MaterialTheme.appColors.success
+                )
+            }
+
             SummaryRow(
                 label = "Delivery charge",
                 value = if (quote.deliveryFeePaise == 0L) "FREE" else formatPaise(quote.deliveryFeePaise),
@@ -602,6 +640,157 @@ fun OrderSummaryCard(quote: QuoteBreakdown) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+/**
+ * Coupon entry card. When no coupon is applied it shows an input + Apply button.
+ * When a coupon is successfully applied it shows a success chip with a remove button.
+ * Errors from the backend are displayed inline.
+ */
+@Composable
+private fun CouponCard(
+    couponInput: String,
+    appliedCode: String?,
+    couponApplied: Boolean,
+    couponError: String?,
+    onInputChange: (String) -> Unit,
+    onApply: () -> Unit,
+    onRemove: () -> Unit
+) {
+    val focusManager = LocalFocusManager.current
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.LocalOffer,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Promo / Coupon code",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            // Applied state
+            AnimatedVisibility(
+                visible = couponApplied && appliedCode != null,
+                enter = expandVertically(),
+                exit = shrinkVertically()
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = MaterialTheme.appColors.successContainer,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = MaterialTheme.appColors.success,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = appliedCode.orEmpty(),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.appColors.success,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(
+                            onClick = onRemove,
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Remove coupon",
+                                tint = MaterialTheme.appColors.success,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Input state (shown when no valid coupon applied)
+            AnimatedVisibility(
+                visible = !couponApplied,
+                enter = expandVertically(),
+                exit = shrinkVertically()
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = couponInput,
+                            onValueChange = onInputChange,
+                            placeholder = {
+                                Text(
+                                    "Enter code",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(
+                                onDone = {
+                                    focusManager.clearFocus()
+                                    onApply()
+                                }
+                            ),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                                unfocusedIndicatorColor = MaterialTheme.colorScheme.outlineVariant
+                            )
+                        )
+                        Button(
+                            onClick = {
+                                focusManager.clearFocus()
+                                onApply()
+                            },
+                            enabled = couponInput.isNotBlank(),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.height(56.dp)
+                        ) {
+                            Text("Apply", style = MaterialTheme.typography.labelLarge)
+                        }
+                    }
+
+                    // Inline error
+                    if (!couponError.isNullOrBlank()) {
+                        Text(
+                            text = couponError,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
         }
     }
 }

@@ -37,8 +37,12 @@ data class QuoteBreakdown(
     val taxPaise: Long = 0,
     val grandTotalPaise: Long = 0,
     val belowChargeThreshold: Boolean = false,
-    val amountToFreeDelivery: Long = 0
+    val amountToFreeDelivery: Long = 0,
+    val couponCode: String? = null,
+    val couponApplied: Boolean = false,
+    val couponError: String? = null
 ) {
+
     @Immutable
     @Serializable
     data class Line(

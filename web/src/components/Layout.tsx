@@ -20,12 +20,14 @@ import {
   BarChart2,
   ClipboardList,
   ShieldCheck,
+  Tag,
 } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Orders Queue", href: "/orders", icon: FileText },
   { name: "Catalogue", href: "/catalogue", icon: Package },
+  { name: "Coupons & Offers", href: "/coupons", icon: Tag },
   { name: "Inventory", href: "/inventory", icon: ShoppingCart },
   { name: "Reports & Sales", href: "/reports", icon: BarChart2 },
   { name: "Audit Log", href: "/audit", icon: ClipboardList },
@@ -34,6 +36,7 @@ const navigation = [
   { name: "Staff & Riders", href: "/staff", icon: Users },
   { name: "POS & Billing", href: "/billing", icon: FileText },
 ];
+
 
 export default function Layout({
   children,
