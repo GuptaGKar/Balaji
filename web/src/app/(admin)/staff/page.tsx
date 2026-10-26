@@ -40,19 +40,28 @@ export default function StaffPage() {
 
   const form = useForm<CreateStaffInput>({
     resolver: zodResolver(createStaffSchema),
-    defaultValues: { login_id: "", display_name: "", phone: "", role: "staff" },
+    defaultValues: {
+      login_id: "",
+      display_name: "",
+      phone: "",
+      role: "staff",
+      password: "",
+      confirm_password: "",
+    },
   });
 
   const fetchStaff = async () => {
     const supabase = createClient();
     const { data, error } = await supabase
       .from("profiles")
-      .select("*")
+      .select("id, role, display_name, phone, login_id, is_active, must_change_password")
       .neq("role", "customer")
       .order("role")
-      .order("display_name");
+      .order("display_name")
+      .limit(500);
     if (error) {
-      toast.error("Failed to load");
+      toast.error("Failed to load staff");
+      setLoading(false);
       return;
     }
     setStaff(data || []);
@@ -73,11 +82,10 @@ export default function StaffPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to create");
 
-      setShowOTP(json.tempPassword);
       setCreating(false);
       form.reset();
       fetchStaff();
-      toast.success(`Account created! Share the one-time password securely.`);
+      toast.success("Account created. Share the login ID and password securely.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create");
     }
@@ -102,15 +110,29 @@ export default function StaffPage() {
     }
   };
 
-  const handleToggleActive = async (id: string, current: boolean) => {
+  const handleToggleActive = async (member: Staff) => {
     const supabase = createClient();
-    const { error } = await supabase.from("profiles").update({ is_active: !current }).eq("id", id);
-    if (error) {
-      toast.error("Failed");
-      return;
+    if (member.role === "delivery") {
+      const { data, error } = await supabase.rpc("set_rider_active", {
+        p_rider_id: member.id,
+        p_active: !member.is_active,
+      });
+      if (error || data?.error) {
+        toast.error(data?.message || error?.message || "Failed to update rider");
+        return;
+      }
+    } else {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ is_active: !member.is_active })
+        .eq("id", member.id);
+      if (error) {
+        toast.error(error.message || "Failed to update staff");
+        return;
+      }
     }
     fetchStaff();
-    toast.success(current ? "Deactivated" : "Activated");
+    toast.success(member.is_active ? "Deactivated" : "Activated");
   };
 
   if (loading)
@@ -254,7 +276,7 @@ export default function StaffPage() {
                           <RotateCcw className="h-4 w-4" />
                         </button>
                         <button
-                          onClick={() => handleToggleActive(s.id, s.is_active)}
+                          onClick={() => handleToggleActive(s)}
                           className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
                           aria-label={s.is_active ? "Deactivate" : "Activate"}
                         >
@@ -347,6 +369,47 @@ function StaffForm({
             )}
             placeholder="9837803293"
           />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
+          <input
+            {...form.register("password")}
+            type="password"
+            autoComplete="new-password"
+            className={cn(
+              "w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500",
+              form.formState.errors.password && "border-red-500",
+            )}
+            placeholder="At least 8 characters"
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            Share this password securely with the staff member.
+          </p>
+          {form.formState.errors.password && (
+            <p className="mt-1 text-sm text-red-600">
+              {form.formState.errors.password.message}
+            </p>
+          )}
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Confirm Password *
+          </label>
+          <input
+            {...form.register("confirm_password")}
+            type="password"
+            autoComplete="new-password"
+            className={cn(
+              "w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500",
+              form.formState.errors.confirm_password && "border-red-500",
+            )}
+            placeholder="Repeat the password"
+          />
+          {form.formState.errors.confirm_password && (
+            <p className="mt-1 text-sm text-red-600">
+              {form.formState.errors.confirm_password.message}
+            </p>
+          )}
         </div>
         <div className="md:col-span-2 flex justify-end gap-3 pt-4 border-t border-indigo-200">
           <button

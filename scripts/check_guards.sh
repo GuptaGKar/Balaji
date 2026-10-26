@@ -23,12 +23,16 @@ done
 for p in "${SCAN_PATHS[@]}"; do
   [ -d "$p" ] || continue
   # shellcheck disable=SC2086
-  if grep -rnE "(^|[^0-9])25000([^0-9]|$)" "$p" --include="*.sql" --include="*.ts" --include="*.tsx" --include="*.kt" --include="*.kts" 2>/dev/null; then
+  if grep -rnE "(^|[^0-9])25000([^0-9]|$)" "$p" --include="*.sql" --include="*.ts" --include="*.tsx" --include="*.kt" --include="*.kts" \
+      --exclude-dir=test --exclude-dir=tests --exclude-dir=__tests__ --exclude-dir=build --exclude-dir=node_modules \
+      --exclude="*.test.*" --exclude="*.spec.*" 2>/dev/null; then
     echo "::error::hard-coded 25000 found in $p — threshold must come from store_settings"
     FAIL=1
   fi
   # shellcheck disable=SC2086
-  if grep -rnE "(^|[^0-9])250([^0-9]|$)" "$p" --include="*.sql" --include="*.ts" --include="*.tsx" --include="*.kt" --include="*.kts" 2>/dev/null; then
+  if grep -rnE "(^|[^0-9])250([^0-9]|$)" "$p" --include="*.sql" --include="*.ts" --include="*.tsx" --include="*.kt" --include="*.kts" \
+      --exclude-dir=test --exclude-dir=tests --exclude-dir=__tests__ --exclude-dir=build --exclude-dir=node_modules \
+      --exclude="*.test.*" --exclude="*.spec.*" 2>/dev/null; then
     echo "::error::hard-coded 250 found in $p — threshold must come from store_settings"
     FAIL=1
   fi

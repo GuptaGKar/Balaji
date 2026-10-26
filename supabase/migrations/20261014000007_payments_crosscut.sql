@@ -1,8 +1,6 @@
 -- M1: gated payment tables and cross-cutting tables (IMPLEMENTATION_PLAN.md §4.2)
 
--- payments: only populated when online payments are enabled (M11 gate).
--- Never store payment secrets or full card data.
-CREATE TABLE payments (
+CREATE TABLE IF NOT EXISTS payments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id uuid NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   provider text NOT NULL,
@@ -14,10 +12,9 @@ CREATE TABLE payments (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_payments_order ON payments(order_id);
+CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id);
 
--- Webhook dedupe: exactly one processed row per provider event (plan §4.2, §10).
-CREATE TABLE payment_events (
+CREATE TABLE IF NOT EXISTS payment_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   provider text NOT NULL,
   provider_event_id text NOT NULL,
@@ -27,9 +24,7 @@ CREATE TABLE payment_events (
   UNIQUE (provider, provider_event_id)
 );
 
--- Idempotency: primary key (user, scope, key); request_hash distinguishes a
--- retry of the same request from a conflicting reuse of the key (plan §4.7).
-CREATE TABLE idempotency_keys (
+CREATE TABLE IF NOT EXISTS idempotency_keys (
   user_id uuid NOT NULL,
   scope text NOT NULL,
   key text NOT NULL,
@@ -39,11 +34,7 @@ CREATE TABLE idempotency_keys (
   PRIMARY KEY (user_id, scope, key)
 );
 
--- Append-only audit log (plan §4.2, §4.9). Populated by RPCs and triggers from
--- M2. Rows are never updated or deleted; sensitive values are redacted before
--- insert (redaction function added in M2).
--- entity_id is text to accommodate tables with non-uuid PKs (e.g., store_settings boolean singleton).
-CREATE TABLE audit_logs (
+CREATE TABLE IF NOT EXISTS audit_logs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   actor_id uuid REFERENCES profiles(id),
   action text NOT NULL,
@@ -55,14 +46,12 @@ CREATE TABLE audit_logs (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
-CREATE INDEX idx_audit_logs_created ON audit_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at DESC);
 
 REVOKE UPDATE, DELETE ON audit_logs FROM PUBLIC;
 
--- Notification outbox: async notifications never roll back a valid order (§4.7).
--- MVP uses in-app status + manual phone contact; providers are P1 (M10).
-CREATE TABLE notification_outbox (
+CREATE TABLE IF NOT EXISTS notification_outbox (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id uuid REFERENCES orders(id) ON DELETE CASCADE,
   channel text NOT NULL,

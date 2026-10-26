@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase";
@@ -17,29 +17,43 @@ import {
   Menu,
   X,
   Store,
-  UserCog,
-  Bell,
   BarChart2,
   ClipboardList,
+  ShieldCheck,
 } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Orders", href: "/orders", icon: FileText },
+  { name: "Orders Queue", href: "/orders", icon: FileText },
   { name: "Catalogue", href: "/catalogue", icon: Package },
   { name: "Inventory", href: "/inventory", icon: ShoppingCart },
-  { name: "Reports", href: "/reports", icon: BarChart2 },
+  { name: "Reports & Sales", href: "/reports", icon: BarChart2 },
   { name: "Audit Log", href: "/audit", icon: ClipboardList },
-  { name: "Settings", href: "/settings", icon: Settings },
+  { name: "Store Settings", href: "/settings", icon: Settings },
   { name: "Service Areas", href: "/service-areas", icon: MapPin },
   { name: "Staff & Riders", href: "/staff", icon: Users },
-  { name: "Billing", href: "/billing", icon: FileText },
+  { name: "POS & Billing", href: "/billing", icon: FileText },
 ];
 
-export default function Layout({ children }: { children: React.ReactNode }) {
+export default function Layout({
+  children,
+  user,
+}: {
+  children: React.ReactNode;
+  user: { email: string; role: string };
+}) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [user, setUser] = useState<{ email: string; role: string } | null>(null);
+  const [storeOpen, setStoreOpen] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("store_settings")
+      .select("store_open")
+      .single()
+      .then(({ data }) => setStoreOpen(data ? data.store_open : null));
+  }, []);
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -48,11 +62,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
       {/* Mobile sidebar overlay */}
       <div
         className={cn(
-          "fixed inset-0 z-40 bg-black/50 lg:hidden transition-opacity",
+          "fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm lg:hidden transition-opacity",
           sidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none",
         )}
         onClick={() => setSidebarOpen(false)}
@@ -62,87 +76,116 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 transform transition-transform duration-200 ease-in-out lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white border-r border-slate-800 transform transition-transform duration-200 ease-in-out lg:translate-x-0 shadow-xl",
           sidebarOpen ? "translate-x-0" : "-translate-x-full",
         )}
         aria-label="Sidebar"
       >
         <div className="flex flex-col h-full">
-          <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200">
-            <Link href="/" className="flex items-center gap-2">
-              <Store className="h-8 w-8 text-indigo-600" />
-              <span className="text-xl font-bold text-gray-900">Balaji Store</span>
+          {/* Brand Header */}
+          <div className="flex items-center justify-between h-16 px-5 border-b border-slate-800 bg-slate-950/40">
+            <Link href="/" className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-md shadow-emerald-600/30">
+                <Store className="h-6 w-6" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-base font-bold tracking-tight text-white leading-tight">Balaji Provision</span>
+                <span className="text-xs text-emerald-400 font-medium">Store Admin Portal</span>
+              </div>
             </Link>
             <button
-              className="lg:hidden p-2 text-gray-500 hover:text-gray-700"
+              className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
               onClick={() => setSidebarOpen(false)}
               aria-label="Close sidebar"
             >
-              <X className="h-6 w-6" />
+              <X className="h-5 w-5" />
             </button>
           </div>
 
+          {/* Navigation Links */}
           <nav
-            className="flex-1 px-2 py-4 space-y-1 overflow-y-auto"
+            className="flex-1 px-3 py-4 space-y-1 overflow-y-auto"
             role="navigation"
             aria-label="Main navigation"
           >
             {navigation.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+              const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
               return (
                 <Link
                   key={item.name}
                   href={item.href}
                   className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors",
+                    "flex items-center gap-3 px-3.5 py-2.5 text-sm font-medium rounded-xl transition-all duration-150",
                     isActive
-                      ? "bg-indigo-50 text-indigo-700"
-                      : "text-gray-700 hover:bg-gray-100 hover:text-gray-900",
+                      ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/20"
+                      : "text-slate-300 hover:bg-slate-800/80 hover:text-white",
                   )}
                   aria-current={isActive ? "page" : undefined}
                 >
-                  <item.icon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
+                  <item.icon className={cn("h-5 w-5 flex-shrink-0", isActive ? "text-white" : "text-slate-400")} aria-hidden="true" />
                   {item.name}
                 </Link>
               );
             })}
           </nav>
 
-          <div className="p-4 border-t border-gray-200">
+          {/* User & Store Status Footer */}
+          <div className="p-4 border-t border-slate-800 bg-slate-950/30 space-y-3">
+            <div className="flex items-center justify-between text-xs px-1">
+              <span
+                className={cn(
+                  "flex items-center gap-1.5 font-medium",
+                  storeOpen === null ? "text-slate-400" : storeOpen ? "text-emerald-400" : "text-red-400",
+                )}
+              >
+                <span
+                  className={cn(
+                    "h-2 w-2 rounded-full",
+                    storeOpen === null ? "bg-slate-500" : storeOpen ? "bg-emerald-400 animate-pulse" : "bg-red-400",
+                  )}
+                />
+                {storeOpen === null ? "Store status unknown" : storeOpen ? "Store Open" : "Store Closed"}
+              </span>
+              <span className="text-slate-400">v1.0.0</span>
+            </div>
+
             <button
               onClick={handleSignOut}
-              className={cn(
-                "flex items-center gap-3 w-full px-3 py-2.5 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100 transition-colors",
-              )}
+              className="flex items-center gap-3 w-full px-3 py-2 text-sm font-medium text-slate-300 rounded-xl hover:bg-red-500/10 hover:text-red-400 transition-colors"
             >
-              <LogOut className="h-5 w-5" aria-hidden="true" />
-              Sign out
+              <LogOut className="h-4 w-4" aria-hidden="true" />
+              Sign Out
             </button>
           </div>
         </div>
       </aside>
 
-      {/* Main content */}
+      {/* Main content area */}
       <div className="lg:pl-64">
-        {/* Top bar */}
-        <header className="sticky top-0 z-30 bg-white border-b border-gray-200">
+        {/* Top Header */}
+        <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200">
           <div className="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8">
             <button
-              className="lg:hidden p-2 text-gray-500 hover:text-gray-700"
+              className="lg:hidden p-2 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100"
               onClick={() => setSidebarOpen(true)}
               aria-label="Open sidebar"
             >
               <Menu className="h-6 w-6" />
             </button>
 
-            <div className="flex-1 lg:flex-none" />
+            <div className="flex-1 lg:flex-none">
+              <h2 className="hidden sm:block text-sm font-semibold text-slate-700">
+                Balaji Provision Store Management System
+              </h2>
+            </div>
 
-            <div className="flex items-center gap-4">
-              <div className="hidden sm:block text-sm text-gray-500">
-                {user?.email || "Loading..."}
+            <div className="flex items-center gap-3">
+              <div className="hidden sm:flex flex-col text-right">
+                <span className="text-xs font-semibold text-slate-900">{user.email}</span>
+                <span className="text-[11px] text-emerald-600 font-medium capitalize">{user.role}</span>
               </div>
-              <div className="hidden sm:block px-2 py-1 text-xs font-medium text-indigo-700 bg-indigo-50 rounded-full">
-                {user?.role || "staff"}
+              <div className="h-8 w-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-sm border border-emerald-300 shadow-sm">
+                {user.email.slice(0, 1).toUpperCase()}
               </div>
             </div>
           </div>

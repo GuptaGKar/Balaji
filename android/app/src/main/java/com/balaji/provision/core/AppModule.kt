@@ -3,9 +3,11 @@ package com.balaji.provision.core
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.balaji.provision.data.auth.SessionStorage
+import com.balaji.provision.data.auth.SessionStore
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -27,8 +29,12 @@ object AppModule {
     
     @Provides
     @Singleton
-    @Named("cartVersionKey")
-    fun provideCartVersionKey(): Preferences.Key<Int> = intPreferencesKey("cart_version")
+    fun provideSessionStorage(store: SessionStore): SessionStorage = store
+
+    @Provides
+    @Singleton
+    @Named("cartItemsKey")
+    fun provideCartItemsKey(): Preferences.Key<String> = stringPreferencesKey("cart_items")
     
     @Provides
     @Singleton
@@ -39,4 +45,9 @@ object AppModule {
     @Singleton
     @Named("authTokenKey")
     fun provideAuthTokenKey(): Preferences.Key<String> = stringPreferencesKey("auth_token")
+
+    @Provides
+    @Singleton
+    @Named("darkThemeKey")
+    fun provideDarkThemeKey(): Preferences.Key<Boolean> = booleanPreferencesKey("customer_dark_theme")
 }

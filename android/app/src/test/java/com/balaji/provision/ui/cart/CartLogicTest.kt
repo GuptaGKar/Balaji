@@ -29,13 +29,14 @@ class CartLogicTest {
     }
 
     @Test
-    fun `cart item equality by productId`() {
+    fun `cart item equality includes quantity so StateFlow emits updates`() {
         val item1 = CartItem("product-1", 2)
         val item2 = CartItem("product-1", 5)
         val item3 = CartItem("product-2", 2)
-        
-        assertEquals(item1, item2)
+
+        assertNotEquals(item1, item2)
+        assertNotEquals(Cart(listOf(item1)), Cart(listOf(item2)))
         assertNotEquals(item1, item3)
-        assertEquals(item1.hashCode(), item2.hashCode())
+        assertEquals(CartItem("product-1", 2), CartItem("product-1", 2))
     }
 }

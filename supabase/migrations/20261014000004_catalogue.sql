@@ -1,6 +1,6 @@
 -- M1: catalogue tables (IMPLEMENTATION_PLAN.md §4.2)
 
-CREATE TABLE categories (
+CREATE TABLE IF NOT EXISTS categories (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,
   slug text NOT NULL UNIQUE,
@@ -8,17 +8,9 @@ CREATE TABLE categories (
   active boolean NOT NULL DEFAULT true
 );
 
-CREATE INDEX idx_categories_active ON categories(active);
+CREATE INDEX IF NOT EXISTS idx_categories_active ON categories(active);
 
--- products: money in integer paise; quantities in integer base units
--- (grams for WEIGHTED, pack count for PACKED). No floating point anywhere.
---
--- price_basis_qty = base units covered by price_paise:
---   PACKED  -> always 1 (price is per pack/piece)
---   WEIGHTED-> 1000 (per kg) or 100 (per 100 g)
--- step_qty  = smallest allowed quantity step in base units (default 10 g for WEIGHTED).
--- Products are archived (active=false), never hard-deleted once referenced.
-CREATE TABLE products (
+CREATE TABLE IF NOT EXISTS products (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   sku text NOT NULL UNIQUE,
   name text NOT NULL,
@@ -41,22 +33,26 @@ CREATE TABLE products (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
--- PACKED: exactly one piece per priced unit, integer steps only.
-ALTER TABLE products ADD CONSTRAINT chk_products_packed
-  CHECK (quantity_type <> 'PACKED' OR (price_basis_qty = 1 AND step_qty = 1));
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_products_packed') THEN
+        ALTER TABLE products ADD CONSTRAINT chk_products_packed
+          CHECK (quantity_type NOT IN ('PACKED', 'packed') OR (price_basis_qty = 1 AND step_qty = 1));
+    END IF;
 
--- WEIGHTED: price basis must be per 100 g or per kg.
-ALTER TABLE products ADD CONSTRAINT chk_products_weighted_basis
-  CHECK (quantity_type <> 'WEIGHTED' OR price_basis_qty IN (100, 1000));
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_products_weighted_basis') THEN
+        ALTER TABLE products ADD CONSTRAINT chk_products_weighted_basis
+          CHECK (quantity_type NOT IN ('WEIGHTED', 'weighted') OR price_basis_qty IN (100, 1000));
+    END IF;
+END $$;
 
-CREATE INDEX idx_products_category ON products(category_id);
-CREATE INDEX idx_products_catalogue ON products(quantity_type, active, available);
+CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
+CREATE INDEX IF NOT EXISTS idx_products_catalogue ON products(quantity_type, active, available);
 
+DROP TRIGGER IF EXISTS trg_products_updated_at ON products;
 CREATE TRIGGER trg_products_updated_at BEFORE UPDATE ON products
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
--- Hard-delete protection: a product referenced by order or bill items must be
--- archived, not deleted, so historical snapshots stay resolvable (plan §4.2).
 CREATE OR REPLACE FUNCTION prevent_product_delete_when_referenced()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -72,5 +68,10 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_products_prevent_delete ON products;
 CREATE TRIGGER trg_products_prevent_delete BEFORE DELETE ON products
   FOR EACH ROW EXECUTE FUNCTION prevent_product_delete_when_referenced();
+
+-- Views for backwards compatibility between categories / catalog_categories and products / catalog_products
+CREATE OR REPLACE VIEW catalog_categories AS SELECT * FROM categories;
+CREATE OR REPLACE VIEW catalog_products AS SELECT * FROM products;

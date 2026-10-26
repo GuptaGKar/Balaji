@@ -1,0 +1,552 @@
+{
+  "products": [
+    {
+      "sku": "SKU-447833",
+      "name": "Toor",
+      "category": "daal",
+      "search_term": "Toor Dal Arhar Dal Pigeon Pea"
+    },
+    {
+      "sku": "SKU-898169",
+      "name": "Toor",
+      "category": "daal",
+      "search_term": "Toor Dal Arhar Dal Pigeon Pea"
+    },
+    {
+      "sku": "AMULYA-DAIRY-WHITENER-200G",
+      "name": "Amulya Dairy Whitener",
+      "category": "dairy",
+      "search_term": "Amulya Dairy Whitener 200g"
+    },
+    {
+      "sku": "SKU-A2C1A1C6",
+      "name": "Milk",
+      "category": "dairy",
+      "search_term": "Milk packet dairy fresh milk"
+    },
+    {
+      "sku": "SKU-D852B099",
+      "name": "Aashirvaad Atta 105kg",
+      "category": "atta",
+      "search_term": "Aashirvaad Atta 5kg wheat flour"
+    },
+    {
+      "sku": "TEST-PACKED-1792433731135",
+      "name": "Aashirvaad Atta 5kg",
+      "category": "atta",
+      "search_term": "Aashirvaad Atta 5kg wheat flour",
+      "existing_image": true
+    },
+    {
+      "sku": "HALDIRAMS-ALOO-BHUJIA",
+      "name": "Haldiram's Aloo Bhujia",
+      "category": "snacks-namkeen",
+      "search_term": "Haldiram Aloo Bhujia namkeen"
+    },
+    {
+      "sku": "HALDIRAMS-BHAKARWADI",
+      "name": "Haldiram's Bhakarwadi",
+      "category": "snacks-namkeen",
+      "search_term": "Haldiram Bhakarwadi snack"
+    },
+    {
+      "sku": "HALDIRAMS-BHEL",
+      "name": "Haldiram's Bhel",
+      "category": "snacks-namkeen",
+      "search_term": "Haldiram Bhel puri snack mix"
+    },
+    {
+      "sku": "HALDIRAMS-GUJARATI-MIXTURE",
+      "name": "Haldiram's Gujarati Mixture",
+      "category": "snacks-namkeen",
+      "search_term": "Haldiram Gujarati Mixture namkeen"
+    },
+    {
+      "sku": "HALDIRAMS-KAJU-MIXTURE",
+      "name": "Haldiram's Kaju Mixture",
+      "category": "snacks-namkeen",
+      "search_term": "Haldiram Kaju Mixture cashew namkeen"
+    },
+    {
+      "sku": "HALDIRAMS-KASHMIRI-MIXTURE",
+      "name": "Haldiram's Kashmiri Mixture",
+      "category": "snacks-namkeen",
+      "search_term": "Haldiram Kashmiri Mixture namkeen"
+    },
+    {
+      "sku": "HALDIRAMS-LITE-CHIWDA",
+      "name": "Haldiram's Lite Chiwda",
+      "category": "snacks-namkeen",
+      "search_term": "Haldiram Lite Chiwda poha namkeen"
+    },
+    {
+      "sku": "HALDIRAMS-LITE-MIXTURE",
+      "name": "Haldiram's Lite Mixture",
+      "category": "snacks-namkeen",
+      "search_term": "Haldiram Lite Mixture namkeen"
+    },
+    {
+      "sku": "HALDIRAMS-LITE-MURMURA",
+      "name": "Haldiram's Lite Murmura",
+      "category": "snacks-namkeen",
+      "search_term": "Haldiram Lite Murmura puffed rice"
+    },
+    {
+      "sku": "HALDIRAMS-MOONG-DAL",
+      "name": "Haldiram's Moong Dal",
+      "category": "snacks-namkeen",
+      "search_term": "Haldiram Moong Dal namkeen"
+    },
+    {
+      "sku": "HALDIRAMS-MURUKKU",
+      "name": "Haldiram's Murukku",
+      "category": "snacks-namkeen",
+      "search_term": "Haldiram Murukku snack"
+    },
+    {
+      "sku": "HALDIRAMS-NAVRATAN",
+      "name": "Haldiram's Navratan",
+      "category": "snacks-namkeen",
+      "search_term": "Haldiram Navratan Mixture namkeen"
+    },
+    {
+      "sku": "HALDIRAMS-PANCHRATTAN",
+      "name": "Haldiram's Panchrattan",
+      "category": "snacks-namkeen",
+      "search_term": "Haldiram Panchrattan Mixture namkeen"
+    },
+    {
+      "sku": "HALDIRAMS-PUNJABI-TADKA",
+      "name": "Haldiram's Punjabi Tadka",
+      "category": "snacks-namkeen",
+      "search_term": "Haldiram Punjabi Tadka namkeen"
+    },
+    {
+      "sku": "HALDIRAMS-ROYAL-ZAHIDI-DATES",
+      "name": "Haldiram's Royal Zahidi Dates",
+      "category": "snacks-namkeen",
+      "search_term": "Haldiram Zahidi Dates khajoor"
+    },
+    {
+      "sku": "HALDIRAMS-SAMOSA",
+      "name": "Haldiram's Samosa",
+      "category": "snacks-namkeen",
+      "search_term": "Haldiram Samosa frozen snack"
+    },
+    {
+      "sku": "HALDIRAMS-SHAHI-DAL-BHI",
+      "name": "Haldiram's Shahi Dal Bhi",
+      "category": "snacks-namkeen",
+      "search_term": "Haldiram Shahi Dal snack"
+    },
+    {
+      "sku": "HALDIRAMS-SHAHI-MIXTURE",
+      "name": "Haldiram's Shahi Mixture",
+      "category": "snacks-namkeen",
+      "search_term": "Haldiram Shahi Mixture namkeen"
+    },
+    {
+      "sku": "HALDIRAMS-SOAN-PAPDI",
+      "name": "Haldiram's Soan Papdi",
+      "category": "snacks-namkeen",
+      "search_term": "Haldiram Soan Papdi sweet"
+    },
+    {
+      "sku": "CADBURY-5STAR-SOFTER-20",
+      "name": "Cadbury 5 Star Softer Bar",
+      "category": "snacks-namkeen",
+      "search_term": "Cadbury 5 Star chocolate bar"
+    },
+    {
+      "sku": "CADBURY-DAIRY-MILK-FAMILY",
+      "name": "Cadbury Dairy Milk",
+      "category": "snacks-namkeen",
+      "search_term": "Cadbury Dairy Milk chocolate family pack"
+    },
+    {
+      "sku": "CADBURY-DAIRY-MILK-SILK-HAZELNUT",
+      "name": "Cadbury Dairy Milk Silk Hazelnut",
+      "category": "snacks-namkeen",
+      "search_term": "Cadbury Dairy Milk Silk Hazelnut chocolate"
+    },
+    {
+      "sku": "HALDIRAMS-ALL-IN-ONE",
+      "name": "Haldiram's All in One",
+      "category": "snacks-namkeen",
+      "search_term": "Haldiram All in One mixture namkeen"
+    },
+    {
+      "sku": "AMERICAN-CASHEW-COOKIES",
+      "name": "American Cashew Cookies",
+      "category": "snacks-namkeen",
+      "search_term": "American cashew cookies biscuit"
+    },
+    {
+      "sku": "ASSORTED-CANDIES-211922",
+      "name": "Assorted candies/chocolates",
+      "category": "snacks-namkeen",
+      "search_term": "assorted candies chocolates packet"
+    },
+    {
+      "sku": "BLUE-SNACK-PACK",
+      "name": "Blue snack pack (unidentified)",
+      "category": "snacks-namkeen",
+      "search_term": "blue snack packet namkeen"
+    },
+    {
+      "sku": "CRISPY-LAND-COOKIES",
+      "name": "Crispy Land Cookies",
+      "category": "snacks-namkeen",
+      "search_term": "Crispy Land cookies biscuit"
+    },
+    {
+      "sku": "MARIO-MARIE-BISCUIT",
+      "name": "Mario Marie Biscuit",
+      "category": "snacks-namkeen",
+      "search_term": "Marie biscuit packet"
+    },
+    {
+      "sku": "SNICKERS",
+      "name": "Mars Snickers",
+      "category": "snacks-namkeen",
+      "search_term": "Snickers chocolate bar"
+    },
+    {
+      "sku": "KITKAT-FREE-20",
+      "name": "Nestle KitKat Free 20",
+      "category": "snacks-namkeen",
+      "search_term": "KitKat chocolate bar"
+    },
+    {
+      "sku": "PARLE-KAPI-CANDY",
+      "name": "Parle Kapi Candy",
+      "category": "snacks-namkeen",
+      "search_term": "Parle Kapi Candy"
+    },
+    {
+      "sku": "PARLE-MANGO-BITE",
+      "name": "Parle Mango Bite",
+      "category": "snacks-namkeen",
+      "search_term": "Parle Mango Bite candy"
+    },
+    {
+      "sku": "ALPENLIEBE-CANDY",
+      "name": "Perfetti Van Melle Alpenliebe Candy",
+      "category": "snacks-namkeen",
+      "search_term": "Alpenliebe candy strawberry"
+    },
+    {
+      "sku": "MENTOS-ORANGE",
+      "name": "Perfetti Van Melle Mentos Orange",
+      "category": "snacks-namkeen",
+      "search_term": "Mentos Orange candy"
+    },
+    {
+      "sku": "MENTOS-STRAWBERRY",
+      "name": "Perfetti Van Melle Mentos Strawberry",
+      "category": "snacks-namkeen",
+      "search_term": "Mentos Strawberry candy"
+    },
+    {
+      "sku": "SNS-BLACK-PACK",
+      "name": "SNS black pack (unidentified)",
+      "category": "snacks-namkeen",
+      "search_term": "black snack pack namkeen"
+    },
+    {
+      "sku": "SWAD-CASHEW",
+      "name": "Swad Cashew",
+      "category": "snacks-namkeen",
+      "search_term": "Swad cashew nut kaju"
+    },
+    {
+      "sku": "TEJAS-RAISINS",
+      "name": "Tejas Premium Raisins",
+      "category": "snacks-namkeen",
+      "search_term": "Tejas raisins kismis dried grapes"
+    },
+    {
+      "sku": "CINTHOL-LIME-SOAP",
+      "name": "Cinthol Lime Soap",
+      "category": "personal-care",
+      "search_term": "Cinthol Lime soap bar"
+    },
+    {
+      "sku": "DETTOL-ICY-COOL-SOAP",
+      "name": "Dettol Icy Cool Soap",
+      "category": "personal-care",
+      "search_term": "Dettol Icy Cool soap bar"
+    },
+    {
+      "sku": "DETTOL-ORIGINAL-SOAP",
+      "name": "Dettol Original Soap",
+      "category": "personal-care",
+      "search_term": "Dettol Original soap bar"
+    },
+    {
+      "sku": "DOVE-SOAP",
+      "name": "Dove Soap",
+      "category": "personal-care",
+      "search_term": "Dove soap bar"
+    },
+    {
+      "sku": "GODREJ-NO1-LIME-ALOE-4X150G",
+      "name": "Godrej No.1 Lime & Aloe Vera Soap",
+      "category": "personal-care",
+      "search_term": "Godrej No 1 Lime Aloe soap"
+    },
+    {
+      "sku": "GODREJ-NO1-SANDAL-TURMERIC-4X150G",
+      "name": "Godrej No.1 Sandal & Turmeric Soap",
+      "category": "personal-care",
+      "search_term": "Godrej No 1 Sandal Turmeric soap"
+    },
+    {
+      "sku": "HIMALAYA-GENTLE-BABY-SOAP",
+      "name": "Himalaya Gentle Baby Soap",
+      "category": "personal-care",
+      "search_term": "Himalaya Gentle Baby soap"
+    },
+    {
+      "sku": "JOY-SOAP",
+      "name": "Joy Soap",
+      "category": "personal-care",
+      "search_term": "Joy soap bar"
+    },
+    {
+      "sku": "LIFEBUOY-SOAP",
+      "name": "Lifebuoy Soap",
+      "category": "personal-care",
+      "search_term": "Lifebuoy soap bar"
+    },
+    {
+      "sku": "LUX-SOAP",
+      "name": "Lux Soap",
+      "category": "personal-care",
+      "search_term": "Lux soap bar"
+    },
+    {
+      "sku": "MARGO-SOAP",
+      "name": "Margo Soap",
+      "category": "personal-care",
+      "search_term": "Margo Neem soap bar"
+    },
+    {
+      "sku": "MEDIMIX-AYURVEDIC-SOAP",
+      "name": "Medimix Ayurvedic Soap",
+      "category": "personal-care",
+      "search_term": "Medimix Ayurvedic soap"
+    },
+    {
+      "sku": "MYSORE-CARBOLIC-SOAP",
+      "name": "Mysore Carbolic Soap",
+      "category": "personal-care",
+      "search_term": "Mysore Carbolic soap"
+    },
+    {
+      "sku": "PAMPERS-BABY-DRY-PANTS",
+      "name": "Pampers Baby Dry Pants",
+      "category": "personal-care",
+      "search_term": "Pampers Baby Dry pants diaper"
+    },
+    {
+      "sku": "PEARS-SOAP",
+      "name": "Pears Soap",
+      "category": "personal-care",
+      "search_term": "Pears soap bar"
+    },
+    {
+      "sku": "SANTOOR-SANDAL-TURMERIC-4X55G",
+      "name": "Santoor Sandal & Turmeric Soap",
+      "category": "personal-care",
+      "search_term": "Santoor Sandal Turmeric soap"
+    },
+    {
+      "sku": "SANTOOR-SANDAL-TURMERIC-SINGLE",
+      "name": "Santoor Sandal & Turmeric Soap",
+      "category": "personal-care",
+      "search_term": "Santoor Sandal Turmeric soap"
+    },
+    {
+      "sku": "BALAJI-TRIYUG",
+      "name": "Balaji Triyug",
+      "category": "household",
+      "search_term": "Balaji Triyug incense stick agarbatti"
+    },
+    {
+      "sku": "CYCLE-PURE-THREE-IN-ONE",
+      "name": "Cycle Pure Three in One",
+      "category": "household",
+      "search_term": "Cycle Pure Three in One agarbatti incense"
+    },
+    {
+      "sku": "DEVARSHAN-PETAL-ROSE",
+      "name": "Devarshan Petal Rose",
+      "category": "household",
+      "search_term": "Devarshan Petal Rose incense stick"
+    },
+    {
+      "sku": "DIVINE-GRACE-PETAL",
+      "name": "Divine Grace Petal",
+      "category": "household",
+      "search_term": "Divine Grace Petal incense stick"
+    },
+    {
+      "sku": "EXO-DISHWASH-BAR",
+      "name": "Exo Dishwash Bar",
+      "category": "household",
+      "search_term": "Exo Dishwash Bar"
+    },
+    {
+      "sku": "EXO-DISHWASH-TUB",
+      "name": "Exo Dishwash Tub",
+      "category": "household",
+      "search_term": "Exo Dishwash Tub"
+    },
+    {
+      "sku": "FENA-MAHABAR-ADVANCED-180G-50G-FREE",
+      "name": "Fena Mahabar Advanced Detergent Bar",
+      "category": "household",
+      "search_term": "Fena Mahabar detergent bar"
+    },
+    {
+      "sku": "GOOD-KNIGHT-AGARBATTI",
+      "name": "Godrej Good Knight Agarbatti",
+      "category": "household",
+      "search_term": "Good Knight Agarbatti incense stick"
+    },
+    {
+      "sku": "HERITAGE-PRAYER-STICKS",
+      "name": "Heritage Prayer Sticks",
+      "category": "household",
+      "search_term": "Heritage Prayer Sticks incense"
+    },
+    {
+      "sku": "HERITAGE-RADANT-ROSE",
+      "name": "Heritage Radant Rose",
+      "category": "household",
+      "search_term": "Heritage Radant Rose incense"
+    },
+    {
+      "sku": "HONEY-ROSE",
+      "name": "Honey Rose Incense Sticks",
+      "category": "household",
+      "search_term": "Honey Rose incense stick agarbatti"
+    },
+    {
+      "sku": "PATANJALI-SUPER-DISHWASH-BAR",
+      "name": "Patanjali Super Dishwash Bar",
+      "category": "household",
+      "search_term": "Patanjali Super Dishwash Bar"
+    },
+    {
+      "sku": "RIN-4-BAR-PACK",
+      "name": "Rin 4 Bar Pack",
+      "category": "household",
+      "search_term": "Rin detergent bar 4 pack"
+    },
+    {
+      "sku": "SHALIMAR-BELLA",
+      "name": "Shalimar Bella",
+      "category": "household",
+      "search_term": "Shalimar Bella incense stick"
+    },
+    {
+      "sku": "SHALIMAR-GUGAL",
+      "name": "Shalimar Gugal",
+      "category": "household",
+      "search_term": "Shalimar Gugal incense"
+    },
+    {
+      "sku": "SHALIMAR-MYSORE-CHANDAN",
+      "name": "Shalimar Mysore Chandan",
+      "category": "household",
+      "search_term": "Shalimar Mysore Chandan incense"
+    },
+    {
+      "sku": "SHALIMAR-ROSE",
+      "name": "Shalimar Rose",
+      "category": "household",
+      "search_term": "Shalimar Rose incense stick"
+    },
+    {
+      "sku": "NAVGRAH-HAVAN-SAMIDHA",
+      "name": "Shree Navgrah Havan Samidha",
+      "category": "household",
+      "search_term": "Navgrah Havan Samidha havan wood"
+    },
+    {
+      "sku": "SURF-EXCEL-BIG-BAR",
+      "name": "Surf Excel Big Bar",
+      "category": "household",
+      "search_term": "Surf Excel detergent bar"
+    },
+    {
+      "sku": "TIDE-DETERGENT-POWDER-30G-FREE",
+      "name": "Tide Detergent Powder",
+      "category": "household",
+      "search_term": "Tide detergent powder"
+    },
+    {
+      "sku": "VIM-DISHWASH-BAR",
+      "name": "Vim Dishwash Bar",
+      "category": "household",
+      "search_term": "Vim dishwash bar"
+    },
+    {
+      "sku": "ZED-BLACK-3IN1",
+      "name": "Zed Black 3-in-1 Premium Incense Sticks",
+      "category": "household",
+      "search_term": "Zed Black 3 in 1 agarbatti incense"
+    },
+    {
+      "sku": "RED-CHILLI-POWDER-211922",
+      "name": "Red chilli powder",
+      "category": "spices-masalas",
+      "search_term": "red chilli powder spice packet"
+    },
+    {
+      "sku": "NAVGRAH-HAVAN-SAMIDHA",
+      "name": "Shree Navgrah Havan Samidha",
+      "category": "household",
+      "search_term": "Navgrah Havan Samidha"
+    }
+  ],
+  "categories": [
+    {
+      "slug": "daal",
+      "name": "Daal",
+      "search_term": "daal lentils pulses indian"
+    },
+    {
+      "slug": "dairy",
+      "name": "Dairy",
+      "search_term": "dairy milk products packet"
+    },
+    {
+      "slug": "atta",
+      "name": "Flour",
+      "search_term": "wheat flour atta packet"
+    },
+    {
+      "slug": "spices-masalas",
+      "name": "Spices & Masalas",
+      "search_term": "indian spices masala packet"
+    },
+    {
+      "slug": "snacks-namkeen",
+      "name": "Snacks & Namkeen",
+      "search_term": "indian snacks namkeen packet"
+    },
+    {
+      "slug": "personal-care",
+      "name": "Personal Care",
+      "search_term": "soap personal care products"
+    },
+    {
+      "slug": "household",
+      "name": "Household",
+      "search_term": "household items detergent incense"
+    }
+  ]
+}

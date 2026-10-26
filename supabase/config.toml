@@ -1,39 +1,77 @@
-# Supabase CLI project config (local dev + `supabase start`).
-# Secrets (JWT, SMS, etc.) come from environment variables on linked projects;
-# nothing sensitive is stored here.
-
-[project]
-id = "balaji-store"
-name = "Balaji Provision Store"
-description = "Hyperlocal grocery ordering platform"
+# Supabase CLI project config
+project_id = "balaji-store"
 
 [api]
 enabled = true
-schemas = ["public"]
-extra_search_paths = ["public", "extensions"]
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
 max_rows = 1000
 
 [db]
-enabled = true
-port = 5432
+port = 54322
+shadow_port = 54320
+health_timeout = "2m"
 major_version = 15
+
+[db.migrations]
+enabled = true
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[realtime]
+enabled = true
 
 [studio]
 enabled = true
+port = 54323
+api_url = "http://127.0.0.1"
 
 [local_smtp]
 enabled = true
-smtp_port = 3000
-pop3_port = 3001
-web_port = 3002
-
-[auth]
-enabled = true
-site_url = "http://localhost:3000"
+port = 54324
 
 [storage]
 enabled = true
-file_size_limit = 52428800
+file_size_limit = "50MiB"
 
-[functions]
+[auth]
 enabled = true
+site_url = "http://127.0.0.1:3000"
+additional_redirect_urls = ["http://127.0.0.1:3000"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+
+[auth.sms]
+enable_signup = true
+enable_confirmations = true
+
+[auth.rate_limit]
+sms_sent = 30
+
+[auth.hook.send_sms]
+enabled = true
+uri = "http://host.docker.internal:54321/functions/v1/send-sms-hook"
+secrets = "env(SEND_SMS_HOOK_SECRET)"
+
+[functions.send-sms-hook]
+verify_jwt = false
+
+[edge_runtime]
+enabled = true
+policy = "per_worker"
+inspector_port = 8083
+
+[analytics]
+enabled = true
+port = 54327
+backend = "postgres"

@@ -574,14 +574,20 @@ PAYMENT_KEY_SECRET=               # server-only
 PAYMENT_WEBHOOK_SECRET=           # server-only
 # Notifications (optional)
 FCM_SERVER_CREDENTIALS_PATH=
-SMS_PROVIDER_KEY=
+# Supabase Send SMS Hook (2Factor managed SMS)
+SEND_SMS_HOOK_SECRET=
+SMS_PROVIDER=2factor
+TWOFACTOR_API_KEY=
+TWOFACTOR_TEMPLATE_NAME=
 ```
+
+Optional own-SIM gateway fallback: `SMS_GATEWAY_URL`, `SMS_GATEWAY_API_KEY`, and optional `SMS_GATEWAY_CF_ACCESS_CLIENT_ID` / `SMS_GATEWAY_CF_ACCESS_CLIENT_SECRET`.
 Android: `local.properties`/CI secrets for `SUPABASE_URL`, `SUPABASE_ANON_KEY`, signing config; keystore outside repo.
 
 **CI (every PR):** format, lint, typecheck, unit tests, pgTAP on fresh DB, Android lint + unit tests, secret scan, migration check, guard greps.
 **Release:** reviewed migrations → staging → smoke → backup prod → migrate → deploy → smoke → monitor. Human approval for auth/RLS/payment/prod changes. Agent never uses production secrets or deploys.
 **Backups/monitoring:** enable plan-appropriate backups, **restore drill before launch**, error monitoring, checkout failure/webhook failure alerts, request IDs in logs, daily reconciliation checklist, phone fallback (9837803293).
-**Cost control:** modular monolith, no paid maps/real-time tracking, no SMS/WhatsApp until justified; monthly cost ceiling is BLOCKED on owner; record verified plan limits and costs in `docs/DECISIONS.md`.
+**Cost control:** modular monolith, no paid maps/real-time tracking; SMS is limited to auth OTP via 2Factor (owner-approved 2026-10-21), no WhatsApp; monthly cost ceiling is BLOCKED on owner; record verified plan limits and costs in `docs/DECISIONS.md`.
 
 ---
 

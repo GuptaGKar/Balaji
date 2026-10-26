@@ -14,7 +14,7 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 DECLARE
-  v_product products%ROWTYPE;
+  v_product public.products%ROWTYPE;
   v_new_stock bigint;
   v_actor_id uuid := auth.uid();
 BEGIN
@@ -23,8 +23,15 @@ BEGIN
     RETURN jsonb_build_object('error', 'FORBIDDEN', 'message', 'Staff or manager required');
   END IF;
 
-  -- Product must exist
-  SELECT * INTO v_product FROM public.products WHERE id = p_product_id;
+  -- Only manual stock reasons are allowed through this RPC; order/pos reasons
+  -- are written by their own workflows.
+  IF p_reason NOT IN ('manual_adjustment'::public.inventory_reason, 'correction'::public.inventory_reason) THEN
+    RETURN jsonb_build_object('error', 'VALIDATION_FAILED', 'message', 'Reason must be manual_adjustment or correction');
+  END IF;
+
+  -- Product must exist; lock the row so concurrent orders/adjustments cannot
+  -- lose updates.
+  SELECT * INTO v_product FROM public.products WHERE id = p_product_id FOR UPDATE;
   IF NOT FOUND THEN
     RETURN jsonb_build_object('error', 'NOT_FOUND', 'message', 'Product not found');
   END IF;
@@ -68,6 +75,45 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.adjust_stock(uuid, bigint, public.inventory_reason, text) TO authenticated;
 
+-- 1b) Record initial stock as a movement so reconciliation can be trusted.
+--     Stock added by an order/pos/adjustment workflow is recorded by that
+--     workflow; this trigger only covers product creation (and the seed).
+CREATE OR REPLACE FUNCTION public.record_initial_stock_movement()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  IF NEW.stock_qty <> 0 THEN
+    INSERT INTO public.inventory_movements (
+      product_id, delta_qty, reason, reference_type, reference_id, actor_id, note
+    ) VALUES (
+      NEW.id, NEW.stock_qty, 'correction', 'product', NEW.id, auth.uid(),
+      'Initial stock on product creation'
+    );
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_products_initial_stock ON public.products;
+CREATE TRIGGER trg_products_initial_stock
+  AFTER INSERT ON public.products
+  FOR EACH ROW EXECUTE FUNCTION public.record_initial_stock_movement();
+
+-- Backfill products that existed before movement tracking was deployed.
+INSERT INTO public.inventory_movements (
+  product_id, delta_qty, reason, reference_type, reference_id, actor_id, note
+)
+SELECT p.id, p.stock_qty, 'correction', 'product', p.id, NULL,
+       'Baseline stock before movement tracking'
+FROM public.products p
+WHERE p.stock_qty <> 0
+  AND NOT EXISTS (
+    SELECT 1 FROM public.inventory_movements im WHERE im.product_id = p.id
+  );
+
 -- 2) Low stock list RPC
 CREATE OR REPLACE FUNCTION public.get_low_stock_products()
 RETURNS TABLE (
@@ -95,7 +141,6 @@ BEGIN
          p.quantity_type, p.unit_label, p.price_basis_qty, p.price_paise
   FROM public.products p
   WHERE p.active = true
-    AND p.stock_qty > 0
     AND p.stock_qty <= p.low_stock_threshold
   ORDER BY p.low_stock_threshold - p.stock_qty DESC, p.name;
 END;
@@ -124,8 +169,8 @@ BEGIN
 
   RETURN QUERY
   SELECT p.id as product_id, p.sku, p.name, p.stock_qty as current_stock,
-         COALESCE(SUM(im.delta_qty), 0) as movement_sum,
-         p.stock_qty - COALESCE(SUM(im.delta_qty), 0) as discrepancy
+         COALESCE(SUM(im.delta_qty), 0)::bigint as movement_sum,
+         (p.stock_qty - COALESCE(SUM(im.delta_qty), 0))::bigint as discrepancy
   FROM public.products p
   LEFT JOIN public.inventory_movements im ON im.product_id = p.id
   WHERE p.active = true
@@ -177,13 +222,17 @@ BEGIN
   main_agg AS (
     SELECT 
       COUNT(*) as total_orders,
-      COALESCE(SUM(grand_total_paise), 0) as total_revenue_paise,
-      COALESCE(SUM(CASE WHEN payment_method = 'cod' THEN grand_total_paise ELSE 0 END), 0) as total_cod_paise,
-      COALESCE(SUM(CASE WHEN payment_method = 'online' THEN grand_total_paise ELSE 0 END), 0) as total_online_paise,
-      CASE WHEN COUNT(*) > 0 THEN COALESCE(SUM(grand_total_paise), 0) / COUNT(*) ELSE 0 END as avg_order_value_paise,
-      COALESCE(SUM(cod_collected_paise), 0) as cod_collected_paise,
-      COALESCE(SUM(CASE WHEN payment_method = 'cod' AND payment_status = 'unpaid' THEN grand_total_paise ELSE 0 END), 0) as cod_pending_paise
-    FROM filtered_orders
+      COALESCE(SUM(f.grand_total_paise), 0)::bigint as total_revenue_paise,
+      COALESCE(SUM(CASE WHEN f.payment_method = 'cod' THEN f.grand_total_paise ELSE 0 END), 0)::bigint as total_cod_paise,
+      COALESCE(SUM(CASE WHEN f.payment_method = 'online' THEN f.grand_total_paise ELSE 0 END), 0)::bigint as total_online_paise,
+      CASE WHEN COUNT(*) > 0
+        THEN (COALESCE(SUM(f.grand_total_paise), 0)::numeric / COUNT(*))::bigint
+        ELSE 0::bigint
+      END as avg_order_value_paise,
+      COALESCE(SUM(f.cod_collected_paise), 0)::bigint as cod_collected_paise,
+      COALESCE(SUM(CASE WHEN f.payment_method = 'cod'
+        THEN GREATEST(f.grand_total_paise - COALESCE(f.cod_collected_paise, 0), 0) ELSE 0 END), 0)::bigint as cod_pending_paise
+    FROM filtered_orders f
   ),
   status_breakdown AS (
     SELECT jsonb_object_agg(status, cnt) as by_status
@@ -262,10 +311,10 @@ BEGIN
   main_agg AS (
     SELECT 
       COUNT(*) as total_cod_orders,
-      COALESCE(SUM(grand_total_paise), 0) as total_cod_paise,
-      COALESCE(SUM(cod_collected_paise), 0) as collected_paise,
-      COALESCE(SUM(CASE WHEN cod_collected_paise IS NULL OR cod_collected_paise = 0 THEN grand_total_paise ELSE 0 END), 0) as pending_paise
-    FROM cod_orders
+      COALESCE(SUM(o.grand_total_paise), 0)::bigint as total_cod_paise,
+      COALESCE(SUM(o.cod_collected_paise), 0)::bigint as collected_paise,
+      COALESCE(SUM(GREATEST(o.grand_total_paise - COALESCE(o.cod_collected_paise, 0), 0)), 0)::bigint as pending_paise
+    FROM cod_orders o
   ),
   by_rider AS (
     SELECT jsonb_object_agg(rider, stats) as by_rider
@@ -276,7 +325,7 @@ BEGIN
           'orders', COUNT(*),
           'total_paise', COALESCE(SUM(o.grand_total_paise), 0),
           'collected_paise', COALESCE(SUM(o.cod_collected_paise), 0),
-          'pending_paise', COALESCE(SUM(CASE WHEN o.cod_collected_paise IS NULL OR o.cod_collected_paise = 0 THEN o.grand_total_paise ELSE 0 END), 0)
+          'pending_paise', COALESCE(SUM(GREATEST(o.grand_total_paise - COALESCE(o.cod_collected_paise, 0), 0)), 0)
         ) as stats
       FROM cod_orders o
       LEFT JOIN public.profiles p ON p.id = o.delivery_user_id
@@ -310,13 +359,15 @@ $$;
 GRANT EXECUTE ON FUNCTION public.get_cod_reconciliation(timestamptz, timestamptz) TO authenticated;
 
 -- 5) Audit log viewer RPC
+DROP FUNCTION IF EXISTS public.get_audit_logs(timestamptz, timestamptz, text, uuid, int, int);
 CREATE OR REPLACE FUNCTION public.get_audit_logs(
   p_start_date timestamptz DEFAULT NULL,
   p_end_date timestamptz DEFAULT NULL,
   p_entity_type text DEFAULT NULL,
   p_actor_id uuid DEFAULT NULL,
   p_limit int DEFAULT 100,
-  p_offset int DEFAULT 0
+  p_offset int DEFAULT 0,
+  p_action text DEFAULT NULL
 )
 RETURNS TABLE (
   id uuid,
@@ -343,84 +394,96 @@ BEGIN
   RETURN QUERY
   SELECT al.id, al.actor_id, al.action, al.entity_type, al.entity_id,
          al.before, al.after, al.request_id, al.created_at,
-         p.display_name as actor_name, p.role as actor_role
+         p.display_name as actor_name, p.role::text as actor_role
   FROM public.audit_logs al
   LEFT JOIN public.profiles p ON p.id = al.actor_id
   WHERE (p_start_date IS NULL OR al.created_at >= p_start_date)
     AND (p_end_date IS NULL OR al.created_at <= p_end_date)
     AND (p_entity_type IS NULL OR al.entity_type = p_entity_type)
     AND (p_actor_id IS NULL OR al.actor_id = p_actor_id)
+    AND (p_action IS NULL OR al.action = p_action)
   ORDER BY al.created_at DESC
-  LIMIT p_limit OFFSET p_offset;
+  LIMIT LEAST(GREATEST(p_limit, 1), 500) OFFSET GREATEST(p_offset, 0);
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.get_audit_logs(timestamptz, timestamptz, text, uuid, int, int) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_audit_logs(timestamptz, timestamptz, text, uuid, int, int, text) TO authenticated;
 
 -- 6) RLS policies for inventory_movements (already enabled in M1, add manager read)
 -- Already covered in M2: inventory_movements read for staff/manager
 
 -- 7) RLS policy for bill_counters (manager only)
-CREATE POLICY "bill_counters_manager" ON bill_counters
+DROP POLICY IF EXISTS "bill_counters_manager" ON public.bill_counters;
+CREATE POLICY "bill_counters_manager" ON public.bill_counters
   FOR ALL TO authenticated
   USING (public.current_role() = 'manager')
   WITH CHECK (public.current_role() = 'manager');
 
 -- 8) RLS policy for pos_sales (staff/manager read, cashier insert)
-CREATE POLICY "pos_sales_write_staff" ON pos_sales
+DROP POLICY IF EXISTS "pos_sales_write_staff" ON public.pos_sales;
+CREATE POLICY "pos_sales_write_staff" ON public.pos_sales
   FOR INSERT TO authenticated
   WITH CHECK (public.current_role() IN ('staff','manager'));
 
-CREATE POLICY "pos_sales_read_staff" ON pos_sales
+DROP POLICY IF EXISTS "pos_sales_read_staff" ON public.pos_sales;
+CREATE POLICY "pos_sales_read_staff" ON public.pos_sales
   FOR SELECT TO authenticated
   USING (public.current_role() IN ('staff','manager'));
 
 -- 9) RLS policy for bills (customer reads own, staff/manager read all)
-CREATE POLICY "bills_read_own" ON bills
+DROP POLICY IF EXISTS "bills_read_own" ON public.bills;
+CREATE POLICY "bills_read_own" ON public.bills
   FOR SELECT TO authenticated
   USING (
     (source = 'ORDER' AND EXISTS (
-      SELECT 1 FROM orders o WHERE o.id = bills.order_id AND o.customer_id = auth.uid()
+      SELECT 1 FROM public.orders o WHERE o.id = bills.order_id AND o.customer_id = auth.uid()
     )) OR
     public.current_role() IN ('staff','manager')
   );
 
-CREATE POLICY "bills_write_staff" ON bills
+DROP POLICY IF EXISTS "bills_write_staff" ON public.bills;
+CREATE POLICY "bills_write_staff" ON public.bills
   FOR ALL TO authenticated
   USING (public.current_role() IN ('staff','manager'))
   WITH CHECK (public.current_role() IN ('staff','manager'));
 
 -- 10) RLS policy for bill_items (follow bills)
-CREATE POLICY "bill_items_read_own" ON bill_items
+DROP POLICY IF EXISTS "bill_items_read_own" ON public.bill_items;
+CREATE POLICY "bill_items_read_own" ON public.bill_items
   FOR SELECT TO authenticated
   USING (EXISTS (
-    SELECT 1 FROM bills b
+    SELECT 1 FROM public.bills b
     WHERE b.id = bill_items.bill_id
       AND ((b.source = 'ORDER' AND EXISTS (
-        SELECT 1 FROM orders o WHERE o.id = b.order_id AND o.customer_id = auth.uid()
+        SELECT 1 FROM public.orders o WHERE o.id = b.order_id AND o.customer_id = auth.uid()
       )) OR public.current_role() IN ('staff','manager'))
   ));
 
-CREATE POLICY "bill_items_write_staff" ON bill_items
+DROP POLICY IF EXISTS "bill_items_write_staff" ON public.bill_items;
+CREATE POLICY "bill_items_write_staff" ON public.bill_items
   FOR ALL TO authenticated
   USING (public.current_role() IN ('staff','manager'))
   WITH CHECK (public.current_role() IN ('staff','manager'));
 
 -- 11) RLS policy for payment_events (internal only)
-CREATE POLICY "payment_events_none" ON payment_events
+DROP POLICY IF EXISTS "payment_events_none" ON public.payment_events;
+CREATE POLICY "payment_events_none" ON public.payment_events
   FOR ALL TO authenticated USING (false);
 
 -- 12) RLS policy for idempotency_keys (user owns their keys)
-CREATE POLICY "idempotency_own" ON idempotency_keys
+DROP POLICY IF EXISTS "idempotency_own" ON public.idempotency_keys;
+CREATE POLICY "idempotency_own" ON public.idempotency_keys
   FOR ALL TO authenticated
   USING (user_id = auth.uid())
   WITH CHECK (user_id = auth.uid());
 
 -- 13) RLS policy for audit_logs (manager read only)
-CREATE POLICY "audit_logs_read_manager" ON audit_logs
+DROP POLICY IF EXISTS "audit_logs_read_manager" ON public.audit_logs;
+CREATE POLICY "audit_logs_read_manager" ON public.audit_logs
   FOR SELECT TO authenticated
   USING (public.current_role() = 'manager');
 
 -- 14) RLS policy for notification_outbox (internal only)
-CREATE POLICY "notification_outbox_none" ON notification_outbox
+DROP POLICY IF EXISTS "notification_outbox_none" ON public.notification_outbox;
+CREATE POLICY "notification_outbox_none" ON public.notification_outbox
   FOR ALL TO authenticated USING (false);

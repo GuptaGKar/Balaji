@@ -1,24 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="primary">#3F51B5</color>
-    <color name="primary_dark">#303F9F</color>
-    <color name="primary_light">#C5CAE9</color>
-    <color name="primary_container">#E8EAF6</color>
+    <color name="primary">#FF6B00</color>
+    <color name="primary_dark">#D95400</color>
+    <color name="primary_light">#FFE9D9</color>
+    <color name="primary_container">#FFE9D9</color>
     <color name="on_primary">#FFFFFF</color>
-    <color name="on_primary_container">#1A237E</color>
-    
-    <color name="secondary">#FF9800</color>
-    <color name="secondary_dark">#F57C00</color>
-    <color name="secondary_light">#FFE0B2</color>
-    <color name="secondary_container">#FFF3E0</color>
-    <color name="on_secondary">#000000</color>
-    <color name="on_secondary_container">#E65100</color>
-    
-    <color name="success">#4CAF50</color>
-    <color name="warning">#FF9800</color>
-    <color name="error">#F44336</color>
-    
+    <color name="on_primary_container">#3A1500</color>
+
+    <color name="secondary">#FFB547</color>
+    <color name="secondary_dark">#E09A2F</color>
+    <color name="secondary_light">#FFF7DB</color>
+    <color name="secondary_container">#FFF7DB</color>
+    <color name="on_secondary">#241A00</color>
+    <color name="on_secondary_container">#241A00</color>
+
+    <color name="success">#218838</color>
+    <color name="warning">#B45309</color>
+    <color name="error">#D93025</color>
+
     <color name="white">#FFFFFF</color>
     <color name="black">#000000</color>
     <color name="transparent">#00000000</color>
+
+    <color name="brand_orange">#FF6B00</color>
+    <color name="brand_green_dark">#218838</color>
+    <color name="launcher_background">#FF6B00</color>
+    <color name="window_background_light">#FF6B00</color>
+    <color name="window_background_dark">#0F1216</color>
 </resources>

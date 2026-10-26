@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Balaji SMS Gateway</string>
+
+    <string name="notification_channel">SMS gateway service</string>
+    <string name="notification_title">Balaji SMS Gateway</string>
+    <string name="notification_starting">Starting gateway…</string>
+    <string name="notification_running">Listening on port %1$d</string>
+    <string name="notification_failed">Gateway failed to start. Open the app for details.</string>
+
+    <string name="gateway_title">Balaji SMS Gateway</string>
+    <string name="gateway_subtitle">Sends real OTP SMS through this phone. Keep this phone and SIM dedicated to the store.</string>
+
+    <string name="status_running">Running on port %1$d</string>
+    <string name="status_stopped">Stopped</string>
+    <string name="status_failed">Failed: %1$s</string>
+
+    <string name="setup_title">Before starting</string>
+    <string name="setup_sms">SMS permission</string>
+    <string name="setup_notifications">Notifications</string>
+    <string name="setup_battery">Unrestricted battery use</string>
+    <string name="setup_granted">Granted</string>
+    <string name="setup_required">Required</string>
+    <string name="setup_open_settings">Open settings</string>
+
+    <string name="api_key_title">Gateway API key</string>
+    <string name="api_key_help">Set this exact value as SMS_GATEWAY_API_KEY in Supabase. Use at least 32 characters. Anyone with this key can send SMS through this phone.</string>
+    <string name="api_key_label">API key</string>
+    <string name="api_key_show">Show</string>
+    <string name="api_key_hide">Hide</string>
+    <string name="api_key_copy">Copy</string>
+    <string name="api_key_copied">API key copied</string>
+    <string name="api_key_save">Save key</string>
+    <string name="api_key_saved">API key saved</string>
+    <string name="api_key_invalid">API key must be at least 32 characters</string>
+    <string name="api_key_regenerate">Regenerate key</string>
+    <string name="api_key_regenerate_title">Regenerate API key?</string>
+    <string name="api_key_regenerate_message">The old key stops working immediately. Update Supabase before the next OTP.</string>
+    <string name="api_key_generated">New API key generated. Update Supabase SMS_GATEWAY_API_KEY now.</string>
+
+    <string name="failure_port">Port 8080 is already in use.</string>
+    <string name="failure_settings">Secure storage is unavailable. Restart the app.</string>
+    <string name="failure_foreground">Android blocked the foreground service. Open the app and start it manually.</string>
+    <string name="failure_api_key">The API key is missing. Save a key and restart.</string>
+    <string name="failure_unknown">Unknown gateway error.</string>
+
+    <string name="start_gateway">Start gateway</string>
+    <string name="stop_gateway">Stop gateway</string>
+    <string name="start_requires_sms">Grant SMS permission before starting.</string>
+    <string name="start_requires_key">Save a valid API key (at least 32 characters) before starting.</string>
+    <string name="start_failed">Could not start the gateway service.</string>
+
+    <string name="network_title">Network setup</string>
+    <string name="network_help">This phone listens on port 8080 on your Wi-Fi. Run Cloudflare Tunnel on the store computer and point it at this phone’s Wi-Fi IP; never expose port 8080 directly to the internet.</string>
+    <string name="security_warning">Security: do not share the API key, do not use a personal SIM, and do not install this app on a phone used for personal messages.</string>
+
+    <string name="cancel">Cancel</string>
+    <string name="confirm">Confirm</string>
+</resources>

@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -8,24 +10,89 @@ plugins {
 
 android {
     namespace = "com.balaji.provision"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.balaji.provision"
         minSdk = 24
-        targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        targetSdk = 36
+        versionCode = 7
+        versionName = "1.6"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
         }
-        buildConfigField("String", "SUPABASE_ANON_KEY", "\"placeholder_anon_key\"")
+        val supabaseUrl = (project.findProperty("SUPABASE_URL") as String?)
+            ?: System.getenv("SUPABASE_URL")
+            ?: "https://czbwwnlnmhhzketyjnzt.supabase.co/"
+        val supabaseAnonKey = (project.findProperty("SUPABASE_ANON_KEY") as String?)
+            ?: System.getenv("SUPABASE_ANON_KEY")
+            ?: "sb_publishable_pr_hXgQlfx4W-Z4HETIdBg_VoNIBEpo"
+        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseAnonKey\"")
+        val staffWebUrl = (project.findProperty("STAFF_WEB_URL") as String?)
+            ?: System.getenv("STAFF_WEB_URL")
+            ?: ""
+        buildConfigField(
+            "String",
+            "STAFF_WEB_URL",
+            "\"${staffWebUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        )
+        val storeWebUrl = (project.findProperty("STORE_WEB_URL") as String?)
+            ?: System.getenv("STORE_WEB_URL")
+            ?: ""
+        buildConfigField(
+            "String",
+            "STORE_WEB_URL",
+            "\"${storeWebUrl.trimEnd('/').replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        )
+    }
+
+    flavorDimensions += "audience"
+    productFlavors {
+        create("customer") {
+            dimension = "audience"
+            applicationId = "com.balaji.provision"
+            resValue("string", "app_name", "Balaji Provision Store")
+            buildConfigField("boolean", "IS_STAFF", "false")
+        }
+        create("staff") {
+            dimension = "audience"
+            applicationId = "com.balaji.provision.staff"
+            resValue("string", "app_name", "Balaji Staff")
+            buildConfigField("boolean", "IS_STAFF", "true")
+        }
+    }
+
+    val keystorePropertiesFile = rootProject.file("keystore.properties")
+    val keystoreProperties = Properties().apply {
+        if (keystorePropertiesFile.exists()) {
+            keystorePropertiesFile.inputStream().use { load(it) }
+        }
+    }
+
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                val configuredStore = keystoreProperties.getProperty("storeFile")
+                storeFile = configuredStore?.let { rootProject.file(it) }
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = true
+            }
+        }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            isDebuggable = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
         debug {
@@ -50,9 +117,9 @@ android {
         compose = true
         buildConfig = true
     }
-    
+
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.4"
+        kotlinCompilerExtensionVersion = "1.5.6"
     }
     
     packaging {
@@ -86,9 +153,14 @@ dependencies {
     // Coroutines & Flow
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+
+    // Location
+    implementation("com.google.android.gms:play-services-location:21.3.0")
     
     // DataStore (cart/session persistence)
     implementation("androidx.datastore:datastore-preferences:1.0.0")
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("androidx.datastore:datastore-preferences-rxjava3:1.0.0")
     implementation("io.reactivex.rxjava3:rxjava:3.1.8")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-rx3:1.7.3")
@@ -115,7 +187,7 @@ dependencies {
     
     // Android UI Testing
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.0")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.5.4")
 }
 

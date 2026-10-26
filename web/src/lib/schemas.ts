@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const quantityTypeEnum = z.enum(["WEIGHTED", "PACKED"]);
+export const quantityTypeEnum = z.enum(["weighted", "packed", "WEIGHTED", "PACKED"]);
 export type QuantityType = z.infer<typeof quantityTypeEnum>;
 
 export const userRoleEnum = z.enum(["customer", "staff", "manager", "delivery"]);
@@ -57,45 +57,43 @@ export type InventoryReason = z.infer<typeof inventoryReasonEnum>;
 export const taxModeEnum = z.enum(["none", "inclusive", "exclusive"]);
 export type TaxMode = z.infer<typeof taxModeEnum>;
 
-export const storeSettingsSchema = z
-  .object({
-    store_open: z.boolean(),
-    timezone: z.string(),
-    weekly_hours: z.record(z.array(z.string())),
-    contact_phone: z.string().min(10).max(15),
-    estimated_window_text: z.string().min(1),
-    delivery_fee_paise: z.number().int().min(0),
-    delivery_charge_threshold_paise: z.number().int().min(0),
-    free_delivery_threshold_paise: z.number().int().min(0).nullable(),
-    mid_tier_fee_paise: z.number().int().min(0).nullable(),
-    max_order_paise: z.number().int().min(0).nullable(),
-    cancellation_policy_text: z.string().min(1),
-    tax_mode: taxModeEnum.default("none"),
-    tax_rate_bps: z.number().int().min(0).max(10000).default(0),
-    online_payment_enabled: z.boolean().default(false),
-    pos_price_override_enabled: z.boolean().default(false),
-  })
-  .refine(
-    (data) =>
-      data.free_delivery_threshold_paise === null ||
-      data.free_delivery_threshold_paise >= data.delivery_charge_threshold_paise,
-    {
-      message: "Free-delivery threshold must be ≥ delivery-charge threshold",
-      path: ["free_delivery_threshold_paise"],
-    },
-  );
+export const storeSettingsSchema = z.object({
+  store_open: z.boolean().default(true),
+  timezone: z.string().default("Asia/Kolkata"),
+  weekly_hours: z.any().optional(),
+  contact_phone: z.string().optional().nullable(),
+  estimated_window_text: z.string().optional().nullable(),
+  delivery_fee_paise: z.number().optional().nullable(),
+  delivery_charge_threshold_paise: z.number().optional().nullable(),
+  free_delivery_threshold_paise: z.number().optional().nullable(),
+  mid_tier_fee_paise: z.number().optional().nullable(),
+  max_order_paise: z.number().optional().nullable(),
+  cancellation_policy_text: z.string().optional().nullable(),
+  tax_mode: taxModeEnum.optional().default("none"),
+  tax_rate_bps: z.number().optional().default(0),
+  online_payment_enabled: z.boolean().optional().default(false),
+  pos_price_override_enabled: z.boolean().optional().default(false),
+});
 
 export type StoreSettings = z.infer<typeof storeSettingsSchema>;
 
 export const categorySchema = z.object({
-  name: z.string().min(1).max(100),
+  name: z.string().trim().min(1, "Category name is required").max(100),
+  // Blank is allowed: the form generates a slug from the name on save. Lowercase
+  // and trim here so a manually typed slug is always stored in canonical form.
   slug: z
     .string()
-    .min(1)
-    .max(50)
-    .regex(/^[a-z0-9-]+$/),
-  sort_order: z.number().int().min(0),
+    .trim()
+    .toLowerCase()
+    .max(50, "Slug must be 50 characters or fewer")
+    .regex(/^[a-z0-9-]*$/, "Use lowercase letters, digits and hyphens only")
+    .default(""),
+  sort_order: z
+    .number()
+    .int("Sort order must be a whole number")
+    .min(0, "Sort order cannot be negative"),
   active: z.boolean().default(true),
+  image_path: z.string().optional().nullable(),
 });
 
 export type Category = z.infer<typeof categorySchema>;
@@ -108,66 +106,90 @@ export type CategoryWithId = z.infer<typeof categoryWithIdSchema>;
 
 export const productSchema = z
   .object({
-    sku: z.string().min(1).max(50),
-    name: z.string().min(1).max(200),
-    description: z.string().optional(),
-    category_id: z.string().uuid(),
-    image_path: z.string().optional(),
+    sku: z.string().optional(),
+    name: z.string().min(1, "Name is required").max(200),
+    description: z.string().optional().nullable(),
+    category_id: z.string().min(1, "Category is required"),
+    image_path: z.string().optional().nullable(),
     quantity_type: quantityTypeEnum,
     price_paise: z.number().int().min(0),
+    mrp_paise: z.number().int().min(0).optional().nullable(),
     price_basis_qty: z.number().int().positive(),
     unit_label: z.string().min(1).max(20),
-    pack_size_label: z.string().max(50).nullable(),
+    pack_size_label: z.string().max(50).optional().nullable(),
     step_qty: z.number().int().positive(),
     min_qty: z.number().int().positive(),
-    max_qty: z.number().int().positive().nullable(),
+    max_qty: z.number().int().positive().optional().nullable(),
     stock_qty: z.number().int().min(0),
     low_stock_threshold: z.number().int().min(0),
     active: z.boolean().default(true),
     available: z.boolean().default(true),
+    variant_group_id: z.string().uuid().optional().nullable(),
+    variant_label: z.string().max(50).optional().nullable(),
   })
   .refine(
-    (data) =>
-      data.quantity_type === "PACKED"
+    (data) => {
+      const qType = data.quantity_type.toUpperCase();
+      return qType === "PACKED"
         ? data.price_basis_qty === 1 && data.step_qty === 1
-        : data.price_basis_qty === 100 || data.price_basis_qty === 1000,
+        : data.price_basis_qty === 100 || data.price_basis_qty === 1000;
+    },
     {
       message:
         "PACKED: price_basis_qty must be 1 and step_qty must be 1. WEIGHTED: price_basis_qty must be 100 or 1000.",
       path: ["quantity_type"],
     },
   )
-  .refine((data) => data.max_qty === null || data.max_qty >= data.min_qty, {
-    message: "max_qty must be ≥ min_qty",
-    path: ["max_qty"],
-  });
+  .refine(
+    (data) => data.max_qty === null || data.max_qty === undefined || data.max_qty >= data.min_qty,
+    {
+      message: "max_qty must be ≥ min_qty",
+      path: ["max_qty"],
+    },
+  );
 
 export type Product = z.infer<typeof productSchema>;
 
-export const serviceAreaSchema = z.object({
-  kind: serviceAreaKindEnum,
-  value: z.string().min(1).max(50),
-  active: z.boolean().default(true),
-});
-
-export type ServiceArea = z.infer<typeof serviceAreaSchema>;
-
 export const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
+  email: z
+    .string()
+    .min(1, "Email or login ID required")
+    .refine(
+      (value) =>
+        value.includes("@")
+          ? z.string().email().safeParse(value).success
+          : /^[A-Za-z0-9-]{3,40}$/.test(value),
+      "Enter a valid email address or login ID",
+    ),
+  password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;
 
-export const createStaffSchema = z.object({
-  login_id: z
-    .string()
-    .min(3)
-    .max(20)
-    .regex(/^[A-Z0-9-]+$/),
-  display_name: z.string().min(1).max(100),
-  phone: z.string().min(10).max(15),
-  role: z.enum(["staff", "delivery"]),
+export const serviceAreaSchema = z.object({
+  kind: serviceAreaKindEnum,
+  value: z.string().min(1, "Value is required"),
+  active: z.boolean().default(true),
 });
+export type ServiceArea = z.infer<typeof serviceAreaSchema>;
 
+export const createStaffSchema = z
+  .object({
+    display_name: z.string().trim().min(1, "Display name required").max(120),
+    phone: z.string().trim().min(10, "Valid phone required").max(20),
+    role: z.enum(["staff", "delivery"]),
+    login_id: z
+      .string()
+      .trim()
+      .min(3, "Login ID required")
+      .max(40)
+      .regex(/^[a-z0-9-]+$/i, "Use letters, digits and hyphens only")
+      .transform((value) => value.toUpperCase()),
+    password: z.string().min(8, "Use at least 8 characters").max(72, "Use at most 72 characters"),
+    confirm_password: z.string(),
+  })
+  .refine((data) => data.password === data.confirm_password, {
+    message: "Passwords do not match",
+    path: ["confirm_password"],
+  });
 export type CreateStaffInput = z.infer<typeof createStaffSchema>;

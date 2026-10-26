@@ -1,30 +1,62 @@
 "use client";
 
-import React from "react";
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 import { formatRupees } from "@/lib/money";
-import { formatRelativeTime, formatDateTime } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { Loader2, Search, Eye, X } from "lucide-react";
+import {
+  Loader2,
+  Search,
+  Eye,
+  X,
+  CheckCircle,
+  Clock,
+  Truck,
+  Package,
+  XCircle,
+  RefreshCw,
+  AlertTriangle,
+  ReceiptText,
+} from "lucide-react";
 import { Toaster, toast } from "sonner";
+
+type OrderStatus =
+  | "pending_review"
+  | "accepted"
+  | "preparing"
+  | "ready_for_dispatch"
+  | "out_for_delivery"
+  | "delivered"
+  | "rejected"
+  | "cancelled"
+  | "delivery_failed";
 
 type Order = {
   id: string;
   public_order_number: string;
-  status: string;
+  status: OrderStatus;
   grand_total_paise: number;
   created_at: string;
-  customer_id: string;
-  payment_method: string;
+  customer_id: string | null;
+  payment_method: "cod" | "online";
+  payment_status: string;
   cod_collected_paise: number | null;
-  address_snapshot: any;
+  address_snapshot: {
+    recipient_name?: string;
+    phone?: string;
+    address_lines?: string;
+  } | null;
   customer_note: string | null;
-  fee_breakdown: any;
   item_subtotal_paise: number;
-  discount_paise: number;
   delivery_fee_paise: number;
-  tax_paise: number;
+};
+
+type OrderBill = {
+  id: string;
+  bill_number: string;
+  status: "ISSUED" | "VOID";
 };
 
 type OrderItem = {
@@ -33,7 +65,6 @@ type OrderItem = {
   name_snapshot: string;
   quantity_type_snapshot: string;
   unit_label_snapshot: string;
-  price_basis_qty_snapshot: number;
   qty_base: number;
   unit_price_paise: number;
   line_total_paise: number;
@@ -41,590 +72,688 @@ type OrderItem = {
   removed_reason: string | null;
 };
 
-type OrderEvent = {
-  id: string;
-  from_status: string | null;
-  to_status: string;
-  actor_id: string | null;
-  reason: string | null;
-  created_at: string;
-};
+function statusLabel(status: string) {
+  return status.replace(/_/g, " ").toUpperCase();
+}
 
-type Profile = {
-  id: string;
-  display_name: string;
-  role: string;
-  login_id: string | null;
-  is_active: boolean;
-};
+function itemQuantity(item: OrderItem) {
+  if (item.quantity_type_snapshot === "weighted") {
+    return `${(item.qty_base / 1000).toFixed(3)} kg`;
+  }
+  return `${item.qty_base} × ${item.unit_label_snapshot || "pack"}`;
+}
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [orderEvents, setOrderEvents] = useState<OrderEvent[]>([]);
-  const [riders, setRiders] = useState<Profile[]>([]);
   const [modalLoading, setModalLoading] = useState(false);
-  const [transitionLoading, setTransitionLoading] = useState<string | null>(null);
-  const [assignLoading, setAssignLoading] = useState<string | null>(null);
-  const [realtimeChannel, setRealtimeChannel] = useState<any>(null);
+  const [orderBill, setOrderBill] = useState<OrderBill | null>(null);
+  const [issuingBill, setIssuingBill] = useState(false);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [removingItemId, setRemovingItemId] = useState<string | null>(null);
 
   const supabase = createClient();
 
   const fetchOrders = useCallback(async () => {
-    let query = supabase.from("orders").select("*").order("created_at", { ascending: false });
+    setLoadError("");
+    let query = supabase
+      .from("orders")
+      .select(
+        "id, public_order_number, status, grand_total_paise, created_at, customer_id, payment_method, payment_status, cod_collected_paise, address_snapshot, customer_note, item_subtotal_paise, delivery_fee_paise",
+      )
+      .order("created_at", { ascending: false })
+      .limit(500);
     if (statusFilter !== "all") query = query.eq("status", statusFilter);
     const { data, error } = await query;
     if (error) {
-      toast.error("Failed to load orders");
+      setLoadError(error.message);
+      setLoading(false);
       return;
     }
-    setOrders(data || []);
+    setOrders((data as Order[]) || []);
     setLoading(false);
   }, [statusFilter, supabase]);
 
-  const fetchRiders = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, display_name, login_id, is_active, role")
-      .eq("role", "delivery")
-      .eq("is_active", true);
-    if (!error) setRiders(data || []);
-  }, [supabase]);
-
-  const fetchOrderDetails = useCallback(
-    async (orderId: string) => {
-      setModalLoading(true);
-      try {
-        const [itemsRes, eventsRes] = await Promise.all([
-          supabase.from("order_items").select("*").eq("order_id", orderId),
-          supabase
-            .from("order_status_events")
-            .select("*")
-            .eq("order_id", orderId)
-            .order("created_at", { ascending: true }),
-        ]);
-        if (!itemsRes.error) setOrderItems(itemsRes.data || []);
-        if (!eventsRes.error) setOrderEvents(eventsRes.data || []);
-      } finally {
-        setModalLoading(false);
-      }
-    },
-    [supabase],
-  );
-
-  const handleTransition = async (orderId: string, toStatus: string, reason: string) => {
-    setTransitionLoading(orderId);
-    try {
-      const { error } = await supabase.rpc("transition_order", {
-        p_order_id: orderId,
-        p_to_status: toStatus,
-        p_reason: reason,
-      });
-      if (error) throw error;
-      toast.success(`Order ${toStatus.replace("_", " ")}`);
-      await fetchOrderDetails(orderId);
-      fetchOrders();
-    } catch (err: any) {
-      toast.error(err.message || "Transition failed");
-    } finally {
-      setTransitionLoading(null);
-    }
-  };
-
-  const handleAssign = async (orderId: string, riderId: string) => {
-    setAssignLoading(orderId);
-    try {
-      const { error } = await supabase.rpc("assign_order", {
-        p_order_id: orderId,
-        p_delivery_user_id: riderId,
-      });
-      if (error) throw error;
-      toast.success("Rider assigned");
-      fetchOrders();
-    } catch (err: any) {
-      toast.error(err.message || "Assignment failed");
-    } finally {
-      setAssignLoading(null);
-    }
-  };
-
-  const handleReject = async (orderId: string) => {
-    const reason = prompt("Reason for rejection (required for stock restore):");
-    if (!reason) return;
-    await handleTransition(orderId, "rejected", reason);
-  };
-
-  const handleCancel = async (orderId: string) => {
-    const reason = prompt("Reason for cancellation (stock will be restored):");
-    if (!reason) return;
-    await handleTransition(orderId, "cancelled", reason);
-  };
-
-  const openOrder = (order: Order) => {
-    setSelectedOrder(order);
-    fetchOrderDetails(order.id);
-  };
-
-  // Realtime subscription for new orders
+  const fetchOrdersRef = useRef(fetchOrders);
   useEffect(() => {
-    const channel = supabase
-      .channel("orders_realtime")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, (payload) => {
-        const newOrder = payload.new as Order;
-        if (statusFilter === "all" || newOrder.status === statusFilter) {
-          setOrders((prev) => [newOrder, ...prev]);
-        }
-        toast.info(`New order: ${newOrder.public_order_number}`);
-      })
-      .subscribe();
-
-    setRealtimeChannel(channel);
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [statusFilter, supabase]);
+    fetchOrdersRef.current = fetchOrders;
+  }, [fetchOrders]);
 
   useEffect(() => {
     fetchOrders();
-    fetchRiders();
-  }, [fetchOrders, fetchRiders]);
+  }, [fetchOrders]);
 
   useEffect(() => {
-    if (selectedOrder) fetchOrderDetails(selectedOrder.id);
-  }, [selectedOrder, fetchOrderDetails]);
+    const channel = supabase
+      .channel("orders_channel")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
+        fetchOrdersRef.current();
+      })
+      .subscribe();
 
-  const filteredOrders = orders.filter((o) =>
-    o.public_order_number.toLowerCase().includes(search.toLowerCase()),
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase]);
+
+  const fetchOrderDetails = async (order: Order) => {
+    setSelectedOrder(order);
+    setOrderItems([]);
+    setOrderBill(null);
+    setModalLoading(true);
+    const { data, error } = await supabase
+      .from("order_items")
+      .select(
+        "id, sku_snapshot, name_snapshot, quantity_type_snapshot, unit_label_snapshot, qty_base, unit_price_paise, line_total_paise, removed_at, removed_reason",
+      )
+      .eq("order_id", order.id)
+      .limit(200);
+    if (error) {
+      toast.error("Failed to load order items");
+    } else {
+      setOrderItems((data as OrderItem[]) || []);
+    }
+
+    const { data: billData } = await supabase
+      .from("bills")
+      .select("id, bill_number, status")
+      .eq("order_id", order.id)
+      .maybeSingle();
+    setOrderBill((billData as OrderBill | null) ?? null);
+    setModalLoading(false);
+  };
+
+  const issueBill = async (order: Order) => {
+    setIssuingBill(true);
+    try {
+      const { data, error } = await supabase.rpc("issue_bill_for_order", {
+        p_order_id: order.id,
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.message || data.error);
+      const bill = data?.bill as OrderBill | undefined;
+      if (bill) setOrderBill({ id: bill.id, bill_number: bill.bill_number, status: bill.status });
+      toast.success(`Bill ${bill?.bill_number ?? ""} generated`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not generate the bill");
+    } finally {
+      setIssuingBill(false);
+    }
+  };
+
+  const updateOrderStatus = async (order: Order, newStatus: OrderStatus) => {
+    let reason: string | null = null;
+    if (newStatus === "rejected" || newStatus === "cancelled" || newStatus === "delivery_failed") {
+      const input = window.prompt(`Reason for marking this order ${statusLabel(newStatus).toLowerCase()} (required)`);
+      if (!input || !input.trim()) {
+        toast.error("A reason is required for this status change");
+        return;
+      }
+      reason = input.trim();
+    }
+
+    setUpdatingId(order.id);
+    try {
+      const { data, error } = await supabase.rpc("transition_order", {
+        p_order_id: order.id,
+        p_to_status: newStatus,
+        p_reason: reason,
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.message || data.error);
+
+      toast.success(`Order #${order.public_order_number} → ${statusLabel(newStatus).toLowerCase()}`);
+      setSelectedOrder((current) =>
+        current && current.id === order.id ? { ...current, status: newStatus } : current,
+      );
+      await fetchOrders();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update status");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const removeUnavailableItem = async (order: Order, item: OrderItem) => {
+    const reason = window.prompt(
+      `Why is "${item.name_snapshot}" unavailable? The customer will see the updated bill.`,
+    );
+    if (!reason || !reason.trim()) {
+      toast.error("A reason is required to remove an item");
+      return;
+    }
+
+    setRemovingItemId(item.id);
+    try {
+      const { data, error } = await supabase.rpc("remove_order_item", {
+        p_order_id: order.id,
+        p_item_id: item.id,
+        p_reason: reason.trim(),
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.message || data.error);
+
+      const cancelled = data?.order_cancelled === true;
+      toast.success(
+        cancelled
+          ? "Item removed. No items remain, so the order was cancelled."
+          : "Item marked unavailable and the customer bill was recalculated",
+      );
+
+      setOrderItems((current) =>
+        current.map((row) =>
+          row.id === item.id
+            ? { ...row, removed_at: new Date().toISOString(), removed_reason: reason.trim() }
+            : row,
+        ),
+      );
+      setSelectedOrder((current) =>
+        current && current.id === order.id
+          ? {
+              ...current,
+              status: cancelled ? "cancelled" : current.status,
+              item_subtotal_paise: Number(data?.item_subtotal_paise ?? current.item_subtotal_paise),
+              delivery_fee_paise: Number(data?.delivery_fee_paise ?? current.delivery_fee_paise),
+              grand_total_paise: Number(data?.grand_total_paise ?? current.grand_total_paise),
+              payment_status: String(data?.payment_status ?? current.payment_status),
+            }
+          : current,
+      );
+      await fetchOrders();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to remove item");
+    } finally {
+      setRemovingItemId(null);
+    }
+  };
+
+  const filteredOrders = orders.filter((o) => {
+    const term = search.toLowerCase();
+    const orderNo = (o.public_order_number || "").toLowerCase();
+    const recipient = (o.address_snapshot?.recipient_name || "").toLowerCase();
+    const phone = (o.address_snapshot?.phone || "").toLowerCase();
+    return orderNo.includes(term) || recipient.includes(term) || phone.includes(term);
+  });
+
+  const getStatusBadge = (status: string) => {
+    const config: Record<
+      string,
+      { label: string; bg: string; icon: React.ReactNode }
+    > = {
+      pending_review: {
+        label: "PENDING REVIEW",
+        bg: "bg-amber-100 text-amber-800 border-amber-300",
+        icon: <Clock className="h-3.5 w-3.5" />,
+      },
+      accepted: {
+        label: "ACCEPTED",
+        bg: "bg-blue-100 text-blue-800 border-blue-300",
+        icon: <CheckCircle className="h-3.5 w-3.5" />,
+      },
+      preparing: {
+        label: "PREPARING",
+        bg: "bg-purple-100 text-purple-800 border-purple-300",
+        icon: <Package className="h-3.5 w-3.5" />,
+      },
+      ready_for_dispatch: {
+        label: "READY FOR DISPATCH",
+        bg: "bg-indigo-100 text-indigo-800 border-indigo-300",
+        icon: <Package className="h-3.5 w-3.5" />,
+      },
+      out_for_delivery: {
+        label: "OUT FOR DELIVERY",
+        bg: "bg-emerald-100 text-emerald-800 border-emerald-300",
+        icon: <Truck className="h-3.5 w-3.5" />,
+      },
+      delivered: {
+        label: "DELIVERED",
+        bg: "bg-green-100 text-green-800 border-green-300",
+        icon: <CheckCircle className="h-3.5 w-3.5" />,
+      },
+      cancelled: {
+        label: "CANCELLED",
+        bg: "bg-red-100 text-red-800 border-red-300",
+        icon: <XCircle className="h-3.5 w-3.5" />,
+      },
+      rejected: {
+        label: "REJECTED",
+        bg: "bg-red-100 text-red-800 border-red-300",
+        icon: <XCircle className="h-3.5 w-3.5" />,
+      },
+      delivery_failed: {
+        label: "DELIVERY FAILED",
+        bg: "bg-red-100 text-red-800 border-red-300",
+        icon: <AlertTriangle className="h-3.5 w-3.5" />,
+      },
+    };
+    const c = config[status] || {
+      label: statusLabel(status),
+      bg: "bg-slate-100 text-slate-800 border-slate-300",
+      icon: <Clock className="h-3.5 w-3.5" />,
+    };
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full border",
+          c.bg,
+        )}
+      >
+        {c.icon}
+        {c.label}
+      </span>
+    );
+  };
+
+  const actionButton = (order: Order, status: OrderStatus, label: string, className: string) => (
+    <button
+      onClick={() => updateOrderStatus(order, status)}
+      disabled={updatingId === order.id}
+      className={cn(
+        "px-3 py-1.5 text-white text-xs font-bold rounded-lg shadow-sm disabled:opacity-50",
+        className,
+      )}
+    >
+      {updatingId === order.id ? "Updating..." : label}
+    </button>
   );
 
-  const statusColors: Record<string, string> = {
-    pending_review: "bg-yellow-100 text-yellow-800",
-    accepted: "bg-blue-100 text-blue-800",
-    preparing: "bg-purple-100 text-purple-800",
-    ready_for_dispatch: "bg-indigo-100 text-indigo-800",
-    out_for_delivery: "bg-orange-100 text-orange-800",
-    delivered: "bg-green-100 text-green-800",
-    cancelled: "bg-gray-100 text-gray-800",
-    rejected: "bg-red-100 text-red-800",
-    delivery_failed: "bg-red-100 text-red-800",
-  };
-
-  const getAllowedTransitions = (currentStatus: string) => {
-    const transitions: Record<string, { to: string; label: string; requiresReason: boolean }[]> = {
-      pending_review: [
-        { to: "accepted", label: "Accept", requiresReason: false },
-        { to: "rejected", label: "Reject", requiresReason: true },
-        { to: "cancelled", label: "Cancel", requiresReason: true },
-      ],
-      accepted: [
-        { to: "preparing", label: "Start Preparing", requiresReason: false },
-        { to: "cancelled", label: "Cancel", requiresReason: true },
-      ],
-      preparing: [
-        { to: "ready_for_dispatch", label: "Ready for Dispatch", requiresReason: false },
-        { to: "cancelled", label: "Cancel", requiresReason: true },
-      ],
-      ready_for_dispatch: [
-        { to: "out_for_delivery", label: "Dispatch", requiresReason: false },
-        { to: "cancelled", label: "Cancel", requiresReason: true },
-      ],
-      out_for_delivery: [
-        { to: "delivered", label: "Mark Delivered", requiresReason: false },
-        { to: "delivery_failed", label: "Delivery Failed", requiresReason: true },
-      ],
-    };
-    return transitions[currentStatus] || [];
-  };
-
-  if (loading)
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
       </div>
     );
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="w-full space-y-6 pb-12">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
-          <p className="text-gray-500">Manage customer orders</p>
+          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+            Store Orders Queue
+          </h1>
+          <p className="text-xs font-medium text-slate-500 mt-0.5">
+            Manage incoming mobile app orders and update delivery status
+          </p>
+        </div>
+
+        <button
+          onClick={fetchOrders}
+          className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl border border-slate-300 transition-all self-start sm:self-auto"
+        >
+          <RefreshCw className="h-4 w-4" /> Refresh Orders
+        </button>
+      </div>
+
+      {loadError && (
+        <div
+          role="alert"
+          className="flex items-center justify-between rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-700"
+        >
+          <span>{loadError}</span>
+          <button onClick={fetchOrders} className="font-bold underline">
+            Retry
+          </button>
+        </div>
+      )}
+
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search by order #, recipient or phone..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search orders"
+            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          />
+        </div>
+
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-1">
+          {[
+            "all",
+            "pending_review",
+            "accepted",
+            "preparing",
+            "ready_for_dispatch",
+            "out_for_delivery",
+            "delivered",
+            "rejected",
+            "cancelled",
+          ].map((st) => (
+            <button
+              key={st}
+              onClick={() => setStatusFilter(st)}
+              className={cn(
+                "px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all whitespace-nowrap",
+                statusFilter === st
+                  ? "bg-emerald-600 text-white shadow-sm"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200",
+              )}
+            >
+              {st === "all" ? "All Orders" : statusLabel(st)}
+            </button>
+          ))}
         </div>
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search order #..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-          >
-            {[
-              { value: "all", label: "All Statuses" },
-              { value: "pending_review", label: "Pending Review" },
-              { value: "accepted", label: "Accepted" },
-              { value: "preparing", label: "Preparing" },
-              { value: "ready_for_dispatch", label: "Ready for Dispatch" },
-              { value: "out_for_delivery", label: "Out for Delivery" },
-              { value: "delivered", label: "Delivered" },
-              { value: "cancelled", label: "Cancelled" },
-              { value: "rejected", label: "Rejected" },
-              { value: "delivery_failed", label: "Delivery Failed" },
-            ].map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
+      <div className="w-full bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-left border-collapse min-w-[800px]">
+            <thead className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Order #
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Payment
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Total
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  COD Collected
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Time
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
+                <th className="px-5 py-3.5">Order #</th>
+                <th className="px-5 py-3.5">Recipient Details</th>
+                <th className="px-5 py-3.5">Amount</th>
+                <th className="px-5 py-3.5">Status</th>
+                <th className="px-5 py-3.5">Date &amp; Time</th>
+                <th className="px-5 py-3.5 text-right">Store Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
-              {filteredOrders.map((order) => (
-                <tr key={order.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 font-medium text-gray-900">
-                    {order.public_order_number}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={cn(
-                        "inline-flex items-center px-2 py-1 text-xs font-medium rounded-full",
-                        statusColors[order.status] || "bg-gray-100 text-gray-800",
-                      )}
-                    >
-                      {order.status.replace("_", " ")}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={cn(
-                        "inline-flex items-center px-2 py-1 text-xs font-medium rounded-full",
-                        order.payment_method === "cod"
-                          ? "bg-green-100 text-green-800"
-                          : "bg-blue-100 text-blue-800",
-                      )}
-                    >
-                      {order.payment_method.toUpperCase()}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-gray-900">
-                    {formatRupees(order.grand_total_paise)}
-                  </td>
-                  <td className="px-6 py-4">
-                    {order.cod_collected_paise !== null ? (
-                      <span
-                        className={cn(
-                          "inline-flex items-center px-2 py-1 text-xs font-medium rounded-full",
-                          order.cod_collected_paise >= order.grand_total_paise
-                            ? "bg-green-100 text-green-800"
-                            : "bg-yellow-100 text-yellow-800",
-                        )}
-                      >
-                        {formatRupees(order.cod_collected_paise)}
+            <tbody className="divide-y divide-slate-200 text-sm text-slate-700">
+              {filteredOrders.map((o) => {
+                const addr = o.address_snapshot || {};
+                return (
+                  <tr key={o.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="px-5 py-4 font-extrabold text-slate-900 font-mono">
+                      #{o.public_order_number}
+                    </td>
+                    <td className="px-5 py-4">
+                      <p className="font-bold text-slate-900">
+                        {addr.recipient_name || "Customer"}
+                      </p>
+                      <p className="text-xs text-slate-500">{addr.phone || "No phone"}</p>
+                      <p className="text-xs text-slate-400 truncate max-w-[200px]">
+                        {addr.address_lines || "Local Delivery"}
+                      </p>
+                    </td>
+                    <td className="px-5 py-4 font-bold text-emerald-700 text-base">
+                      {formatRupees(o.grand_total_paise || 0)}
+                      <span className="text-[11px] block font-normal text-slate-400">
+                        {o.payment_method === "cod" ? "Cash on Delivery" : "Online (unpaid)"}
                       </span>
-                    ) : (
-                      <span className="text-gray-400">—</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-gray-500">
-                    {formatRelativeTime(order.created_at)}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button
-                      onClick={() => openOrder(order)}
-                      className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded"
-                      aria-label="View"
-                    >
-                      <Eye className="h-4 w-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-5 py-4">{getStatusBadge(o.status)}</td>
+                    <td className="px-5 py-4 text-xs font-medium text-slate-500">
+                      {formatDateTime(o.created_at)}
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {o.status === "pending_review" &&
+                          actionButton(o, "accepted", "Accept Order", "bg-emerald-600 hover:bg-emerald-700")}
+                        {o.status === "pending_review" &&
+                          actionButton(o, "rejected", "Reject", "bg-red-600 hover:bg-red-700")}
+                        {o.status === "accepted" &&
+                          actionButton(o, "preparing", "Mark Preparing", "bg-purple-600 hover:bg-purple-700")}
+                        {o.status === "preparing" &&
+                          actionButton(
+                            o,
+                            "ready_for_dispatch",
+                            "Ready for Dispatch",
+                            "bg-indigo-600 hover:bg-indigo-700",
+                          )}
+                        {o.status === "ready_for_dispatch" &&
+                          actionButton(
+                            o,
+                            "out_for_delivery",
+                            "Dispatch Delivery",
+                            "bg-emerald-600 hover:bg-emerald-700",
+                          )}
+                        {o.status === "out_for_delivery" &&
+                          actionButton(o, "delivered", "Mark Delivered", "bg-green-700 hover:bg-green-800")}
+                        {o.status === "out_for_delivery" &&
+                          actionButton(
+                            o,
+                            "delivery_failed",
+                            "Delivery Failed",
+                            "bg-red-600 hover:bg-red-700",
+                          )}
+                        {["pending_review", "accepted", "preparing", "ready_for_dispatch"].includes(
+                          o.status,
+                        ) &&
+                          actionButton(o, "cancelled", "Cancel", "bg-slate-500 hover:bg-slate-600")}
+
+                        <button
+                          onClick={() => fetchOrderDetails(o)}
+                          className="p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+                          title="View Details"
+                          aria-label={`View order ${o.public_order_number}`}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
+
         {filteredOrders.length === 0 && (
-          <div className="p-12 text-center text-gray-500">No orders found</div>
+          <div className="p-12 text-center text-slate-400 font-medium">
+            No orders found in this queue.
+          </div>
         )}
       </div>
 
-      {/* Order Detail Modal */}
       {selectedOrder && (
-        <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
-          <div className="flex min-h-full items-center justify-center p-4">
-            <div className="fixed inset-0 bg-black/50" onClick={() => setSelectedOrder(null)} />
-            <div className="relative w-full max-w-4xl bg-white rounded-lg shadow-xl max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between px-6 py-4 border-b">
-                <h2 className="text-xl font-bold">Order #{selectedOrder.public_order_number}</h2>
-                <button
-                  onClick={() => setSelectedOrder(null)}
-                  className="p-2 text-gray-500 hover:text-gray-700"
-                >
-                  <X className="h-5 w-5" />
-                </button>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Order ${selectedOrder.public_order_number} details`}
+        >
+          <div className="bg-white rounded-3xl border border-slate-200 max-w-2xl w-full p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-lg font-extrabold text-slate-900">
+                  Order #{selectedOrder.public_order_number}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Placed on {formatDateTime(selectedOrder.created_at)}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedOrder(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
+                aria-label="Close order details"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase">Customer Address</p>
+                <p className="text-sm font-bold text-slate-900 mt-1">
+                  {selectedOrder.address_snapshot?.recipient_name || "Customer"}
+                </p>
+                <p className="text-xs text-slate-600">
+                  {selectedOrder.address_snapshot?.phone || "No phone"}
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {selectedOrder.address_snapshot?.address_lines || "Local Delivery"}
+                </p>
+                {selectedOrder.customer_note && (
+                  <p className="mt-2 text-xs text-slate-600">
+                    <span className="font-bold">Note:</span> {selectedOrder.customer_note}
+                  </p>
+                )}
               </div>
 
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase">Current Order Status</p>
+                <div className="mt-1">{getStatusBadge(selectedOrder.status)}</div>
+                <p className="text-xs font-bold text-emerald-700 mt-2">
+                  Total: {formatRupees(selectedOrder.grand_total_paise || 0)}
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  {selectedOrder.payment_method === "cod"
+                    ? "Cash on Delivery"
+                    : "Online payment"}{" "}
+                  · {selectedOrder.payment_status.replace(/_/g, " ")}
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <h4 className="text-sm font-bold text-slate-900">Order Line Items</h4>
+                {orderItems.some((item) => item.removed_at) && (
+                  <span className="text-[11px] font-bold text-red-700">
+                    Customer bill updated after unavailable-item removal
+                  </span>
+                )}
+              </div>
               {modalLoading ? (
-                <div className="flex items-center justify-center h-64">
-                  <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
                 </div>
+              ) : orderItems.length === 0 ? (
+                <p className="text-sm text-slate-500">No line items found for this order.</p>
               ) : (
-                <div className="p-6 space-y-6">
-                  {/* Order Header */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Customer Info</h3>
-                      <p className="text-sm text-gray-500">
-                        {selectedOrder.address_snapshot?.recipient_name || "N/A"}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {selectedOrder.address_snapshot?.phone || "N/A"}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {selectedOrder.address_snapshot?.address_lines || ""},{" "}
-                        {selectedOrder.address_snapshot?.area || ""},{" "}
-                        {selectedOrder.address_snapshot?.city || ""} -{" "}
-                        {selectedOrder.address_snapshot?.postal_code || ""}
-                      </p>
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Payment</h3>
-                      <p className="text-sm text-gray-500">
-                        Method: {selectedOrder.payment_method.toUpperCase()}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Total: {formatRupees(selectedOrder.grand_total_paise)}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        COD Collected:{" "}
-                        {selectedOrder.cod_collected_paise !== null
-                          ? formatRupees(selectedOrder.cod_collected_paise)
-                          : "—"}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Items */}
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-2">Items</h3>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Item
-                            </th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Qty
-                            </th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Unit Price
-                            </th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Total
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                          {orderItems.map((item) => (
-                            <tr
-                              key={item.id}
-                              className={item.removed_at ? "line-through text-gray-400" : ""}
-                            >
-                              <td className="px-4 py-2">{item.name_snapshot}</td>
-                              <td className="px-4 py-2">
-                                {item.qty_base} {item.unit_label_snapshot}
-                              </td>
-                              <td className="px-4 py-2">{formatRupees(item.unit_price_paise)}</td>
-                              <td className="px-4 py-2">{formatRupees(item.line_total_paise)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  {/* Fee Breakdown */}
-                  {selectedOrder.fee_breakdown && (
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <h4 className="font-semibold mb-2">Fee Breakdown</h4>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div>
-                          Eligible Subtotal:{" "}
-                          <span className="font-medium">
-                            {formatRupees(selectedOrder.fee_breakdown.eligible_subtotal_paise)}
-                          </span>
-                        </div>
-                        <div>
-                          Delivery Fee:{" "}
-                          <span className="font-medium">
-                            {formatRupees(selectedOrder.delivery_fee_paise)}
-                          </span>
-                        </div>
-                        <div>
-                          Threshold:{" "}
-                          <span className="font-medium">
-                            {formatRupees(
-                              selectedOrder.fee_breakdown.delivery_charge_threshold_paise || 0,
+                <div className="space-y-2 border border-slate-200 rounded-2xl p-3 bg-slate-50">
+                  {orderItems.map((item) => {
+                    const removed = item.removed_at != null;
+                    const canRemove =
+                      !removed &&
+                      ["pending_review", "accepted", "preparing"].includes(selectedOrder.status);
+                    return (
+                      <div
+                        key={item.id}
+                        className="flex items-center justify-between gap-3 py-2 border-b border-slate-200 last:border-none text-xs"
+                      >
+                        <div className="min-w-0">
+                          <p
+                            className={cn(
+                              "font-bold text-slate-900",
+                              removed && "line-through text-slate-400",
                             )}
-                          </span>
-                        </div>
-                        <div>
-                          Rule:{" "}
-                          <span className="font-medium">
-                            {selectedOrder.fee_breakdown.rule_note || "N/A"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Status Transitions */}
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-3">Status Actions</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {getAllowedTransitions(selectedOrder.status).map((t) => (
-                        <button
-                          key={t.to}
-                          onClick={() => {
-                            const reason = t.requiresReason
-                              ? prompt(`Reason for ${t.label}:`)
-                              : undefined;
-                            if (t.requiresReason && !reason) return;
-                            handleTransition(selectedOrder.id, t.to, reason || "");
-                          }}
-                          disabled={transitionLoading === selectedOrder.id}
-                          className={cn(
-                            "px-3 py-1.5 text-sm font-medium rounded-lg transition-colors",
-                            transitionLoading === selectedOrder.id
-                              ? "opacity-50 cursor-not-allowed"
-                              : t.to === "cancelled" ||
-                                  t.to === "rejected" ||
-                                  t.to === "delivery_failed"
-                                ? "bg-red-100 text-red-700 hover:bg-red-200"
-                                : "bg-indigo-100 text-indigo-700 hover:bg-indigo-200",
+                          >
+                            {item.name_snapshot}
+                          </p>
+                          <p className="text-slate-500">
+                            {itemQuantity(item)} · {formatRupees(item.unit_price_paise || 0)}
+                          </p>
+                          {removed && (
+                            <p className="text-[11px] font-bold text-red-600">
+                              NOT AVAILABLE{item.removed_reason ? ` · ${item.removed_reason}` : ""}
+                            </p>
                           )}
-                        >
-                          {t.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Assign Rider */}
-                  {["ready_for_dispatch", "out_for_delivery"].includes(selectedOrder.status) && (
-                    <div>
-                      <h3 className="font-semibold text-gray-900 mb-2">Assign Rider</h3>
-                      <div className="flex gap-2">
-                        <select
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg"
-                          onChange={(e) => handleAssign(selectedOrder.id, e.target.value)}
-                          disabled={assignLoading === selectedOrder.id}
-                        >
-                          <option value="">Select Rider</option>
-                          {riders
-                            .filter((r) => r.is_active)
-                            .map((r) => (
-                              <option key={r.id} value={r.id}>
-                                {r.display_name} ({r.login_id})
-                              </option>
-                            ))}
-                        </select>
-                        <button
-                          onClick={() => handleAssign(selectedOrder.id, "")}
-                          disabled={assignLoading === selectedOrder.id}
-                          className="px-3 py-2 bg-indigo-600 text-white rounded-lg"
-                        >
-                          Assign
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Event Timeline */}
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-3">Event Timeline</h3>
-                    <div className="space-y-3">
-                      {orderEvents.map((event, idx) => (
-                        <div key={event.id} className="flex items-start gap-3">
-                          <div className="relative flex-shrink-0">
-                            <div className="w-3 h-3 bg-indigo-600 rounded-full" />
-                            {idx < orderEvents.length - 1 && (
-                              <div className="absolute left-1.5 top-6 bottom-0 w-0.5 bg-gray-200" />
-                            )}
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-gray-900">
-                                {event.to_status.replace("_", " ")}
-                              </span>
-                              <span className="text-xs text-gray-500">
-                                {formatRelativeTime(event.created_at)}
-                              </span>
-                            </div>
-                            {event.reason && (
-                              <p className="text-sm text-gray-500 mt-1">Reason: {event.reason}</p>
-                            )}
-                            {event.actor_id && (
-                              <p className="text-xs text-gray-400">By: {event.actor_id}</p>
-                            )}
-                          </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Customer Note */}
-                  {selectedOrder.customer_note && (
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <h4 className="font-semibold mb-1">Customer Note</h4>
-                      <p className="text-gray-700">{selectedOrder.customer_note}</p>
-                    </div>
-                  )}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <p className={cn("font-extrabold", removed ? "text-slate-400 line-through" : "text-slate-900")}>
+                            {removed ? "Removed" : formatRupees(item.line_total_paise || 0)}
+                          </p>
+                          {canRemove && (
+                            <button
+                              onClick={() => removeUnavailableItem(selectedOrder, item)}
+                              disabled={removingItemId === item.id}
+                              className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 disabled:opacity-50"
+                            >
+                              {removingItemId === item.id ? "Removing..." : "Mark unavailable"}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h4 className="flex items-center gap-1.5 text-sm font-bold text-slate-900">
+                    <ReceiptText className="h-4 w-4 text-slate-500" /> Bill
+                  </h4>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {orderBill
+                      ? `${orderBill.bill_number} · ${orderBill.status}`
+                      : selectedOrder.status === "cancelled" || selectedOrder.status === "rejected"
+                        ? "Cancelled and rejected orders cannot be billed."
+                        : "Generate an immutable bill from this order's stored snapshots."}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {orderBill ? (
+                    <Link
+                      href={`/billing/${orderBill.id}`}
+                      className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100"
+                    >
+                      View bill
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => issueBill(selectedOrder)}
+                      disabled={
+                        issuingBill ||
+                        modalLoading ||
+                        selectedOrder.status === "cancelled" ||
+                        selectedOrder.status === "rejected"
+                      }
+                      className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {issuingBill ? "Generating…" : "Generate bill"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              {selectedOrder.status === "pending_review" &&
+                actionButton(
+                  selectedOrder,
+                  "accepted",
+                  "Accept Order",
+                  "bg-emerald-600 hover:bg-emerald-700 !px-4 !py-2 !rounded-xl",
+                )}
+              {selectedOrder.status === "pending_review" &&
+                actionButton(
+                  selectedOrder,
+                  "rejected",
+                  "Reject",
+                  "bg-red-600 hover:bg-red-700 !px-4 !py-2 !rounded-xl",
+                )}
+              {selectedOrder.status === "ready_for_dispatch" &&
+                actionButton(
+                  selectedOrder,
+                  "out_for_delivery",
+                  "Dispatch Delivery",
+                  "bg-emerald-600 hover:bg-emerald-700 !px-4 !py-2 !rounded-xl",
+                )}
+              {selectedOrder.status === "out_for_delivery" &&
+                actionButton(
+                  selectedOrder,
+                  "delivered",
+                  "Mark Delivered",
+                  "bg-green-700 hover:bg-green-800 !px-4 !py-2 !rounded-xl",
+                )}
+              {["pending_review", "accepted", "preparing", "ready_for_dispatch"].includes(
+                selectedOrder.status,
+              ) &&
+                actionButton(
+                  selectedOrder,
+                  "cancelled",
+                  "Cancel Order",
+                  "bg-slate-600 hover:bg-slate-700 !px-4 !py-2 !rounded-xl",
+                )}
+              <button
+                onClick={() => setSelectedOrder(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

@@ -31,7 +31,6 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,6 +47,32 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.balaji.provision.domain.model.Product
 import com.balaji.provision.domain.model.formatPaise
+import com.balaji.provision.domain.model.formatWeightGrams
+import com.balaji.provision.domain.model.lineTotalPaise
+
+internal fun parseWeightInput(text: String, isKilograms: Boolean): Long {
+    val trimmed = text.trim()
+    if (trimmed.isEmpty()) return 0
+    return if (isKilograms) {
+        val parts = trimmed.split(".")
+        if (parts.size > 2) return 0
+        val whole = parts[0].toLongOrNull() ?: return 0
+        val fraction = if (parts.size == 2) parts[1].padEnd(3, '0').take(3).toLongOrNull() ?: return 0 else 0
+        whole * 1000 + fraction
+    } else {
+        trimmed.toLongOrNull() ?: 0
+    }
+}
+
+internal fun formatWeightInput(grams: Long, isKilograms: Boolean): String {
+    if (grams <= 0L) return "0"
+    if (!isKilograms) return grams.toString()
+    val whole = grams / 1000
+    val remainder = grams % 1000
+    if (remainder == 0L) return whole.toString()
+    val fraction = remainder.toString().padStart(3, '0').trimEnd('0')
+    return "$whole.$fraction"
+}
 
 enum class WeightUnit {
     GRAMS, KILOGRAMS
@@ -65,43 +90,26 @@ fun WeightedQuantityDialog(
             if (currentQtyBaseGrams >= 1000 && currentQtyBaseGrams % 500 == 0L) WeightUnit.KILOGRAMS else WeightUnit.GRAMS
         )
     }
-    
-    var inputText by remember(selectedUnit) {
+
+    var inputText by remember {
         mutableStateOf(
-            if (selectedUnit == WeightUnit.KILOGRAMS) {
-                val kg = currentQtyBaseGrams / 1000.0
-                if (kg == kg.toLong().toDouble()) kg.toLong().toString() else kg.toString()
-            } else {
-                currentQtyBaseGrams.toString()
-            }
+            formatWeightInput(currentQtyBaseGrams, selectedUnit == WeightUnit.KILOGRAMS)
         )
     }
-    
-    val calculatedGrams by remember(inputText, selectedUnit) {
-        derivedStateOf {
-            val num = inputText.toDoubleOrNull() ?: 0.0
-            if (selectedUnit == WeightUnit.KILOGRAMS) {
-                (num * 1000).toLong()
-            } else {
-                num.toLong()
-            }
-        }
-    }
-    
-    val calculatedPricePaise by remember(calculatedGrams) {
-        derivedStateOf {
-            if (product.priceBasisQty > 0) {
-                (product.pricePaise.toDouble() * (calculatedGrams.toDouble() / product.priceBasisQty.toDouble())).toLong()
-            } else {
-                product.pricePaise
-            }
-        }
-    }
-    
-    val isValid by remember(calculatedGrams) {
-        derivedStateOf {
-            calculatedGrams >= product.minQty && calculatedGrams <= product.maxOrderQty
-        }
+
+    val isKilograms = selectedUnit == WeightUnit.KILOGRAMS
+    val calculatedGrams = parseWeightInput(inputText, isKilograms)
+    val calculatedPricePaise = lineTotalPaise(product.pricePaise, product.priceBasisQty, calculatedGrams)
+    val stepGrams = product.stepQty.coerceAtLeast(1L)
+    val isValid = calculatedGrams >= product.minQty &&
+        calculatedGrams <= product.maxOrderQty &&
+        calculatedGrams % stepGrams == 0L
+
+    fun switchUnit(unit: WeightUnit) {
+        if (unit == selectedUnit) return
+        val grams = parseWeightInput(inputText, isKilograms)
+        selectedUnit = unit
+        inputText = formatWeightInput(grams, unit == WeightUnit.KILOGRAMS)
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -138,8 +146,16 @@ fun WeightedQuantityDialog(
                             )
                         }
                         Column {
-                            Text("Custom Weight", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                            Text(product.name, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                "Choose weight",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                product.name,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                     
@@ -161,26 +177,30 @@ fun WeightedQuantityDialog(
                         UnitToggleButton(
                             label = "Grams (g)",
                             isSelected = selectedUnit == WeightUnit.GRAMS,
-                            onClick = { selectedUnit = WeightUnit.GRAMS },
+                            onClick = { switchUnit(WeightUnit.GRAMS) },
                             modifier = Modifier.weight(1f)
                         )
                         UnitToggleButton(
                             label = "Kilograms (kg)",
                             isSelected = selectedUnit == WeightUnit.KILOGRAMS,
-                            onClick = { selectedUnit = WeightUnit.KILOGRAMS },
+                            onClick = { switchUnit(WeightUnit.KILOGRAMS) },
                             modifier = Modifier.weight(1f)
                         )
                     }
                 }
                 
                 // Quick Weight Preset Chips
-                Text("Quick Selection", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "Quick selection",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     val presets = if (selectedUnit == WeightUnit.GRAMS) {
-                        listOf("100", "250", "500", "750")
+                        listOf("100", "200", "500", "750")
                     } else {
                         listOf("0.5", "1", "2", "5")
                     }
@@ -189,10 +209,16 @@ fun WeightedQuantityDialog(
                         FilterChip(
                             selected = inputText == preset,
                             onClick = { inputText = preset },
-                            label = { Text(if (selectedUnit == WeightUnit.GRAMS) "${preset}g" else "${preset}kg", fontSize = 12.sp) },
+                            label = {
+                                Text(
+                                    if (selectedUnit == WeightUnit.GRAMS) "${preset}g" else "${preset}kg",
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                            },
+                            shape = RoundedCornerShape(50),
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                selectedLabelColor = Color.White
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary
                             )
                         )
                     }
@@ -211,7 +237,7 @@ fun WeightedQuantityDialog(
                     suffix = { Text(if (selectedUnit == WeightUnit.GRAMS) "g" else "kg", fontWeight = FontWeight.Bold) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(14.dp),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = MaterialTheme.colorScheme.primary
@@ -230,20 +256,27 @@ fun WeightedQuantityDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text("Total Weight", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
-                                if (calculatedGrams >= 1000) "${calculatedGrams / 1000.0} kg" else "${calculatedGrams} g",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp
+                                "Total weight",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                formatWeightGrams(calculatedGrams),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
-                        
+
                         Column(horizontalAlignment = Alignment.End) {
-                            Text("Calculated Price", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
-                                formatPaise(calculatedPricePaise),
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 20.sp,
+                                "Calculated price",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            MoneyText(
+                                text = formatPaise(calculatedPricePaise),
+                                style = MaterialTheme.typography.titleLarge,
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
@@ -252,9 +285,16 @@ fun WeightedQuantityDialog(
                 
                 if (!isValid && calculatedGrams > 0) {
                     Text(
-                        "Please select between ${product.minQty}g and ${product.maxOrderQty}g",
+                        when {
+                            calculatedGrams % stepGrams != 0L ->
+                                "Enter weight in steps of ${formatWeightGrams(stepGrams)}."
+                            calculatedGrams < product.minQty ->
+                                "Minimum weight is ${formatWeightGrams(product.minQty)}."
+                            else ->
+                                "Maximum weight is ${formatWeightGrams(product.maxOrderQty)}."
+                        },
                         color = MaterialTheme.colorScheme.error,
-                        fontSize = 12.sp,
+                        style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -271,12 +311,12 @@ fun WeightedQuantityDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary
                     )
                 ) {
-                    Text("Confirm & Add to Basket", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("Confirm & add to basket", style = MaterialTheme.typography.titleSmall)
                 }
             }
         }
@@ -293,16 +333,20 @@ fun UnitToggleButton(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(8.dp),
-        color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
         modifier = modifier
     ) {
         Text(
             text = label,
-            modifier = Modifier.padding(vertical = 10.dp),
+            modifier = Modifier.padding(vertical = 12.dp),
             textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.labelLarge,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            fontSize = 13.sp,
-            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+            color = if (isSelected) {
+                MaterialTheme.colorScheme.onPrimary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            }
         )
     }
 }

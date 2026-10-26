@@ -27,3 +27,16 @@ android/local.properties
 .vscode/
 .DS_Store
 *.swp
+
+# Android upload signing — never commit
+android/keystore.properties
+
+# Large media files
+INV/
+
+# Temporary / Agent session files
+artifacts/
+session-*.md
+*.jpeg
+*.jpg
+

@@ -13,6 +13,25 @@ class PriceFormattingTest {
         assertEquals("₹10.00", formatPaise(1000))
         assertEquals("₹123.45", formatPaise(12345))
         assertEquals("₹1,234.56", formatPaise(123456))
+        assertEquals("₹12,345.67", formatPaise(1234567))
+        assertEquals("₹1,23,456.78", formatPaise(12345678))
+        assertEquals("₹1,23,45,678.90", formatPaise(1234567890))
+        assertEquals("-₹1,23,456.78", formatPaise(-12345678))
+    }
+
+    @Test
+    fun `formatWeightGrams uses integer arithmetic`() {
+        assertEquals("250 g", formatWeightGrams(250))
+        assertEquals("1 kg", formatWeightGrams(1000))
+        assertEquals("1.5 kg", formatWeightGrams(1500))
+        assertEquals("1.05 kg", formatWeightGrams(1050))
+    }
+
+    @Test
+    fun `lineTotalPaise rounds half up`() {
+        assertEquals(1500, lineTotalPaise(6000, 1000, 250))
+        assertEquals(500, lineTotalPaise(999, 2, 1))
+        assertEquals(0, lineTotalPaise(6000, 0, 250))
     }
 
     @Test

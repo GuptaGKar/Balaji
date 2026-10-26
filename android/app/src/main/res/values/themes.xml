@@ -1,6 +1,12 @@
 <resources>
     <!-- Base application theme. -->
     <style name="Theme.BalajiProvision" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:statusBarColor">@color/primary_dark</item>
+        <!-- Transparent bars let the orange launch background and the Compose
+             surface run edge to edge. enableEdgeToEdge() keeps the icon
+             appearance in sync at runtime. -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowBackground">@color/window_background_light</item>
     </style>
 </resources>
