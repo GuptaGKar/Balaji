@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -321,22 +323,26 @@ private fun ProductImage(product: Product) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
             .aspectRatio(1.25f),
         contentAlignment = Alignment.Center
     ) {
         ProductThumb(
             name = product.name,
-            size = 200,
             imageUrl = product.imagePath,
+            contentScale = ContentScale.Fit,
+            shape = RoundedCornerShape(0.dp),
+            backgroundColor = Color.Transparent,
             modifier = Modifier
-                .size(200.dp)
+                .fillMaxSize()
+                .padding(16.dp)
                 .clearAndSetSemantics {
                     contentDescription = "Image of ${product.name}"
                 }
         )
     }
 }
+
 
 @Composable
 private fun PriceBlock(product: Product) {

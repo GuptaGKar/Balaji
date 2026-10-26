@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -41,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
+import com.balaji.provision.BuildConfig
 
 /**
  * Shared building blocks for the storefront UI. Every screen uses these so the
@@ -331,40 +333,70 @@ fun MoneyText(
 }
 
 /**
+ * Resolves full public URL for product images from Supabase Storage or external URLs.
+ */
+fun resolveProductImageUrl(imageUrl: String?): String? {
+    val clean = imageUrl?.trim()?.takeIf { it.isNotBlank() } ?: return null
+    if (clean.startsWith("http://") || clean.startsWith("https://")) return clean
+    val trimmed = clean.removePrefix("/")
+    val storagePath = if (trimmed.startsWith("storage/v1/object/public/")) {
+        trimmed
+    } else if (trimmed.startsWith("product-images/")) {
+        "storage/v1/object/public/$trimmed"
+    } else {
+        "storage/v1/object/public/product-images/$trimmed"
+    }
+    val baseUrl = BuildConfig.SUPABASE_URL.trimEnd('/')
+    return "$baseUrl/$storagePath"
+}
+
+/**
  * Product visual: the real image when the catalogue provides one, otherwise a
  * branded initials tile so the grid never shows an empty hole.
+ * Uses ContentScale.Fit with padded container so product packaging fills its space
+ * cleanly on mobile screens without being cropped or distorted.
  */
 @Composable
 fun ProductThumb(
     name: String,
     modifier: Modifier = Modifier,
-    size: Int = 64,
-    imageUrl: String? = null
+    size: Int? = null,
+    imageUrl: String? = null,
+    contentScale: ContentScale = ContentScale.Fit,
+    backgroundColor: Color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+    shape: Shape = RoundedCornerShape(12.dp)
 ) {
+    val boxModifier = if (size != null) {
+        modifier.size(size.dp)
+    } else {
+        modifier
+    }
     Box(
-        modifier = modifier
-            .size(size.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)),
+        modifier = boxModifier
+            .clip(shape)
+            .background(backgroundColor),
         contentAlignment = Alignment.Center
     ) {
         val initials = name.trim().take(1).uppercase()
-        val usableImage = imageUrl?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+        val usableImage = resolveProductImageUrl(imageUrl)
 
         if (usableImage != null) {
             SubcomposeAsyncImage(
                 model = usableImage,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
+                contentDescription = name,
+                contentScale = contentScale,
                 loading = { ThumbInitials(initials) },
                 error = { ThumbInitials(initials) },
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(6.dp)
             )
         } else {
             ThumbInitials(initials)
         }
     }
 }
+
 
 @Composable
 private fun ThumbInitials(initials: String) {

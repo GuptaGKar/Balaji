@@ -23,12 +23,25 @@ export function SafeImage({ src, alt, fallback, ...imageProps }: SafeImageProps)
 
   if (!src || failed) return <>{fallback}</>;
 
+  let resolvedSrc: string = src;
+  if (!resolvedSrc.startsWith("http://") && !resolvedSrc.startsWith("https://") && !resolvedSrc.startsWith("data:") && !resolvedSrc.startsWith("blob:")) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://czbwwnlnmhhzketyjnzt.supabase.co";
+    const cleanPath = resolvedSrc.replace(/^\/+/, "");
+    const storagePath = cleanPath.startsWith("storage/v1/object/public/")
+      ? cleanPath
+      : cleanPath.startsWith("product-images/")
+        ? `storage/v1/object/public/${cleanPath}`
+        : `storage/v1/object/public/product-images/${cleanPath}`;
+    resolvedSrc = `${supabaseUrl.replace(/\/+$/, "")}/${storagePath}`;
+  }
+
   return (
     // eslint-disable-next-line @next/next/no-img-element -- external catalogue URLs are not configured in next.config images.
     <img
       {...imageProps}
-      src={src}
+      src={resolvedSrc}
       alt={alt}
+
       onError={() => setFailed(true)}
       loading={imageProps.loading ?? "lazy"}
       decoding={imageProps.decoding ?? "async"}

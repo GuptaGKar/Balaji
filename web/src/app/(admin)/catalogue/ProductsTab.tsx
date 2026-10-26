@@ -566,7 +566,7 @@ export default function ProductsTab({ canManage }: { canManage: boolean }) {
                           <SafeImage
                             src={prod.image_path}
                             alt={prod.name}
-                            className="h-12 w-12 object-cover rounded-xl border border-slate-200"
+                            className="h-12 w-12 object-contain p-1 rounded-xl border border-slate-200 bg-white shadow-xs"
                             fallback={
                               <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-100">
                                 <Package className="h-6 w-6 text-slate-400" aria-hidden="true" />
@@ -838,7 +838,7 @@ function ProductFormCard({
             <SafeImage
               src={imagePath}
               alt="Product image preview"
-              className="h-28 w-28 rounded-xl border border-slate-200 object-cover"
+              className="h-28 w-28 rounded-xl border border-slate-200 object-contain p-2 bg-white"
               fallback={
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100">
                   <ImageIcon className="h-7 w-7 text-emerald-600" aria-hidden="true" />

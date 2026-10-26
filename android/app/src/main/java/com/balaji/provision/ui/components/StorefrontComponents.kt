@@ -310,14 +310,15 @@ fun ProductGridCard(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(112.dp)
+                    .height(124.dp)
                     .clickable(onClick = onOpenDetails),
                 contentAlignment = Alignment.Center
             ) {
                 ProductThumb(
                     name = product.name,
-                    size = 92,
-                    imageUrl = product.imagePath
+                    imageUrl = product.imagePath,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize()
                 )
                 if (product.hasDiscount) {
                     Surface(
@@ -464,14 +465,15 @@ fun HorizontalProductCard(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(92.dp)
+                    .height(100.dp)
                     .clickable(onClick = onOpenDetails),
                 contentAlignment = Alignment.Center
             ) {
                 ProductThumb(
                     name = product.name,
-                    size = 78,
-                    imageUrl = product.imagePath
+                    imageUrl = product.imagePath,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize()
                 )
                 if (product.hasDiscount) {
                     Surface(
