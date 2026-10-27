@@ -56,9 +56,7 @@ export default function AuditPage() {
     setLoading(true);
     setError(null);
     try {
-      let countQuery = supabase
-        .from("audit_logs")
-        .select("id", { count: "exact", head: true });
+      let countQuery = supabase.from("audit_logs").select("id", { count: "exact", head: true });
 
       if (filters.start_date) countQuery = countQuery.gte("created_at", filters.start_date);
       if (filters.end_date) countQuery = countQuery.lte("created_at", filters.end_date);

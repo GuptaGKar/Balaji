@@ -52,16 +52,25 @@ export async function buildBillPdf(data: BillData): Promise<Uint8Array> {
   y -= 20;
   page.drawText("BILL", { x: MARGIN, y, size: 20, font: bold, color: slate });
   y -= 16;
-  page.drawText(`${billSourceLabel(bill.source)}${bill.order_public_number ? ` | Order #${bill.order_public_number}` : ""}`, {
-    x: MARGIN,
-    y,
-    size: 9,
-    font,
-    color: muted,
-  });
+  page.drawText(
+    `${billSourceLabel(bill.source)}${bill.order_public_number ? ` | Order #${bill.order_public_number}` : ""}`,
+    {
+      x: MARGIN,
+      y,
+      size: 9,
+      font,
+      color: muted,
+    },
+  );
   if (store.phone) {
     y -= 12;
-    page.drawText(ascii(`Store phone: ${store.phone}`), { x: MARGIN, y, size: 9, font, color: muted });
+    page.drawText(ascii(`Store phone: ${store.phone}`), {
+      x: MARGIN,
+      y,
+      size: 9,
+      font,
+      color: muted,
+    });
   }
 
   const rightX = PAGE_WIDTH - MARGIN;
@@ -86,7 +95,13 @@ export async function buildBillPdf(data: BillData): Promise<Uint8Array> {
   page.drawText("CUSTOMER", { x: MARGIN, y, size: 8, font: bold, color: muted });
   page.drawText("PAYMENT", { x: PAGE_WIDTH / 2, y, size: 8, font: bold, color: muted });
   y -= 13;
-  page.drawText(ascii(bill.customer_name || "Walk-in customer"), { x: MARGIN, y, size: 10, font: bold, color: slate });
+  page.drawText(ascii(bill.customer_name || "Walk-in customer"), {
+    x: MARGIN,
+    y,
+    size: 10,
+    font: bold,
+    color: slate,
+  });
   page.drawText(ascii(paymentMethodLabel(bill.payment_method)), {
     x: PAGE_WIDTH / 2,
     y,
@@ -119,7 +134,13 @@ export async function buildBillPdf(data: BillData): Promise<Uint8Array> {
 
   y -= 26;
   const drawTableHeader = () => {
-    page.drawRectangle({ x: MARGIN, y: y - 4, width: rightX - MARGIN, height: 18, color: rgb(0.96, 0.97, 0.98) });
+    page.drawRectangle({
+      x: MARGIN,
+      y: y - 4,
+      width: rightX - MARGIN,
+      height: 18,
+      color: rgb(0.96, 0.97, 0.98),
+    });
     page.drawText("#", { x: MARGIN + 4, y: y + 2, size: 8, font: bold, color: muted });
     page.drawText("ITEM", { x: MARGIN + 24, y: y + 2, size: 8, font: bold, color: muted });
     page.drawText("QTY", { x: 330, y: y + 2, size: 8, font: bold, color: muted });
@@ -139,7 +160,13 @@ export async function buildBillPdf(data: BillData): Promise<Uint8Array> {
     }
     page.drawText(String(index + 1), { x: MARGIN + 4, y, size: 9, font, color: muted });
     nameLines.forEach((text, i) => {
-      page.drawText(text, { x: MARGIN + 24, y: y - i * 11, size: 9, font: i === 0 ? bold : font, color: slate });
+      page.drawText(text, {
+        x: MARGIN + 24,
+        y: y - i * 11,
+        size: 9,
+        font: i === 0 ? bold : font,
+        color: slate,
+      });
     });
     page.drawText(ascii(`SKU ${item.sku}`), {
       x: MARGIN + 24,
@@ -159,7 +186,12 @@ export async function buildBillPdf(data: BillData): Promise<Uint8Array> {
       color: slate,
     });
     y -= rowHeight;
-    page.drawLine({ start: { x: MARGIN, y: y + 8 }, end: { x: rightX, y: y + 8 }, thickness: 0.5, color: line });
+    page.drawLine({
+      start: { x: MARGIN, y: y + 8 },
+      end: { x: rightX, y: y + 8 },
+      thickness: 0.5,
+      color: line,
+    });
   };
 
   items.forEach(drawItem);
@@ -169,7 +201,13 @@ export async function buildBillPdf(data: BillData): Promise<Uint8Array> {
       page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
       y = PAGE_HEIGHT - MARGIN;
     }
-    page.drawText(label, { x: 360, y, size, font: boldFont ? bold : font, color: boldFont ? slate : muted });
+    page.drawText(label, {
+      x: 360,
+      y,
+      size,
+      font: boldFont ? bold : font,
+      color: boldFont ? slate : muted,
+    });
     page.drawText(value, {
       x: rightX - (boldFont ? bold : font).widthOfTextAtSize(value, size),
       y,
@@ -186,7 +224,12 @@ export async function buildBillPdf(data: BillData): Promise<Uint8Array> {
   if (bill.source === "ORDER") totalRow("Delivery fee", money(bill.delivery_fee_paise));
   if (bill.tax_paise > 0) totalRow("Tax", money(bill.tax_paise));
   y -= 2;
-  page.drawLine({ start: { x: 360, y: y + 12 }, end: { x: rightX, y: y + 12 }, thickness: 1, color: line });
+  page.drawLine({
+    start: { x: 360, y: y + 12 },
+    end: { x: rightX, y: y + 12 },
+    thickness: 1,
+    color: line,
+  });
   totalRow("Grand total", money(bill.grand_total_paise), 12, true);
 
   y = Math.min(y, 80);
@@ -200,13 +243,16 @@ export async function buildBillPdf(data: BillData): Promise<Uint8Array> {
     color: muted,
   });
   y -= 11;
-  page.drawText(bill.tax_paise > 0 ? "Tax is computed by the server." : "Tax is not configured on this bill.", {
-    x: MARGIN,
-    y,
-    size: 8,
-    font,
-    color: muted,
-  });
+  page.drawText(
+    bill.tax_paise > 0 ? "Tax is computed by the server." : "Tax is not configured on this bill.",
+    {
+      x: MARGIN,
+      y,
+      size: 8,
+      font,
+      color: muted,
+    },
+  );
 
   return pdf.save();
 }

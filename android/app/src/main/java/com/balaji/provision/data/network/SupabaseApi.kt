@@ -188,6 +188,15 @@ interface SupabaseApi {
         @Query("select") select: String = "store_open,contact_phone,estimated_window_text,timezone,weekly_hours,delivery_fee_paise,delivery_charge_threshold_paise,free_delivery_threshold_paise,mid_tier_fee_paise,max_order_paise,cancellation_policy_text,tax_mode,tax_rate_bps,online_payment_enabled",
         @Query("limit") limit: Int = 1
     ): Response<List<StoreSettingsResponse>>
+
+    // In-app release updates (public read)
+    @POST("rest/v1/rpc/get_latest_app_release")
+    suspend fun getLatestAppRelease(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Header("Content-Type") contentType: String = "application/json",
+        @Body body: Map<String, String> = mapOf("p_audience" to "customer")
+    ): Response<AppReleaseResponse?>
     
     @GET("rest/v1/orders")
     suspend fun getOrderById(
@@ -445,6 +454,19 @@ data class StoreSettingsResponse(
     val tax_mode: String? = null,
     val tax_rate_bps: Int? = null,
     val online_payment_enabled: Boolean = false
+)
+
+@Serializable
+data class AppReleaseResponse(
+    val id: String,
+    val audience: String,
+    val version_code: Int,
+    val version_name: String,
+    val min_version_code: Int = 1,
+    val apk_url: String,
+    val release_notes: String = "",
+    val force_update: Boolean = false,
+    val created_at: String? = null
 )
 
 @Serializable

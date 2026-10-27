@@ -76,8 +76,8 @@ export default async function CustomerBillsPage() {
             <ReceiptText className="mx-auto mb-3 h-10 w-10 text-slate-300" />
             <p className="text-sm font-bold text-slate-700">No bills yet</p>
             <p className="mx-auto mt-1 max-w-sm text-xs text-slate-500">
-              Bills are issued by the store after an order. If you were given a bill link,
-              open that link or ask the store to issue your bill.
+              Bills are issued by the store after an order. If you were given a bill link, open that
+              link or ask the store to issue your bill.
             </p>
           </div>
         ) : (
@@ -89,9 +89,7 @@ export default async function CustomerBillsPage() {
                   className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-emerald-300 hover:shadow"
                 >
                   <div className="min-w-0">
-                    <p className="font-mono text-sm font-bold text-slate-900">
-                      {bill.bill_number}
-                    </p>
+                    <p className="font-mono text-sm font-bold text-slate-900">{bill.bill_number}</p>
                     <p className="mt-1 text-xs text-slate-500">
                       {billSourceLabel(bill.source)} ·{" "}
                       {formatBillDateTime(bill.issued_at, "Asia/Kolkata")}

@@ -60,16 +60,13 @@ type Receipt = {
 
 function newKey() {
   return (
-    globalThis.crypto?.randomUUID?.() ??
-    `pos-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    globalThis.crypto?.randomUUID?.() ?? `pos-${Date.now()}-${Math.random().toString(36).slice(2)}`
   );
 }
 
 function basisLabel(product: PosProduct) {
   if (product.quantity_type.toUpperCase() === "WEIGHTED") {
-    return product.price_basis_qty === 1000
-      ? "per kg"
-      : `per ${product.price_basis_qty} g`;
+    return product.price_basis_qty === 1000 ? "per kg" : `per ${product.price_basis_qty} g`;
   }
   return `per ${product.unit_label}`;
 }
@@ -163,11 +160,11 @@ export default function PosPage() {
     setCart((current) => {
       const existing = current.find((entry) => entry.product.id === product.id);
       if (existing) return current;
-      const initialQty = Math.max(product.min_qty, product.quantity_type.toUpperCase() === "WEIGHTED" ? product.min_qty : 1);
-      return [
-        ...current,
-        { product, qty: Math.min(initialQty, product.stock_qty) },
-      ];
+      const initialQty = Math.max(
+        product.min_qty,
+        product.quantity_type.toUpperCase() === "WEIGHTED" ? product.min_qty : 1,
+      );
+      return [...current, { product, qty: Math.min(initialQty, product.stock_qty) }];
     });
     setReceipt(null);
     setSubmitError("");
@@ -243,7 +240,10 @@ export default function PosPage() {
       </div>
 
       {receipt ? (
-        <div className="flex flex-col items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-6" role="status">
+        <div
+          className="flex flex-col items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-6"
+          role="status"
+        >
           <CheckCircle2 className="h-8 w-8 text-emerald-600" />
           <div>
             <h2 className="text-lg font-extrabold text-emerald-900">Sale completed</h2>
@@ -297,9 +297,7 @@ export default function PosPage() {
                 <p className="text-sm font-semibold text-red-700">{searchError}</p>
               </div>
             ) : products.length === 0 ? (
-              <div className="p-10 text-center text-sm text-slate-500">
-                No matching products.
-              </div>
+              <div className="p-10 text-center text-sm text-slate-500">No matching products.</div>
             ) : (
               <ul className="divide-y divide-slate-100">
                 {products.map((product) => {
@@ -308,12 +306,10 @@ export default function PosPage() {
                   return (
                     <li key={product.id} className="flex items-center gap-3 p-3">
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-bold text-slate-900">
-                          {product.name}
-                        </p>
+                        <p className="truncate text-sm font-bold text-slate-900">{product.name}</p>
                         <p className="text-xs text-slate-500">
-                          {product.sku} · {formatRupees(product.price_paise)}{" "}
-                          {basisLabel(product)} · stock {product.stock_qty}
+                          {product.sku} · {formatRupees(product.price_paise)} {basisLabel(product)}{" "}
+                          · stock {product.stock_qty}
                         </p>
                       </div>
                       <button
@@ -343,17 +339,11 @@ export default function PosPage() {
             ) : (
               <ul className="mt-3 space-y-3">
                 {cart.map((entry) => {
-                  const line = quote?.lines.find(
-                    (row) => row.product_id === entry.product.id,
-                  );
-                  const weighted =
-                    entry.product.quantity_type.toUpperCase() === "WEIGHTED";
+                  const line = quote?.lines.find((row) => row.product_id === entry.product.id);
+                  const weighted = entry.product.quantity_type.toUpperCase() === "WEIGHTED";
                   const step = Math.max(1, entry.product.step_qty);
                   return (
-                    <li
-                      key={entry.product.id}
-                      className="rounded-xl border border-slate-200 p-3"
-                    >
+                    <li key={entry.product.id} className="rounded-xl border border-slate-200 p-3">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="truncate text-xs font-bold text-slate-900">
@@ -385,8 +375,7 @@ export default function PosPage() {
                             <Minus className="h-3.5 w-3.5" />
                           </button>
                           <label className="sr-only" htmlFor={`qty-${entry.product.id}`}>
-                            Quantity for {entry.product.name} in{" "}
-                            {weighted ? "grams" : "packs"}
+                            Quantity for {entry.product.name} in {weighted ? "grams" : "packs"}
                           </label>
                           <input
                             id={`qty-${entry.product.id}`}
@@ -477,7 +466,10 @@ export default function PosPage() {
               />
             </div>
             <div>
-              <label htmlFor="pos-phone" className="mb-1 block text-[11px] font-bold text-slate-600">
+              <label
+                htmlFor="pos-phone"
+                className="mb-1 block text-[11px] font-bold text-slate-600"
+              >
                 Phone
               </label>
               <input
@@ -500,11 +492,7 @@ export default function PosPage() {
               type="button"
               onClick={completeSale}
               disabled={
-                submitting ||
-                cart.length === 0 ||
-                quoteLoading ||
-                Boolean(quoteError) ||
-                !quote
+                submitting || cart.length === 0 || quoteLoading || Boolean(quoteError) || !quote
               }
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
             >

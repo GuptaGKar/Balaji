@@ -79,10 +79,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Invalid phone number" }, { status: 400 });
       }
       if (typeof password !== "string" || password.length < 8 || password.length > 72) {
-        return NextResponse.json(
-          { error: "Password must be 8-72 characters" },
-          { status: 400 },
-        );
+        return NextResponse.json({ error: "Password must be 8-72 characters" }, { status: 400 });
       }
 
       const email = `${normalizedLoginId.toLowerCase()}@riders.invalid`;

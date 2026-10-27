@@ -38,7 +38,11 @@ export default function ChangePasswordPage() {
 
       const { data, error: rpcError } = await supabase.rpc("complete_password_change");
       if (rpcError || data?.error) {
-        setError(rpcError?.message || data?.message || "Password changed, but the profile flag could not be cleared");
+        setError(
+          rpcError?.message ||
+            data?.message ||
+            "Password changed, but the profile flag could not be cleared",
+        );
         return;
       }
 
@@ -86,7 +90,10 @@ export default function ChangePasswordPage() {
           )}
 
           <div>
-            <label htmlFor="new-password" className="mb-1 block text-xs font-semibold text-slate-700">
+            <label
+              htmlFor="new-password"
+              className="mb-1 block text-xs font-semibold text-slate-700"
+            >
               New password
             </label>
             <div className="relative">
@@ -114,7 +121,10 @@ export default function ChangePasswordPage() {
           </div>
 
           <div>
-            <label htmlFor="confirm-password" className="mb-1 block text-xs font-semibold text-slate-700">
+            <label
+              htmlFor="confirm-password"
+              className="mb-1 block text-xs font-semibold text-slate-700"
+            >
               Confirm new password
             </label>
             <input

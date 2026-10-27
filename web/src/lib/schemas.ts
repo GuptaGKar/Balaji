@@ -193,3 +193,17 @@ export const createStaffSchema = z
     path: ["confirm_password"],
   });
 export type CreateStaffInput = z.infer<typeof createStaffSchema>;
+
+export const appReleaseSchema = z.object({
+  id: z.string().uuid().optional(),
+  audience: z.enum(["customer", "staff"]).default("customer"),
+  version_code: z.number().int().min(1, "Version code must be positive integer"),
+  version_name: z.string().trim().min(1, "Version name is required"),
+  min_version_code: z.number().int().min(1).default(1),
+  apk_url: z.string().trim().url("Valid APK URL is required"),
+  release_notes: z.string().default(""),
+  force_update: z.boolean().default(false),
+  is_active: z.boolean().default(true),
+  created_at: z.string().optional(),
+});
+export type AppRelease = z.infer<typeof appReleaseSchema>;

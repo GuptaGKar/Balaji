@@ -29,7 +29,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Replay
+import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.ShoppingBag
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -94,6 +94,9 @@ import com.balaji.provision.ui.splash.SplashScreen
 import com.balaji.provision.ui.staff.StaffApp
 import com.balaji.provision.ui.theme.BalajiTheme
 import com.balaji.provision.ui.theme.ThemeViewModel
+import com.balaji.provision.data.update.UpdateState
+import com.balaji.provision.ui.update.AppUpdateViewModel
+import com.balaji.provision.ui.update.InAppUpdateDialog
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 
@@ -136,6 +139,28 @@ fun MainAppScreen(
     }
 
     ApplySystemBarAppearance()
+
+    // Update prompts live above the flavour switch so both the customer and the
+    // staff/rider builds receive the releases published for their audience.
+    val updateViewModel: AppUpdateViewModel = hiltViewModel()
+    val updateState by updateViewModel.state.collectAsState()
+
+    InAppUpdateDialog(
+        updateState = updateState,
+        onUpdateClicked = {
+            val current = updateState
+            if (current is UpdateState.UpdateAvailable) {
+                updateViewModel.downloadAndInstall(current.release)
+            }
+        },
+        onInstallClicked = {
+            val current = updateState
+            if (current is UpdateState.ReadyToInstall) {
+                updateViewModel.retryInstall(current.apkFile)
+            }
+        },
+        onDismissClicked = updateViewModel::dismiss
+    )
 
     Box(
         modifier = Modifier
@@ -602,7 +627,7 @@ fun BottomNavigationBar(
     val destinations = listOf(
         NavItem("home", "Home", Icons.Outlined.Home),
         NavItem("categories", "Categories", Icons.Filled.GridView),
-        NavItem("orders", "Buy Again", Icons.Outlined.Replay),
+        NavItem("orders", "Orders", Icons.Outlined.ReceiptLong),
         NavItem("cart", "Basket", Icons.Outlined.ShoppingBag)
     )
 

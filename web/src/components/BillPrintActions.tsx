@@ -1,10 +1,6 @@
 "use client";
 
-export default function BillPrintActions({
-  pdfHref,
-}: {
-  pdfHref: string;
-}) {
+export default function BillPrintActions({ pdfHref }: { pdfHref: string }) {
   const print = (size: "a4" | "thermal") => {
     document.getElementById("bill-print-page-size")?.remove();
     const style = document.createElement("style");

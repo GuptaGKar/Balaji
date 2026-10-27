@@ -9,11 +9,7 @@ import { ArrowLeft, ReceiptText } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-export default async function CustomerBillPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function CustomerBillPage({ params }: { params: { id: string } }) {
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
@@ -51,9 +47,7 @@ export default async function CustomerBillPage({
             >
               <ArrowLeft className="h-4 w-4" /> Back to my bills
             </Link>
-            <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900">
-              Bill
-            </h1>
+            <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900">Bill</h1>
           </div>
           <div className="flex items-center gap-2">
             {!unavailable && payload ? (
@@ -64,12 +58,14 @@ export default async function CustomerBillPage({
         </header>
 
         {unavailable ? (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-10 text-center" role="alert">
+          <div
+            className="rounded-2xl border border-red-200 bg-red-50 p-10 text-center"
+            role="alert"
+          >
             <ReceiptText className="mx-auto mb-3 h-10 w-10 text-red-300" />
             <h2 className="text-sm font-bold text-red-800">Bill unavailable</h2>
             <p className="mx-auto mt-1 max-w-md text-xs text-red-700">
-              {payload?.message ||
-                "This bill does not exist or does not belong to your account."}
+              {payload?.message || "This bill does not exist or does not belong to your account."}
             </p>
             <Link
               href="/bills"

@@ -68,9 +68,7 @@ export default function BillingPage() {
     <div className="space-y-6 pb-12">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
-            Bills &amp; POS
-          </h1>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Bills &amp; POS</h1>
           <p className="text-xs font-medium text-slate-500 mt-1">
             Bills are generated on the server from order snapshots or in-store sales.
           </p>

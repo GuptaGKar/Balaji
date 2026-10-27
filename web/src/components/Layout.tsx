@@ -21,6 +21,7 @@ import {
   ClipboardList,
   ShieldCheck,
   Tag,
+  Smartphone,
 } from "lucide-react";
 
 const navigation = [
@@ -32,11 +33,11 @@ const navigation = [
   { name: "Reports & Sales", href: "/reports", icon: BarChart2 },
   { name: "Audit Log", href: "/audit", icon: ClipboardList },
   { name: "Store Settings", href: "/settings", icon: Settings },
+  { name: "App Releases", href: "/app-updates", icon: Smartphone },
   { name: "Service Areas", href: "/service-areas", icon: MapPin },
   { name: "Staff & Riders", href: "/staff", icon: Users },
   { name: "POS & Billing", href: "/billing", icon: FileText },
 ];
-
 
 export default function Layout({
   children,
@@ -92,7 +93,9 @@ export default function Layout({
                 <Store className="h-6 w-6" />
               </div>
               <div className="flex flex-col">
-                <span className="text-base font-bold tracking-tight text-white leading-tight">Balaji Provision</span>
+                <span className="text-base font-bold tracking-tight text-white leading-tight">
+                  Balaji Provision
+                </span>
                 <span className="text-xs text-emerald-400 font-medium">Store Admin Portal</span>
               </div>
             </Link>
@@ -112,7 +115,8 @@ export default function Layout({
             aria-label="Main navigation"
           >
             {navigation.map((item) => {
-              const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
+              const isActive =
+                pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
               return (
                 <Link
                   key={item.name}
@@ -125,7 +129,13 @@ export default function Layout({
                   )}
                   aria-current={isActive ? "page" : undefined}
                 >
-                  <item.icon className={cn("h-5 w-5 flex-shrink-0", isActive ? "text-white" : "text-slate-400")} aria-hidden="true" />
+                  <item.icon
+                    className={cn(
+                      "h-5 w-5 flex-shrink-0",
+                      isActive ? "text-white" : "text-slate-400",
+                    )}
+                    aria-hidden="true"
+                  />
                   {item.name}
                 </Link>
               );
@@ -138,16 +148,28 @@ export default function Layout({
               <span
                 className={cn(
                   "flex items-center gap-1.5 font-medium",
-                  storeOpen === null ? "text-slate-400" : storeOpen ? "text-emerald-400" : "text-red-400",
+                  storeOpen === null
+                    ? "text-slate-400"
+                    : storeOpen
+                      ? "text-emerald-400"
+                      : "text-red-400",
                 )}
               >
                 <span
                   className={cn(
                     "h-2 w-2 rounded-full",
-                    storeOpen === null ? "bg-slate-500" : storeOpen ? "bg-emerald-400 animate-pulse" : "bg-red-400",
+                    storeOpen === null
+                      ? "bg-slate-500"
+                      : storeOpen
+                        ? "bg-emerald-400 animate-pulse"
+                        : "bg-red-400",
                   )}
                 />
-                {storeOpen === null ? "Store status unknown" : storeOpen ? "Store Open" : "Store Closed"}
+                {storeOpen === null
+                  ? "Store status unknown"
+                  : storeOpen
+                    ? "Store Open"
+                    : "Store Closed"}
               </span>
               <span className="text-slate-400">v1.0.0</span>
             </div>
@@ -185,7 +207,9 @@ export default function Layout({
             <div className="flex items-center gap-3">
               <div className="hidden sm:flex flex-col text-right">
                 <span className="text-xs font-semibold text-slate-900">{user.email}</span>
-                <span className="text-[11px] text-emerald-600 font-medium capitalize">{user.role}</span>
+                <span className="text-[11px] text-emerald-600 font-medium capitalize">
+                  {user.role}
+                </span>
               </div>
               <div className="h-8 w-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-sm border border-emerald-300 shadow-sm">
                 {user.email.slice(0, 1).toUpperCase()}

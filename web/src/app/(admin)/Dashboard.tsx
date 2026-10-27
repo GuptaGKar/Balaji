@@ -77,9 +77,8 @@ export default function Dashboard() {
         const products = productsRes.data || [];
         setStats({
           totalProducts: products.length,
-          lowStockCount: products.filter(
-            (p) => p.active && p.stock_qty <= p.low_stock_threshold,
-          ).length,
+          lowStockCount: products.filter((p) => p.active && p.stock_qty <= p.low_stock_threshold)
+            .length,
           activeOrders: activeRes.count || 0,
           todayRevenue: Number(revenueRes.data?.[0]?.total_revenue_paise || 0),
         });

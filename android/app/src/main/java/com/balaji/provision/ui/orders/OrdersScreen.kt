@@ -1,16 +1,21 @@
 package com.balaji.provision.ui.orders
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
@@ -21,9 +26,12 @@ import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +42,8 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -41,6 +51,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,6 +72,12 @@ import com.balaji.provision.ui.components.StoreTopBar
 import com.balaji.provision.ui.theme.appColors
 import kotlinx.coroutines.launch
 
+enum class OrdersTab {
+    ALL,
+    CURRENT,
+    PREVIOUS
+}
+
 @Composable
 fun OrdersScreen(
     onNavigateToSignIn: () -> Unit = {},
@@ -77,6 +94,17 @@ fun OrdersScreen(
     val scope = rememberCoroutineScope()
     var cancelTarget by remember { mutableStateOf<OrderView?>(null) }
     var cancelReason by remember { mutableStateOf("") }
+    var selectedTab by rememberSaveable { mutableStateOf(OrdersTab.ALL) }
+
+    val activeStatuses = remember {
+        setOf("pending_review", "accepted", "preparing", "ready_for_dispatch", "out_for_delivery")
+    }
+    val currentOrders = remember(orders) {
+        orders.filter { it.status.lowercase() in activeStatuses }
+    }
+    val previousOrders = remember(orders) {
+        orders.filter { it.status.lowercase() !in activeStatuses }
+    }
 
     LaunchedEffect(refreshError) {
         refreshError?.let { message ->
@@ -88,11 +116,11 @@ fun OrdersScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             StoreTopBar(
-                title = "My orders",
-                subtitle = if (orders.isEmpty()) {
-                    "Your delivery history"
-                } else {
-                    "${orders.size} ${if (orders.size == 1) "order" else "orders"}"
+                title = "Orders",
+                subtitle = when {
+                    orders.isEmpty() -> "Your order history"
+                    currentOrders.isNotEmpty() -> "${currentOrders.size} active · ${previousOrders.size} past"
+                    else -> "${orders.size} ${if (orders.size == 1) "order" else "orders"}"
                 },
                 leadingIcon = Icons.Default.ReceiptLong,
                 trailing = {
@@ -140,21 +168,165 @@ fun OrdersScreen(
                     )
                 }
 
-                else -> LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(orders, key = { it.id }) { order ->
-                        OrderCard(
-                            order = order,
-                            onOpen = { onOpenOrder(order.id) },
-                            onCancel = {
-                                cancelReason = ""
-                                cancelTarget = order
-                            }
+                else -> {
+                    // Filter Chips Bar
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = selectedTab == OrdersTab.ALL,
+                            onClick = { selectedTab = OrdersTab.ALL },
+                            label = { Text("All (${orders.size})") },
+                            shape = RoundedCornerShape(20.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                            )
                         )
+                        FilterChip(
+                            selected = selectedTab == OrdersTab.CURRENT,
+                            onClick = { selectedTab = OrdersTab.CURRENT },
+                            label = {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    if (currentOrders.isNotEmpty()) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .clip(CircleShape)
+                                                .background(
+                                                    if (selectedTab == OrdersTab.CURRENT)
+                                                        MaterialTheme.colorScheme.onPrimary
+                                                    else
+                                                        MaterialTheme.appColors.success
+                                                )
+                                        )
+                                    }
+                                    Text("Current (${currentOrders.size})")
+                                }
+                            },
+                            shape = RoundedCornerShape(20.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        )
+                        FilterChip(
+                            selected = selectedTab == OrdersTab.PREVIOUS,
+                            onClick = { selectedTab = OrdersTab.PREVIOUS },
+                            label = { Text("Previous (${previousOrders.size})") },
+                            shape = RoundedCornerShape(20.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        )
+                    }
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        when (selectedTab) {
+                            OrdersTab.ALL -> {
+                                if (currentOrders.isNotEmpty()) {
+                                    item(key = "hdr_current") {
+                                        OrdersSectionHeader(
+                                            title = "Current Orders",
+                                            count = currentOrders.size,
+                                            isLive = true
+                                        )
+                                    }
+                                    items(currentOrders, key = { it.id }) { order ->
+                                        OrderCard(
+                                            order = order,
+                                            isCurrent = true,
+                                            onOpen = { onOpenOrder(order.id) },
+                                            onCancel = {
+                                                cancelReason = ""
+                                                cancelTarget = order
+                                            }
+                                        )
+                                    }
+                                }
+
+                                if (previousOrders.isNotEmpty()) {
+                                    item(key = "hdr_previous") {
+                                        OrdersSectionHeader(
+                                            title = "Previous Orders",
+                                            count = previousOrders.size,
+                                            isLive = false
+                                        )
+                                    }
+                                    items(previousOrders, key = { it.id }) { order ->
+                                        OrderCard(
+                                            order = order,
+                                            isCurrent = false,
+                                            onOpen = { onOpenOrder(order.id) },
+                                            onCancel = {
+                                                cancelReason = ""
+                                                cancelTarget = order
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+
+                            OrdersTab.CURRENT -> {
+                                if (currentOrders.isEmpty()) {
+                                    item(key = "empty_current") {
+                                        EmptyOrdersSubState(
+                                            icon = Icons.Default.LocalShipping,
+                                            title = "No active orders",
+                                            message = "You don't have any in-progress orders right now."
+                                        )
+                                    }
+                                } else {
+                                    items(currentOrders, key = { it.id }) { order ->
+                                        OrderCard(
+                                            order = order,
+                                            isCurrent = true,
+                                            onOpen = { onOpenOrder(order.id) },
+                                            onCancel = {
+                                                cancelReason = ""
+                                                cancelTarget = order
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+
+                            OrdersTab.PREVIOUS -> {
+                                if (previousOrders.isEmpty()) {
+                                    item(key = "empty_previous") {
+                                        EmptyOrdersSubState(
+                                            icon = Icons.Default.ReceiptLong,
+                                            title = "No previous orders",
+                                            message = "Your completed and cancelled orders will be saved here."
+                                        )
+                                    }
+                                } else {
+                                    items(previousOrders, key = { it.id }) { order ->
+                                        OrderCard(
+                                            order = order,
+                                            isCurrent = false,
+                                            onOpen = { onOpenOrder(order.id) },
+                                            onCancel = {
+                                                cancelReason = ""
+                                                cancelTarget = order
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -218,6 +390,7 @@ fun OrdersScreen(
 @Composable
 fun OrderCard(
     order: OrderView,
+    isCurrent: Boolean = false,
     onCancel: () -> Unit,
     onOpen: () -> Unit = {}
 ) {
@@ -226,8 +399,9 @@ fun OrderCard(
             .fillMaxWidth()
             .clickable(onClick = onOpen),
         shape = RoundedCornerShape(18.dp),
+        border = if (isCurrent) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)) else null,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isCurrent) 3.dp else 1.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -236,11 +410,25 @@ fun OrderCard(
                 verticalAlignment = Alignment.Top
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "#${order.publicOrderNumber}",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        if (isCurrent) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.appColors.success)
+                            )
+                        }
+                        Text(
+                            "#${order.publicOrderNumber}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                     Text(
                         order.createdAt,
                         style = MaterialTheme.typography.bodySmall,
@@ -352,17 +540,119 @@ fun OrderCard(
                 )
             }
 
-            if (order.canCancel) {
-                OutlinedButton(
-                    onClick = onCancel,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 14.dp),
-                    shape = RoundedCornerShape(12.dp)
+            // Action Buttons
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (order.canCancel) {
+                    OutlinedButton(
+                        onClick = onCancel,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Cancel", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+
+                Button(
+                    onClick = onOpen,
+                    modifier = Modifier.weight(if (order.canCancel) 1.5f else 1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isCurrent)
+                            MaterialTheme.colorScheme.primary
+                        else
+                            MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = if (isCurrent)
+                            MaterialTheme.colorScheme.onPrimary
+                        else
+                            MaterialTheme.colorScheme.onSecondaryContainer
+                    )
                 ) {
-                    Text("Cancel order", style = MaterialTheme.typography.labelLarge)
+                    Icon(
+                        imageVector = if (isCurrent) Icons.Default.LocalShipping else Icons.Default.ReceiptLong,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (isCurrent) "Track Order" else "View Details",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun OrdersSectionHeader(
+    title: String,
+    count: Int,
+    isLive: Boolean
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        if (isLive) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.appColors.success)
+            )
+        }
+        Text(
+            text = "$title ($count)",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = if (isLive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+@Composable
+fun EmptyOrdersSubState(
+    icon: ImageVector,
+    title: String,
+    message: String
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 40.dp, horizontal = 24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.size(48.dp)
+            )
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
         }
     }
 }

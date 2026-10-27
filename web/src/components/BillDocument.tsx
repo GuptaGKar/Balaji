@@ -36,9 +36,7 @@ export default function BillDocument({ data }: { data: BillData }) {
           <p>
             <span
               className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
-                isVoid
-                  ? "bg-red-100 text-red-700"
-                  : "bg-emerald-100 text-emerald-800"
+                isVoid ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-800"
               }`}
             >
               {bill.status}
@@ -56,18 +54,14 @@ export default function BillDocument({ data }: { data: BillData }) {
 
       <section className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
-            Customer
-          </p>
+          <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Customer</p>
           <p className="mt-1 font-bold">{bill.customer_name || "Walk-in customer"}</p>
           {bill.customer_phone ? (
             <p className="text-xs text-slate-500">{bill.customer_phone}</p>
           ) : null}
         </div>
         <div className="sm:text-right">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
-            Payment
-          </p>
+          <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Payment</p>
           <p className="mt-1 font-bold">{paymentMethodLabel(bill.payment_method)}</p>
           <p className="text-xs text-slate-500 capitalize">
             {paymentStatusLabel(bill.payment_status)}
@@ -97,9 +91,7 @@ export default function BillDocument({ data }: { data: BillData }) {
                 <td className="px-2 py-2.5 whitespace-nowrap">{item.display_qty}</td>
                 <td className="px-2 py-2.5 text-right whitespace-nowrap">
                   {formatRupees(item.unit_price_paise)}
-                  <span className="block text-[10px] text-slate-400">
-                    {item.price_basis_label}
-                  </span>
+                  <span className="block text-[10px] text-slate-400">{item.price_basis_label}</span>
                 </td>
                 <td className="px-2 py-2.5 text-right font-semibold whitespace-nowrap">
                   {formatRupees(item.line_total_paise)}
@@ -148,8 +140,11 @@ export default function BillDocument({ data }: { data: BillData }) {
 
       <footer className="mt-8 border-t border-slate-200 pt-4 text-[11px] leading-5 text-slate-400">
         <p>
-          This is a computer-generated bill. Prices and quantities are server-validated
-          at the time of sale. {bill.tax_paise > 0 ? "Tax is computed by the server." : "Tax is not configured on this bill."}
+          This is a computer-generated bill. Prices and quantities are server-validated at the time
+          of sale.{" "}
+          {bill.tax_paise > 0
+            ? "Tax is computed by the server."
+            : "Tax is not configured on this bill."}
         </p>
         <p className="mt-1">Thank you for shopping with {store.name}.</p>
       </footer>

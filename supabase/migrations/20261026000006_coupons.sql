@@ -8,7 +8,10 @@ CREATE TABLE IF NOT EXISTS public.coupons (
   description text NOT NULL DEFAULT '',
   discount_type text NOT NULL CHECK (discount_type IN ('percent_off', 'rupees_off', 'free_delivery')),
   discount_value bigint NOT NULL DEFAULT 0 CHECK (discount_value >= 0),
+  applies_to text NOT NULL DEFAULT 'all' CHECK (applies_to IN ('all', 'categories', 'products')),
   category_id uuid REFERENCES public.categories(id) ON DELETE SET NULL,
+  category_ids uuid[] NOT NULL DEFAULT '{}',
+  product_ids uuid[] NOT NULL DEFAULT '{}',
   min_order_paise bigint NOT NULL DEFAULT 0 CHECK (min_order_paise >= 0),
   max_discount_paise bigint CHECK (max_discount_paise IS NULL OR max_discount_paise >= 0),
   starts_at timestamptz NOT NULL DEFAULT now(),
@@ -23,7 +26,10 @@ CREATE TABLE IF NOT EXISTS public.coupons (
 COMMENT ON TABLE public.coupons IS 'Discount coupons configurable by staff and managers.';
 COMMENT ON COLUMN public.coupons.discount_type IS 'percent_off, rupees_off, or free_delivery.';
 COMMENT ON COLUMN public.coupons.discount_value IS 'Percentage for percent_off (e.g. 10 for 10%), paise for rupees_off, 0 for free_delivery.';
-COMMENT ON COLUMN public.coupons.category_id IS 'Specific category discount applies to, or NULL for all categories.';
+COMMENT ON COLUMN public.coupons.applies_to IS 'Scope of coupon: all, categories, or products.';
+COMMENT ON COLUMN public.coupons.category_ids IS 'Multiple category IDs discount applies to.';
+COMMENT ON COLUMN public.coupons.product_ids IS 'Multiple product IDs discount applies to.';
+COMMENT ON COLUMN public.coupons.category_id IS 'Specific category discount applies to (legacy / single), or NULL for all categories.';
 
 -- 2. Add coupon columns to orders table
 ALTER TABLE public.orders
@@ -198,16 +204,33 @@ BEGIN
     ELSIF v_item_subtotal < v_coupon.min_order_paise THEN
       v_coupon_error := 'Minimum order of ₹' || to_char(v_coupon.min_order_paise / 100.0, 'FM999999990.00') || ' required for this coupon.';
     ELSE
-      -- Calculate eligible subtotal for category scope
-      IF v_coupon.category_id IS NOT NULL THEN
+      -- Calculate eligible subtotal for coupon scope
+      IF (v_coupon.applies_to = 'categories' OR cardinality(v_coupon.category_ids) > 0 OR v_coupon.category_id IS NOT NULL)
+         AND v_coupon.applies_to <> 'products' AND (v_coupon.product_ids IS NULL OR cardinality(v_coupon.product_ids) = 0) THEN
+        
         SELECT COALESCE(sum((elem->>'line_total_paise')::bigint), 0) INTO v_category_subtotal
         FROM jsonb_array_elements(v_lines) elem
         WHERE (elem->>'available')::boolean = true
-          AND (elem->>'category_id')::uuid = v_coupon.category_id;
+          AND (
+            (v_coupon.category_ids IS NOT NULL AND cardinality(v_coupon.category_ids) > 0 AND (elem->>'category_id')::uuid = ANY(v_coupon.category_ids))
+            OR (v_coupon.category_id IS NOT NULL AND (elem->>'category_id')::uuid = v_coupon.category_id)
+          );
 
         IF v_category_subtotal <= 0 THEN
-          v_coupon_error := 'No eligible items from the coupon category found in cart.';
+          v_coupon_error := 'No eligible items from the selected coupon categories found in cart.';
         END IF;
+
+      ELSIF v_coupon.applies_to = 'products' OR (v_coupon.product_ids IS NOT NULL AND cardinality(v_coupon.product_ids) > 0) THEN
+        
+        SELECT COALESCE(sum((elem->>'line_total_paise')::bigint), 0) INTO v_category_subtotal
+        FROM jsonb_array_elements(v_lines) elem
+        WHERE (elem->>'available')::boolean = true
+          AND (elem->>'product_id')::uuid = ANY(v_coupon.product_ids);
+
+        IF v_category_subtotal <= 0 THEN
+          v_coupon_error := 'No eligible items from the selected coupon products found in cart.';
+        END IF;
+
       ELSE
         v_category_subtotal := v_item_subtotal;
       END IF;

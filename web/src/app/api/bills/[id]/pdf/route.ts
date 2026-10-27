@@ -28,10 +28,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
           : code === "VALIDATION_FAILED"
             ? 400
             : 404;
-    return NextResponse.json(
-      { error: payload?.message ?? "Bill not available" },
-      { status },
-    );
+    return NextResponse.json({ error: payload?.message ?? "Bill not available" }, { status });
   }
 
   const bytes = await buildBillPdf(payload);

@@ -386,15 +386,11 @@ function StaffForm({
             Share this password securely with the staff member.
           </p>
           {form.formState.errors.password && (
-            <p className="mt-1 text-sm text-red-600">
-              {form.formState.errors.password.message}
-            </p>
+            <p className="mt-1 text-sm text-red-600">{form.formState.errors.password.message}</p>
           )}
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Confirm Password *
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password *</label>
           <input
             {...form.register("confirm_password")}
             type="password"

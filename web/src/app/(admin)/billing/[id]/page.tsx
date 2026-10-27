@@ -92,9 +92,7 @@ export default function BillDetailPage() {
             Bill details
           </h1>
         </div>
-        {data ? (
-          <BillPrintActions pdfHref={`/api/bills/${data.bill.id}/pdf`} />
-        ) : null}
+        {data ? <BillPrintActions pdfHref={`/api/bills/${data.bill.id}/pdf`} /> : null}
       </div>
 
       {loading ? (
@@ -102,7 +100,10 @@ export default function BillDetailPage() {
           <Loader2 className="h-5 w-5 animate-spin text-emerald-600" /> Loading bill…
         </div>
       ) : error ? (
-        <div className="flex flex-col items-center gap-3 rounded-2xl border border-red-200 bg-red-50 p-12 text-center" role="alert">
+        <div
+          className="flex flex-col items-center gap-3 rounded-2xl border border-red-200 bg-red-50 p-12 text-center"
+          role="alert"
+        >
           <AlertCircle className="h-8 w-8 text-red-500" />
           <p className="text-sm font-bold text-red-800">{error}</p>
           <Link
@@ -124,8 +125,8 @@ export default function BillDetailPage() {
                   <div className="flex-1">
                     <h2 className="text-sm font-bold text-red-800">Void this bill</h2>
                     <p className="mt-1 text-xs text-red-700">
-                      Manager-only. The bill and its line items are never deleted; the
-                      void reason and actor are audited.
+                      Manager-only. The bill and its line items are never deleted; the void reason
+                      and actor are audited.
                     </p>
                     <div className="mt-3 flex flex-col sm:flex-row gap-2">
                       <input

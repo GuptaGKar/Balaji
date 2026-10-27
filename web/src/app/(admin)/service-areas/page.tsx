@@ -264,7 +264,9 @@ function ServiceAreaForm({
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
           <select
-            {...form.register("active", { setValueAs: (value) => value === "true" || value === true })}
+            {...form.register("active", {
+              setValueAs: (value) => value === "true" || value === true,
+            })}
             className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
           >
             <option value="true">Active</option>

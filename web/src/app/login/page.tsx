@@ -50,9 +50,7 @@ function LoginForm() {
     try {
       const supabase = createClient();
       const { data: authData, error } = await supabase.auth.signInWithPassword({
-        email: data.email.includes("@")
-          ? data.email
-          : `${data.email.toLowerCase()}@riders.invalid`,
+        email: data.email.includes("@") ? data.email : `${data.email.toLowerCase()}@riders.invalid`,
         password: data.password,
       });
 
@@ -110,7 +108,9 @@ function LoginForm() {
           <div className="inline-flex h-14 w-14 rounded-2xl bg-emerald-600 items-center justify-center text-white shadow-lg shadow-emerald-600/30 mb-2">
             <Store className="h-8 w-8" />
           </div>
-          <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Balaji Provision Store</h2>
+          <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+            Balaji Provision Store
+          </h2>
           <p className="text-sm font-medium text-slate-500">
             {customerBillRedirect && !staffLogin
               ? "Customer bill portal"
@@ -119,92 +119,96 @@ function LoginForm() {
         </div>
 
         {customerBillRedirect && !staffLogin ? (
-          <CustomerBillLogin
-            redirectTo={redirect}
-            onStaffLogin={() => setStaffLogin(true)}
-          />
+          <CustomerBillLogin redirectTo={redirect} onStaffLogin={() => setStaffLogin(true)} />
         ) : (
-        <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
-          {error && (
-            <div
-              className="flex items-center gap-2.5 p-3.5 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-xl"
-              role="alert"
-            >
-              <AlertCircle className="h-5 w-5 flex-shrink-0 text-red-500" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          <div className="space-y-3">
-            <div>
-              <label htmlFor="email" className="block text-xs font-semibold text-slate-700 mb-1">
-                Email or Login ID
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                <input
-                  {...register("email")}
-                  id="email"
-                  type="text"
-                  autoComplete="username"
-                  required
-                  className={cn(
-                    "w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all",
-                    errors.email && "border-red-500 focus:ring-red-500",
-                  )}
-                  placeholder="STAFF-001 or admin@balajiprovision.com"
-                  disabled={loading}
-                />
+          <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+            {error && (
+              <div
+                className="flex items-center gap-2.5 p-3.5 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-xl"
+                role="alert"
+              >
+                <AlertCircle className="h-5 w-5 flex-shrink-0 text-red-500" />
+                <span>{error}</span>
               </div>
-              {errors.email && <p className="mt-1 text-xs font-medium text-red-600">{errors.email.message}</p>}
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-xs font-semibold text-slate-700 mb-1">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                <input
-                  {...register("password")}
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  required
-                  className={cn(
-                    "w-full pl-11 pr-11 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all",
-                    errors.password && "border-red-500 focus:ring-red-500",
-                  )}
-                  placeholder="••••••••"
-                  disabled={loading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              {errors.password && <p className="mt-1 text-xs font-medium text-red-600">{errors.password.message}</p>}
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full flex items-center justify-center py-3 px-4 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:opacity-50 transition-all shadow-md shadow-emerald-600/20"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Signing in...
-              </>
-            ) : (
-              "Sign In to Dashboard"
             )}
-          </button>
-        </form>
+
+            <div className="space-y-3">
+              <div>
+                <label htmlFor="email" className="block text-xs font-semibold text-slate-700 mb-1">
+                  Email or Login ID
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                  <input
+                    {...register("email")}
+                    id="email"
+                    type="text"
+                    autoComplete="username"
+                    required
+                    className={cn(
+                      "w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all",
+                      errors.email && "border-red-500 focus:ring-red-500",
+                    )}
+                    placeholder="STAFF-001 or admin@balajiprovision.com"
+                    disabled={loading}
+                  />
+                </div>
+                {errors.email && (
+                  <p className="mt-1 text-xs font-medium text-red-600">{errors.email.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label
+                  htmlFor="password"
+                  className="block text-xs font-semibold text-slate-700 mb-1"
+                >
+                  Password
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                  <input
+                    {...register("password")}
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    required
+                    className={cn(
+                      "w-full pl-11 pr-11 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all",
+                      errors.password && "border-red-500 focus:ring-red-500",
+                    )}
+                    placeholder="••••••••"
+                    disabled={loading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                {errors.password && (
+                  <p className="mt-1 text-xs font-medium text-red-600">{errors.password.message}</p>
+                )}
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex items-center justify-center py-3 px-4 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:opacity-50 transition-all shadow-md shadow-emerald-600/20"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                "Sign In to Dashboard"
+              )}
+            </button>
+          </form>
         )}
 
         <div className="pt-4 border-t border-slate-100 text-center">

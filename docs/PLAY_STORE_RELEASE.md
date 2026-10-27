@@ -5,7 +5,38 @@ This is the release checklist for `com.balaji.provision` (customer) and
 the external steps that must be completed before upload. It is not evidence that
 either app has been published or that the backend is production-ready.
 
-## Current release candidate
+## Current release candidate — 1.7 (8)
+
+1.7 is built, signed and verified locally; it has **not** been uploaded to Play or
+launched on a device. The 1.6 section below stays as the record of the previous
+candidate.
+
+| Item | Customer | Staff |
+|---|---|---|
+| Package | `com.balaji.provision` | `com.balaji.provision.staff` |
+| Version | 1.7 (8) | 1.7 (8) |
+| Target / Min SDK | 36 / 24 | 36 / 24 |
+| Signed APK | `releases/balaji-provision-1.7-release.apk` | `releases/balaji-staff-1.7-release.apk` |
+| AAB | `releases/balaji-provision-1.7-release.aab` | `releases/balaji-staff-1.7-release.aab` |
+| R8 mapping | `releases/mapping-customer-1.7.txt.gz` | `releases/mapping-staff-1.7.txt.gz` |
+| SHA-256 (APK) | `cb811e7b3927e96a5655400be760f7b9af9a92b03d9d270fcd230a50536565f4` | `cfc3ff7c660532761db0ccc886437e94401209f9270cc5650dd7847e75233582` |
+
+- R8 minification and resource shrinking are enabled again for 1.7 (they had
+  been switched off in the working tree). `apksigner verify` passes for both
+  APKs (v2 + v3 schemes) with the upload certificate shown below, and
+  `jarsigner -verify` reports both AABs as verified.
+- The 1.7 AABs have not been uploaded to Play or reviewed. Their SHA-256 values
+  and the SKU/version metadata are in `releases/README.md`.
+- 1.7 adds the in-app APK updater. A device only receives those updates after
+  1.7 has been installed once, because the updater does not exist in 1.6.
+- The `/app-updates` dashboard writes `public.app_releases`. That table and
+  `get_latest_app_release` come from migration
+  `20261027000001_free_delivery_fix_and_app_updates.sql`, and the privilege and
+  payload constraints come from
+  `20261027000002_app_releases_grants.sql`; both must be applied before the
+  dashboard can publish a release.
+
+## Previous release candidate — 1.6 (7)
 
 | Item | Customer | Staff |
 |---|---|---|

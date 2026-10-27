@@ -189,7 +189,9 @@ export default function OrdersPage() {
   const updateOrderStatus = async (order: Order, newStatus: OrderStatus) => {
     let reason: string | null = null;
     if (newStatus === "rejected" || newStatus === "cancelled" || newStatus === "delivery_failed") {
-      const input = window.prompt(`Reason for marking this order ${statusLabel(newStatus).toLowerCase()} (required)`);
+      const input = window.prompt(
+        `Reason for marking this order ${statusLabel(newStatus).toLowerCase()} (required)`,
+      );
       if (!input || !input.trim()) {
         toast.error("A reason is required for this status change");
         return;
@@ -207,7 +209,9 @@ export default function OrdersPage() {
       if (error) throw error;
       if (data?.error) throw new Error(data.message || data.error);
 
-      toast.success(`Order #${order.public_order_number} → ${statusLabel(newStatus).toLowerCase()}`);
+      toast.success(
+        `Order #${order.public_order_number} → ${statusLabel(newStatus).toLowerCase()}`,
+      );
       setSelectedOrder((current) =>
         current && current.id === order.id ? { ...current, status: newStatus } : current,
       );
@@ -281,10 +285,7 @@ export default function OrdersPage() {
   });
 
   const getStatusBadge = (status: string) => {
-    const config: Record<
-      string,
-      { label: string; bg: string; icon: React.ReactNode }
-    > = {
+    const config: Record<string, { label: string; bg: string; icon: React.ReactNode }> = {
       pending_review: {
         label: "PENDING REVIEW",
         bg: "bg-amber-100 text-amber-800 border-amber-300",
@@ -486,11 +487,21 @@ export default function OrdersPage() {
                     <td className="px-5 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
                         {o.status === "pending_review" &&
-                          actionButton(o, "accepted", "Accept Order", "bg-emerald-600 hover:bg-emerald-700")}
+                          actionButton(
+                            o,
+                            "accepted",
+                            "Accept Order",
+                            "bg-emerald-600 hover:bg-emerald-700",
+                          )}
                         {o.status === "pending_review" &&
                           actionButton(o, "rejected", "Reject", "bg-red-600 hover:bg-red-700")}
                         {o.status === "accepted" &&
-                          actionButton(o, "preparing", "Mark Preparing", "bg-purple-600 hover:bg-purple-700")}
+                          actionButton(
+                            o,
+                            "preparing",
+                            "Mark Preparing",
+                            "bg-purple-600 hover:bg-purple-700",
+                          )}
                         {o.status === "preparing" &&
                           actionButton(
                             o,
@@ -506,7 +517,12 @@ export default function OrdersPage() {
                             "bg-emerald-600 hover:bg-emerald-700",
                           )}
                         {o.status === "out_for_delivery" &&
-                          actionButton(o, "delivered", "Mark Delivered", "bg-green-700 hover:bg-green-800")}
+                          actionButton(
+                            o,
+                            "delivered",
+                            "Mark Delivered",
+                            "bg-green-700 hover:bg-green-800",
+                          )}
                         {o.status === "out_for_delivery" &&
                           actionButton(
                             o,
@@ -595,10 +611,8 @@ export default function OrdersPage() {
                   Total: {formatRupees(selectedOrder.grand_total_paise || 0)}
                 </p>
                 <p className="text-xs text-slate-500 mt-1">
-                  {selectedOrder.payment_method === "cod"
-                    ? "Cash on Delivery"
-                    : "Online payment"}{" "}
-                  · {selectedOrder.payment_status.replace(/_/g, " ")}
+                  {selectedOrder.payment_method === "cod" ? "Cash on Delivery" : "Online payment"} ·{" "}
+                  {selectedOrder.payment_status.replace(/_/g, " ")}
                 </p>
               </div>
             </div>
@@ -649,7 +663,12 @@ export default function OrdersPage() {
                           )}
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <p className={cn("font-extrabold", removed ? "text-slate-400 line-through" : "text-slate-900")}>
+                          <p
+                            className={cn(
+                              "font-extrabold",
+                              removed ? "text-slate-400 line-through" : "text-slate-900",
+                            )}
+                          >
                             {removed ? "Removed" : formatRupees(item.line_total_paise || 0)}
                           </p>
                           {canRemove && (

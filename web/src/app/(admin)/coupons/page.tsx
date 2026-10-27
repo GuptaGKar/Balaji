@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import { formatRupees } from "@/lib/money";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,11 @@ import {
   Layers,
   Sparkles,
   Search,
+  Package,
+  Globe,
+  FolderTree,
+  Check,
+  X,
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 
@@ -25,13 +30,24 @@ type Category = {
   slug: string;
 };
 
+type Product = {
+  id: string;
+  name: string;
+  sku: string;
+  price_paise: number;
+  category_id: string;
+};
+
 type Coupon = {
   id: string;
   code: string;
   description: string;
   discount_type: "percent_off" | "rupees_off" | "free_delivery";
   discount_value: number;
+  applies_to: "all" | "categories" | "products";
   category_id: string | null;
+  category_ids?: string[] | null;
+  product_ids?: string[] | null;
   min_order_paise: number;
   max_discount_paise: number | null;
   starts_at: string;
@@ -40,7 +56,6 @@ type Coupon = {
   times_used: number;
   active: boolean;
   created_at: string;
-  category?: { name: string } | null;
 };
 
 const supabase = createClient();
@@ -48,6 +63,7 @@ const supabase = createClient();
 export default function CouponsPage() {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -60,28 +76,40 @@ export default function CouponsPage() {
     "percent_off",
   );
   const [discountValue, setDiscountValue] = useState("");
-  const [categoryId, setCategoryId] = useState<string>("all");
+  const [appliesTo, setAppliesTo] = useState<"all" | "categories" | "products">("all");
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [categorySearchQuery, setCategorySearchQuery] = useState("");
+  const [productSearchQuery, setProductSearchQuery] = useState("");
   const [minOrderRupees, setMinOrderRupees] = useState("");
   const [maxDiscountRupees, setMaxDiscountRupees] = useState("");
   const [usageLimit, setUsageLimit] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
 
-  const fetchCouponsAndCategories = useCallback(async () => {
+  const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories]);
+
+  const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+
+  const fetchCouponsAndData = useCallback(async () => {
     try {
       setLoading(true);
-      const [couponsRes, catsRes] = await Promise.all([
-        supabase
-          .from("coupons")
-          .select("*, category:category_id (name)")
-          .order("created_at", { ascending: false }),
+      const [couponsRes, catsRes, prodsRes] = await Promise.all([
+        supabase.from("coupons").select("*").order("created_at", { ascending: false }),
         supabase.from("categories").select("id, name, slug").eq("active", true).order("sort_order"),
+        supabase
+          .from("products")
+          .select("id, name, sku, price_paise, category_id")
+          .eq("active", true)
+          .order("name"),
       ]);
 
       if (couponsRes.error) throw couponsRes.error;
       if (catsRes.error) throw catsRes.error;
+      if (prodsRes.error) throw prodsRes.error;
 
       setCoupons(couponsRes.data || []);
       setCategories(catsRes.data || []);
+      setProducts(prodsRes.data || []);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to load coupons");
     } finally {
@@ -90,8 +118,8 @@ export default function CouponsPage() {
   }, []);
 
   useEffect(() => {
-    fetchCouponsAndCategories();
-  }, [fetchCouponsAndCategories]);
+    fetchCouponsAndData();
+  }, [fetchCouponsAndData]);
 
   const handleToggleActive = async (coupon: Coupon) => {
     try {
@@ -149,6 +177,16 @@ export default function CouponsPage() {
       val = Math.round(num * 100);
     }
 
+    if (appliesTo === "categories" && selectedCategoryIds.length === 0) {
+      toast.error("Please select at least one category for this coupon.");
+      return;
+    }
+
+    if (appliesTo === "products" && selectedProductIds.length === 0) {
+      toast.error("Please select at least one product for this coupon.");
+      return;
+    }
+
     const minOrderPaise = minOrderRupees ? Math.round(parseFloat(minOrderRupees) * 100) : 0;
     const maxDiscountPaise = maxDiscountRupees
       ? Math.round(parseFloat(maxDiscountRupees) * 100)
@@ -164,14 +202,20 @@ export default function CouponsPage() {
           description: description.trim(),
           discount_type: discountType,
           discount_value: val,
-          category_id: categoryId === "all" ? null : categoryId,
+          applies_to: appliesTo,
+          category_id:
+            appliesTo === "categories" && selectedCategoryIds.length > 0
+              ? selectedCategoryIds[0]
+              : null,
+          category_ids: appliesTo === "categories" ? selectedCategoryIds : [],
+          product_ids: appliesTo === "products" ? selectedProductIds : [],
           min_order_paise: minOrderPaise,
           max_discount_paise: maxDiscountPaise,
           usage_limit: limit,
           expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
           active: true,
         })
-        .select("*, category:category_id (name)")
+        .select()
         .single();
 
       if (error) throw error;
@@ -185,7 +229,9 @@ export default function CouponsPage() {
       setDescription("");
       setDiscountType("percent_off");
       setDiscountValue("");
-      setCategoryId("all");
+      setAppliesTo("all");
+      setSelectedCategoryIds([]);
+      setSelectedProductIds([]);
       setMinOrderRupees("");
       setMaxDiscountRupees("");
       setUsageLimit("");
@@ -203,6 +249,87 @@ export default function CouponsPage() {
       c.description.toLowerCase().includes(search.toLowerCase()),
   );
 
+  const filteredCategoriesForModal = categories.filter((c) =>
+    c.name.toLowerCase().includes(categorySearchQuery.toLowerCase()),
+  );
+
+  const filteredProductsForModal = products.filter(
+    (p) =>
+      p.name.toLowerCase().includes(productSearchQuery.toLowerCase()) ||
+      p.sku.toLowerCase().includes(productSearchQuery.toLowerCase()),
+  );
+
+  const toggleCategorySelection = (id: string) => {
+    setSelectedCategoryIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+    );
+  };
+
+  const toggleProductSelection = (id: string) => {
+    setSelectedProductIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+    );
+  };
+
+  const renderCouponScope = (coupon: Coupon) => {
+    const scope = coupon.applies_to || (coupon.category_id ? "categories" : "all");
+
+    if (scope === "categories") {
+      const ids =
+        coupon.category_ids && coupon.category_ids.length > 0
+          ? coupon.category_ids
+          : coupon.category_id
+            ? [coupon.category_id]
+            : [];
+      const names = ids.map((id) => categoryMap.get(id) || "Category");
+
+      return (
+        <div className="space-y-1">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+            <FolderTree className="h-3 w-3" />
+            {names.length === 1 ? names[0] : `${names.length} Categories`}
+          </span>
+          {names.length > 1 && (
+            <p
+              className="text-[11px] text-slate-500 max-w-[200px] truncate"
+              title={names.join(", ")}
+            >
+              {names.join(", ")}
+            </p>
+          )}
+        </div>
+      );
+    }
+
+    if (scope === "products") {
+      const ids = coupon.product_ids || [];
+      const names = ids.map((id) => productMap.get(id)?.name || "Product");
+
+      return (
+        <div className="space-y-1">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+            <Package className="h-3 w-3" />
+            {names.length === 1 ? names[0] : `${names.length} Products`}
+          </span>
+          {names.length > 1 && (
+            <p
+              className="text-[11px] text-slate-500 max-w-[200px] truncate"
+              title={names.join(", ")}
+            >
+              {names.join(", ")}
+            </p>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+        <Globe className="h-3 w-3 text-slate-500" /> All Products
+      </span>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <Toaster position="top-right" richColors />
@@ -214,8 +341,8 @@ export default function CouponsPage() {
             <Tag className="h-6 w-6 text-emerald-600" /> Coupons & Offers
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Create and manage promo codes, category-specific discounts, and free delivery
-            thresholds.
+            Create promotional codes applied store-wide, on multiple categories, or specific
+            products.
           </p>
         </div>
         <button
@@ -318,12 +445,7 @@ export default function CouponsPage() {
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-4">
-                        <span className="inline-flex items-center gap-1 text-xs text-slate-700">
-                          <Layers className="h-3.5 w-3.5 text-slate-400" />
-                          {coupon.category ? coupon.category.name : "All Categories"}
-                        </span>
-                      </td>
+                      <td className="px-4 py-4">{renderCouponScope(coupon)}</td>
                       <td className="px-4 py-4 text-xs space-y-1">
                         {coupon.min_order_paise > 0 && (
                           <div>
@@ -405,9 +527,9 @@ export default function CouponsPage() {
 
       {/* Create Coupon Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-100">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+          <div className="w-full max-w-xl my-8 rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 sticky top-0 bg-white z-10">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                 <Tag className="h-5 w-5 text-emerald-600" /> Create New Coupon
               </h2>
@@ -476,23 +598,242 @@ export default function CouponsPage() {
                 </div>
               )}
 
+              {/* Scope Selector: All / Categories / Products */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Category Scope
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Applies To *
                 </label>
-                <select
-                  value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                >
-                  <option value="all">All Categories (Whole Basket)</option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      Only in: {cat.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAppliesTo("all")}
+                    className={cn(
+                      "flex flex-col items-center justify-center p-3 rounded-xl border text-xs font-semibold transition gap-1.5",
+                      appliesTo === "all"
+                        ? "border-emerald-600 bg-emerald-50 text-emerald-800 shadow-xs"
+                        : "border-slate-200 bg-slate-50/70 text-slate-600 hover:bg-slate-100",
+                    )}
+                  >
+                    <Globe className="h-4 w-4" />
+                    Entire Store
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAppliesTo("categories")}
+                    className={cn(
+                      "flex flex-col items-center justify-center p-3 rounded-xl border text-xs font-semibold transition gap-1.5",
+                      appliesTo === "categories"
+                        ? "border-purple-600 bg-purple-50 text-purple-800 shadow-xs"
+                        : "border-slate-200 bg-slate-50/70 text-slate-600 hover:bg-slate-100",
+                    )}
+                  >
+                    <FolderTree className="h-4 w-4" />
+                    Categories
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAppliesTo("products")}
+                    className={cn(
+                      "flex flex-col items-center justify-center p-3 rounded-xl border text-xs font-semibold transition gap-1.5",
+                      appliesTo === "products"
+                        ? "border-amber-600 bg-amber-50 text-amber-800 shadow-xs"
+                        : "border-slate-200 bg-slate-50/70 text-slate-600 hover:bg-slate-100",
+                    )}
+                  >
+                    <Package className="h-4 w-4" />
+                    Products
+                  </button>
+                </div>
               </div>
+
+              {/* Specific Categories Multi-Selection */}
+              {appliesTo === "categories" && (
+                <div className="space-y-2 rounded-xl border border-purple-200 bg-purple-50/30 p-3.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-purple-900">
+                      Select Categories ({selectedCategoryIds.length} selected)
+                    </span>
+                    <div className="flex items-center gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCategoryIds(categories.map((c) => c.id))}
+                        className="text-purple-700 hover:underline font-medium"
+                      >
+                        Select All
+                      </button>
+                      <span>•</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCategoryIds([])}
+                        className="text-slate-500 hover:underline font-medium"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search categories..."
+                      value={categorySearchQuery}
+                      onChange={(e) => setCategorySearchQuery(e.target.value)}
+                      className="w-full rounded-lg border border-purple-200 bg-white pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    />
+                  </div>
+
+                  {/* Selected Category Tags */}
+                  {selectedCategoryIds.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {selectedCategoryIds.map((id) => {
+                        const name = categoryMap.get(id) || "Category";
+                        return (
+                          <span
+                            key={id}
+                            className="inline-flex items-center gap-1 rounded-md bg-purple-100 px-2 py-0.5 text-[11px] font-medium text-purple-800"
+                          >
+                            {name}
+                            <button
+                              type="button"
+                              onClick={() => toggleCategorySelection(id)}
+                              className="text-purple-600 hover:text-purple-900 ml-0.5"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Category Checklist */}
+                  <div className="max-h-36 overflow-y-auto divide-y divide-purple-100 rounded-lg border border-purple-200 bg-white">
+                    {filteredCategoriesForModal.map((cat) => {
+                      const isSelected = selectedCategoryIds.includes(cat.id);
+                      return (
+                        <label
+                          key={cat.id}
+                          className={cn(
+                            "flex items-center gap-2.5 px-3 py-2 text-xs cursor-pointer transition",
+                            isSelected
+                              ? "bg-purple-50/70 font-semibold text-purple-900"
+                              : "hover:bg-slate-50 text-slate-700",
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleCategorySelection(cat.id)}
+                            className="rounded border-purple-300 text-purple-600 focus:ring-purple-500"
+                          />
+                          <span>{cat.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Specific Products Multi-Selection */}
+              {appliesTo === "products" && (
+                <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50/30 p-3.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-amber-900">
+                      Select Products ({selectedProductIds.length} selected)
+                    </span>
+                    {selectedProductIds.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedProductIds([])}
+                        className="text-xs text-slate-500 hover:underline font-medium"
+                      >
+                        Clear All
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search products by name or SKU..."
+                      value={productSearchQuery}
+                      onChange={(e) => setProductSearchQuery(e.target.value)}
+                      className="w-full rounded-lg border border-amber-200 bg-white pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    />
+                  </div>
+
+                  {/* Selected Product Tags */}
+                  {selectedProductIds.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1 max-h-24 overflow-y-auto">
+                      {selectedProductIds.map((id) => {
+                        const product = productMap.get(id);
+                        return (
+                          <span
+                            key={id}
+                            className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900"
+                          >
+                            <span className="max-w-[120px] truncate">
+                              {product?.name || "Product"}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => toggleProductSelection(id)}
+                              className="text-amber-700 hover:text-amber-950 ml-0.5"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Product Checklist */}
+                  <div className="max-h-40 overflow-y-auto divide-y divide-amber-100 rounded-lg border border-amber-200 bg-white">
+                    {filteredProductsForModal.length === 0 ? (
+                      <p className="p-3 text-xs text-slate-400 text-center">No products found.</p>
+                    ) : (
+                      filteredProductsForModal.map((prod) => {
+                        const isSelected = selectedProductIds.includes(prod.id);
+                        const catName = categoryMap.get(prod.category_id);
+                        return (
+                          <label
+                            key={prod.id}
+                            className={cn(
+                              "flex items-center justify-between px-3 py-2 text-xs cursor-pointer transition",
+                              isSelected
+                                ? "bg-amber-50/70 font-semibold text-amber-950"
+                                : "hover:bg-slate-50 text-slate-700",
+                            )}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleProductSelection(prod.id)}
+                                className="rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                              />
+                              <div className="truncate">
+                                <p className="truncate text-xs">{prod.name}</p>
+                                {catName && (
+                                  <p className="text-[10px] text-slate-400 font-normal">
+                                    {catName}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <span className="text-[11px] font-mono text-slate-500 shrink-0">
+                              {formatRupees(prod.price_paise)}
+                            </span>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -560,7 +901,7 @@ export default function CouponsPage() {
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Festive discount on Dal and Grains"
+                  placeholder="e.g. Festive discount on Dal, Grains and Snacks"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"

@@ -40,8 +40,8 @@ export default function TermsPage() {
         <section>
           <h2 className="text-xl font-semibold">Payment</h2>
           <p className="mt-2">
-            This version supports cash on delivery only. Online payment is disabled. Pay the
-            amount shown on the order or bill at the time of delivery.
+            This version supports cash on delivery only. Online payment is disabled. Pay the amount
+            shown on the order or bill at the time of delivery.
           </p>
         </section>
 
@@ -83,14 +83,21 @@ export default function TermsPage() {
           <h2 className="text-xl font-semibold">Contact</h2>
           <p className="mt-2">
             Balaji Provision Store, India. Phone:{" "}
-            <a className="font-semibold text-emerald-700" href="tel:+919837803293">9837803293</a>.
+            <a className="font-semibold text-emerald-700" href="tel:+919837803293">
+              9837803293
+            </a>
+            .
           </p>
         </section>
       </div>
 
       <div className="mt-10 flex gap-4 border-t border-slate-200 pt-6 text-sm">
-        <Link className="font-semibold text-emerald-700" href="/privacy">Privacy policy</Link>
-        <Link className="font-semibold text-emerald-700" href="/account-deletion">Account deletion</Link>
+        <Link className="font-semibold text-emerald-700" href="/privacy">
+          Privacy policy
+        </Link>
+        <Link className="font-semibold text-emerald-700" href="/account-deletion">
+          Account deletion
+        </Link>
       </div>
     </main>
   );

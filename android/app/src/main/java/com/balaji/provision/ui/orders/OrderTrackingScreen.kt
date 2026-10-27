@@ -1,6 +1,5 @@
 package com.balaji.provision.ui.orders
 
-import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,11 +21,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Storefront
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -34,7 +30,6 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,16 +39,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.balaji.provision.ui.components.EmptyState
 import com.balaji.provision.ui.components.ErrorState
 import com.balaji.provision.ui.components.LoadingState
-import com.balaji.provision.ui.components.StickyBottomBar
-import com.balaji.provision.ui.home.HomeViewModel
 import com.balaji.provision.ui.theme.appColors
 import kotlinx.coroutines.delay
 
@@ -72,15 +63,12 @@ private data class TrackingStep(
 fun OrderTrackingScreen(
     orderId: String,
     onBack: () -> Unit,
-    viewModel: OrdersViewModel = hiltViewModel(),
-    homeViewModel: HomeViewModel = hiltViewModel()
+    viewModel: OrdersViewModel = hiltViewModel()
 ) {
     val orders by viewModel.orders.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
-    val homeState by homeViewModel.state.collectAsState()
     val order = remember(orders, orderId) { orders.firstOrNull { it.id == orderId } }
-    val context = LocalContext.current
 
     LaunchedEffect(Unit) {
         viewModel.fetchOrders()
@@ -89,8 +77,6 @@ fun OrderTrackingScreen(
             viewModel.fetchOrders()
         }
     }
-
-    val phone = homeState.contactPhone?.trim().orEmpty()
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -145,17 +131,16 @@ fun OrderTrackingScreen(
                 val cancelled = order.status == "cancelled" ||
                     order.status == "rejected" ||
                     order.status == "delivery_failed"
+                val terminal = order.status == "delivered" || cancelled
                 val steps = trackingSteps(order)
                 val headline = statusHeadline(order.status)
-                val terminal = order.status == "delivered" || cancelled
-
                 LazyColumn(
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(
                         start = 16.dp,
                         end = 16.dp,
                         top = 4.dp,
-                        bottom = if (phone.isNotBlank()) 96.dp else 24.dp
+                        bottom = 24.dp
                     ),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
@@ -174,40 +159,6 @@ fun OrderTrackingScreen(
                         }
                     }
 
-                    if (phone.isNotBlank()) {
-                        item(key = "help") {
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Storefront,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            "Need help with this order?",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Text(
-                                            "Call the store for updates.",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
                     if (terminal) {
                         item(key = "terminal_note") {
                             Text(
@@ -218,29 +169,6 @@ fun OrderTrackingScreen(
                         }
                     }
                 }
-            }
-        }
-    }
-
-    if (phone.isNotBlank() && order != null) {
-        StickyBottomBar {
-            OutlinedButton(
-                onClick = {
-                    val intent = Intent(Intent.ACTION_DIAL, "tel:$phone".toUri())
-                    runCatching { context.startActivity(intent) }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Icon(
-                    Icons.Default.Phone,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text("Call store")
             }
         }
     }

@@ -24,8 +24,14 @@ export function SafeImage({ src, alt, fallback, ...imageProps }: SafeImageProps)
   if (!src || failed) return <>{fallback}</>;
 
   let resolvedSrc: string = src;
-  if (!resolvedSrc.startsWith("http://") && !resolvedSrc.startsWith("https://") && !resolvedSrc.startsWith("data:") && !resolvedSrc.startsWith("blob:")) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://czbwwnlnmhhzketyjnzt.supabase.co";
+  if (
+    !resolvedSrc.startsWith("http://") &&
+    !resolvedSrc.startsWith("https://") &&
+    !resolvedSrc.startsWith("data:") &&
+    !resolvedSrc.startsWith("blob:")
+  ) {
+    const supabaseUrl =
+      process.env.NEXT_PUBLIC_SUPABASE_URL || "https://czbwwnlnmhhzketyjnzt.supabase.co";
     const cleanPath = resolvedSrc.replace(/^\/+/, "");
     const storagePath = cleanPath.startsWith("storage/v1/object/public/")
       ? cleanPath
@@ -41,7 +47,6 @@ export function SafeImage({ src, alt, fallback, ...imageProps }: SafeImageProps)
       {...imageProps}
       src={resolvedSrc}
       alt={alt}
-
       onError={() => setFailed(true)}
       loading={imageProps.loading ?? "lazy"}
       decoding={imageProps.decoding ?? "async"}

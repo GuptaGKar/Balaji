@@ -159,15 +159,22 @@ class CartRepositoryImpl @Inject constructor(
 
     private suspend fun fetchQuote(items: List<CartItem>): QuoteBreakdown? {
         return try {
+            val coupon = pendingCouponCode?.trim()?.takeIf { it.isNotBlank() }
             val request = QuoteCartRequest(
                 p_items = items.map { CartItemRequest(it.productId, it.qtyBase) },
-                p_coupon_code = pendingCouponCode?.takeIf { it.isNotBlank() }
+                p_coupon_code = coupon
             )
             val anonKey = BuildConfig.SUPABASE_ANON_KEY
             val response = api.quoteCart(apiKey = anonKey, auth = "Bearer $anonKey", body = request)
-            val body = response.body()
-            if (response.isSuccessful && body != null) mapToQuoteBreakdown(body) else null
+            if (response.isSuccessful) {
+                response.body()?.let { mapToQuoteBreakdown(it) }
+            } else {
+                val err = response.errorBody()?.string()
+                android.util.Log.e("CartRepository", "Quote calculation failed HTTP ${response.code()}: $err")
+                null
+            }
         } catch (e: Exception) {
+            android.util.Log.e("CartRepository", "Quote calculation exception", e)
             null
         }
     }

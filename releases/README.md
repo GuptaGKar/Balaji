@@ -10,7 +10,51 @@ be installed on one phone:
 For the complete Play submission checklist, signing details, Data Safety
 worksheet and remaining blockers, read [`docs/PLAY_STORE_RELEASE.md`](../docs/PLAY_STORE_RELEASE.md).
 
-## Current release — 1.6 (versionCode 7)
+## Current release — 1.7 (versionCode 8)
+
+Target SDK 36 (Android 16), min SDK 24, R8 minified and signed with the Balaji
+upload key. 1.7 is the first build that ships the in-app APK updater, so it must
+be installed once by download/sideload before automatic updates can reach a
+device.
+
+| File | App | Purpose |
+|---|---|---|
+| [`balaji-provision-1.7-release.aab`](balaji-provision-1.7-release.aab) | Customer | Google Play upload bundle |
+| [`balaji-staff-1.7-release.aab`](balaji-staff-1.7-release.aab) | Staff | Google Play upload bundle |
+| [`balaji-provision-1.7-release.apk`](balaji-provision-1.7-release.apk) | Customer | Signed APK for device QA/sideload and in-app update upload |
+| [`balaji-staff-1.7-release.apk`](balaji-staff-1.7-release.apk) | Staff | Signed APK for device QA/sideload and in-app update upload |
+
+SHA-256:
+
+```
+cb811e7b3927e96a5655400be760f7b9af9a92b03d9d270fcd230a50536565f4  balaji-provision-1.7-release.apk
+cfc3ff7c660532761db0ccc886437e94401209f9270cc5650dd7847e75233582  balaji-staff-1.7-release.apk
+a88a86e66e04ce1ffa753f048d7279a413283a177fc70a35b974dcde1ee9f5f4  balaji-provision-1.7-release.aab
+2c7c16894961993ac3a4be0af5e15fdaecce24b395d11ed1268469ce086f4c42  balaji-staff-1.7-release.aab
+```
+
+R8 mappings: `mapping-customer-1.7.txt.gz` and `mapping-staff-1.7.txt.gz`, each
+with a `.sha256` file.
+
+QA debug builds are beside them: `balaji-provision-1.7-debug.apk` and
+`balaji-staff-1.7-debug.apk`. They are signed with the debug key, so Android
+refuses to install either one over a release-key build (and vice versa); the
+in-app updater therefore cannot replace a debug build with a published release.
+
+### What's new in 1.7
+
+- **In-app updates.** A release published from the dashboard (`/app-updates`) can
+  prompt the installed app to download and install the new APK. Mandatory
+  releases cannot be dismissed; optional ones can be postponed per version.
+- **Update hardening.** HTTPS-only download links, a 150 MB size cap, sanitised
+  local file names, stale-APK cleanup, and the prompt now also appears in the
+  staff/rider app.
+- **Release build restored.** 1.7 is again R8-minified with resource shrinking
+  (3,146,069 bytes against 20,879,769 bytes for the debug APK) and the expanded
+  keep rules in `proguard-rules.pro`.
+- Version 1.7 (versionCode 8).
+
+## Previous build — 1.6 (versionCode 7)
 
 Target SDK 36 (Android 16), min SDK 24, R8 minified and signed with the Balaji
 upload key.
@@ -71,7 +115,7 @@ device/emulator.
 
 ## Install on a phone
 
-1. Download the `1.6-release.apk` for the app you need.
+1. Download the `1.7-release.apk` for the app you need.
 2. Allow **Install unknown apps** for the browser/file manager when prompted.
 3. Customer app: sign in with a mobile number (OTP).
 4. Staff app: sign in with the login ID and password provided by the store.
@@ -90,10 +134,10 @@ other.
   database. Category images and multi-pack groups stay unavailable until their
   migrations are applied. See the Play guide.
 - The 1.5 signed, minified build launched on an API 37 emulator and the staff
-  privacy screen rendered; the 1.6 release build has not been launched.
-  Authenticated customer flows, R8 runtime behaviour after login and
-  real-device visual QA are still unverified. Emulator testing was stopped at
-  the owner's request.
+  privacy screen rendered; neither the 1.6 nor the 1.7 release build has been
+  launched. Authenticated customer flows, R8 runtime behaviour after login,
+  the 1.7 update prompt and real-device visual QA are still unverified. Emulator
+  testing was stopped at the owner's request.
 - In-app privacy, terms and account-deletion screens are bundled and work
   offline. Play Console still needs public HTTPS URLs backed by the deployed web
   app.

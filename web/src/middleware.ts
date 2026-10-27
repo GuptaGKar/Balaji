@@ -4,9 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isPublicPage =
-    pathname === "/privacy" ||
-    pathname === "/terms" ||
-    pathname === "/account-deletion";
+    pathname === "/privacy" || pathname === "/terms" || pathname === "/account-deletion";
 
   // Legal pages must remain reachable even if auth is unavailable; Play uses
   // them as the public privacy-policy and account-deletion resources.
@@ -18,9 +16,12 @@ export async function middleware(request: NextRequest) {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    return new NextResponse("Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.", {
-      status: 500,
-    });
+    return new NextResponse(
+      "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+      {
+        status: 500,
+      },
+    );
   }
 
   let supabaseResponse = NextResponse.next({
@@ -55,8 +56,7 @@ export async function middleware(request: NextRequest) {
   const isChangePasswordPage = pathname === "/change-password";
   const isApi = pathname.startsWith("/api");
   const isPublicAsset = pathname.startsWith("/_next") || pathname === "/favicon.ico";
-  const isCustomerBillRoute =
-    pathname === "/bills" || pathname.startsWith("/bills/");
+  const isCustomerBillRoute = pathname === "/bills" || pathname.startsWith("/bills/");
   const redirectWithCookies = (url: URL) => {
     const response = NextResponse.redirect(url);
     for (const { name, value, options } of pendingCookies) {
@@ -129,7 +129,14 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    const managerOnly = ["/settings", "/staff", "/audit", "/reports", "/service-areas"];
+    const managerOnly = [
+      "/settings",
+      "/staff",
+      "/audit",
+      "/reports",
+      "/service-areas",
+      "/app-updates",
+    ];
     const isManagerOnly = managerOnly.some(
       (path) => pathname === path || pathname.startsWith(`${path}/`),
     );

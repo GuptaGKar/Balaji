@@ -36,7 +36,10 @@ export default function AccountDeletionPage() {
         <section>
           <h2 className="text-lg font-semibold">Request by phone</h2>
           <p className="mt-2">
-            Call <a className="font-semibold text-emerald-700" href="tel:+919837803293">9837803293</a>{" "}
+            Call{" "}
+            <a className="font-semibold text-emerald-700" href="tel:+919837803293">
+              9837803293
+            </a>{" "}
             from the mobile number registered to your account and ask for account deletion. We will
             verify control of the number before processing the request.
           </p>
@@ -56,7 +59,10 @@ export default function AccountDeletionPage() {
         <section>
           <h2 className="text-lg font-semibold">Questions</h2>
           <p className="mt-2">
-            See the <Link className="font-semibold text-emerald-700" href="/privacy">privacy policy</Link>{" "}
+            See the{" "}
+            <Link className="font-semibold text-emerald-700" href="/privacy">
+              privacy policy
+            </Link>{" "}
             or call the store. If you cannot access the app, the phone route above is the external
             deletion resource for Google Play.
           </p>
