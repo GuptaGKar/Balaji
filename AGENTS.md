@@ -12,3 +12,12 @@
 10. Run format, lint, typecheck and tests before reporting. Report real results; never claim a test passed unless executed. List remaining risks.
 11. Do not deploy, use production credentials, delete production data, or run destructive migrations without explicit human approval.
 12. Never leave critical flows as TODOs, stubs that look functional, or hard-coded success.
+
+## Migration and verification rules (added 2026-10-28)
+
+13. Read the latest definition of a function and the real table columns before editing it; never rewrite an RPC from memory. Past failures: `stock_movements` (real table: `inventory_movements`) and `order_status_events (note, created_by)` (real columns: `actor_id`, `reason`).
+14. When a function signature changes, give the new parameter a `DEFAULT` and drop the old signature in the same migration so PostgREST never sees two candidates.
+15. `GRANT ... ON FUNCTION` must name the real signature; use `to_regprocedure` where it may vary. Never `GRANT ALL`. End every migration that touches functions with `NOTIFY pgrst, 'reload schema';`.
+16. New migration files use a strict 14-digit `YYYYMMDDNNNNNN` prefix that sorts after every applied file.
+17. Honesty over progress: never write "verified", "passes" or "works" for anything not actually run. If a gate cannot run here (no Docker/Postgres, no device, no credentials), record it in `DECISIONS.md` and the report as "not run" with the reason.
+18. BLOCKED policy decisions (substitution, hours/slots, GST, loyalty rates, WhatsApp provider, rider location, UPI) are not invented: build them as configurable settings with a safe default and OFF, and log the open question.

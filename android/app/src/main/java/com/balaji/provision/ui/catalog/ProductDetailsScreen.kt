@@ -25,6 +25,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Scale
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -90,7 +92,9 @@ fun ProductDetailsScreen(
     onUpdateQuantity: (productId: String, qtyBase: Long) -> Unit,
     onRemoveFromCart: (productId: String) -> Unit,
     onOpenCart: () -> Unit = {},
-    onShare: (() -> Unit)? = null
+    onShare: (() -> Unit)? = null,
+    favouriteIds: Set<String> = emptySet(),
+    onToggleFavourite: (productId: String) -> Unit = {}
 ) {
     var selectedVariantId by remember(group.groupId) {
         mutableStateOf(group.defaultVariant.id)
@@ -136,6 +140,21 @@ fun ProductDetailsScreen(
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f)
             )
+            IconButton(onClick = { onToggleFavourite(selected.id) }) {
+                Icon(
+                    imageVector = if (favouriteIds.contains(selected.id)) {
+                        Icons.Filled.Favorite
+                    } else {
+                        Icons.Filled.FavoriteBorder
+                    },
+                    contentDescription = if (favouriteIds.contains(selected.id)) {
+                        "Remove from favourites"
+                    } else {
+                        "Add to favourites"
+                    },
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
             if (onShare != null) {
                 IconButton(onClick = onShare) {
                     Icon(Icons.Default.Share, contentDescription = "Share product")

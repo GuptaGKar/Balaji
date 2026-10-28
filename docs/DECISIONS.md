@@ -417,6 +417,32 @@ Exact PIN codes/neighbourhoods · real delivery fee and free-delivery amount · 
 - **Clients block first, server decides.** The staff order sheet shows Dispatch and Delivery rows with an Upload/Replace action and refuses to start the transition when the matching proof is missing; the rider's "Confirm delivery" dialog keeps "Yes, delivered" disabled until the upload finishes; the web order modal uploads and hides the Dispatch/Mark Delivered buttons behind the same check. If a client is out of date, the server error message is shown as a snackbar/toast instead of a silent failure.
 - **Verification:** Android debug builds and 119 unit tests pass; web `type-check`, `lint` and `format:check` pass; `check_guards.sh` passes. The new pgTAP test `029_order_proofs.sql` (4 assertions) and the fixtures in `012`/`019` were not executed because no local Postgres/Docker is available.
 
+## Phase 0 test foundation and F3 favourites (2026-10-28)
+
+**Phase 0 — test foundation.**
+- The CI workflow (`.github/workflows/ci.yml`) now runs the web production build, the pgTAP suite job that already existed (`supabase test db`, which applies every migration to a clean database) and a new Android job: `testCustomerDebugUnitTest`, `testStaffDebugUnitTest`, `lintCustomerDebug`, `lintStaffDebug`, `assembleCustomerDebug`, `assembleStaffDebug`, with the lint reports uploaded as an artifact. Before this, CI had no Android job.
+- **Not run here:** this machine has no Docker socket (`/var/run/docker.sock` denied) and no `psql`/`postgres` binaries, so neither `supabase test db` nor the previously unexecuted suites (`018`, `019`, `020`, `025`, `026`, `027`, `028`, `029`, `030`) could be executed locally. They will run on the first CI push. Until a green CI run exists, every backend claim in this repo is unverified at runtime.
+- Migration ordering: `202610260000051_security_rls_fix.sql` sorts **before** `20261026000005` and `20261026000006` because it is a 15-character name. It is already applied, so it is not renamed; the file no longer redefines `place_order`, so the order it runs in is harmless. New migrations from this point use strict `YYYYMMDDNNNNNN` names (`20261028000001`, `20261029000001`).
+
+**F3 — favourites.**
+- `public.favourites(customer_id, product_id, created_at)` with the composite primary key, owner-only RLS for SELECT/INSERT/DELETE and no UPDATE. Writes are plain PostgREST calls (`resolution=ignore-duplicates`), so there is no second pricing or stock path. The Android app sends `customer_id = auth.uid()`; the policy rejects anything else (pgTAP `030_favourites.sql`).
+- Android: heart on the product detail header (per selected pack), and Profile → **Favourites** lists saved products with price/unit and a Remove action; tapping a row opens the product. Loading, empty and error states are present.
+- **Not done for F3:** adding a whole favourite entry straight to the cart, and the "Buy it again" home row built from delivered orders (F3's second half) — not built, not stubbed.
+- `DECISIONS.md` open items for the remaining feature set are recorded below rather than invented.
+
+**BLOCKED (owner decisions required before building):**
+- Substitution policy (F4): what "replace with similar" may substitute, and who pays the difference.
+- Delivery hours, slot capacity and any ETA promise (F6): the store's real timings; no "10-minute" claims.
+- Cancellation/refund cut-off beyond the existing `pending_review` rule (F5).
+- GST treatment and whether bills may be labelled "Tax Invoice" (F9).
+- Loyalty earn/redeem rate and whether points can expire (F14).
+- WhatsApp provider, template texts and opt-in wording (F15).
+- Rider location sharing (F13): requires adding location permission back to the staff manifest; explicitly not done.
+- UPI/online payment stays gated exactly as it is; no work done.
+
+**Not verified for this phase:** no device/emulator run; no FCM credentials (F1 not started); pgTAP suites unexecuted locally; CI untested until it runs on GitHub.
+
+
 
 
 

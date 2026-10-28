@@ -18,6 +18,7 @@ jobs:
       - run: npm --prefix web run lint
       - run: npm --prefix web run type-check
       - run: npm --prefix web run format:check
+      - run: npm --prefix web run build
 
   guards:
     runs-on: ubuntu-latest
@@ -32,7 +33,32 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: latest
+      # Applies every migration to a clean database and runs every supabase/tests
+      # pgTAP suite. A failing migration or assertion fails the build.
       - run: supabase test db
         working-directory: supabase
 
-  # android: lint + unit tests — added in M5
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Unit tests, lint and debug builds (both flavours)
+        working-directory: android
+        run: |
+          ./gradlew --no-daemon \
+            :app:testCustomerDebugUnitTest :app:testStaffDebugUnitTest \
+            :app:lintCustomerDebug :app:lintStaffDebug \
+            :app:assembleCustomerDebug :app:assembleStaffDebug
+      - name: Upload lint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-lint
+          path: android/app/build/reports/lint-results-*.txt
+          if-no-files-found: ignore

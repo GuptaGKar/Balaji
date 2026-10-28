@@ -336,6 +336,7 @@ private fun CustomerShell(
     val navController = rememberNavController()
     val cartViewModel: CartViewModel = hiltViewModel()
     val productViewModel: ProductViewModel = hiltViewModel()
+    val favouritesViewModel: com.balaji.provision.ui.favourites.FavouritesViewModel = hiltViewModel()
     val cart by cartViewModel.cart.collectAsState()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route.orEmpty()
@@ -366,6 +367,7 @@ private fun CustomerShell(
                 navController = navController,
                 cartViewModel = cartViewModel,
                 productViewModel = productViewModel,
+                favouritesViewModel = favouritesViewModel,
                 accountViewModel = accountViewModel,
                 isDarkTheme = isDarkTheme,
                 onToggleTheme = onToggleTheme
@@ -389,10 +391,12 @@ fun AppNavHost(
     navController: NavHostController,
     cartViewModel: CartViewModel,
     productViewModel: ProductViewModel,
+    favouritesViewModel: com.balaji.provision.ui.favourites.FavouritesViewModel,
     accountViewModel: AccountViewModel,
     isDarkTheme: Boolean,
     onToggleTheme: (Boolean) -> Unit
 ) {
+    val favouriteState by favouritesViewModel.state.collectAsState()
     NavHost(navController = navController, startDestination = "home") {
         composable("home") {
             HomeScreen(
@@ -488,7 +492,9 @@ fun AppNavHost(
                         else cartViewModel.updateQuantity(id, qty)
                     },
                     onRemoveFromCart = { id -> cartViewModel.removeItem(id) },
-                    onOpenCart = { navigateToTab(navController, "cart") }
+                    onOpenCart = { navigateToTab(navController, "cart") },
+                    favouriteIds = favouriteState.ids,
+                    onToggleFavourite = { favouritesViewModel.toggle(it) }
                 )
             } else {
                 ProductMissing(
@@ -552,11 +558,21 @@ fun AppNavHost(
                 onOpenPrivacy = { navController.navigate("legal/privacy") },
                 onOpenTerms = { navController.navigate("legal/terms") },
                 onOpenAccountDeletion = { navController.navigate("legal/account-deletion") },
-                onOpenRequests = { navController.navigate("requests") }
+                onOpenRequests = { navController.navigate("requests") },
+                onOpenFavourites = {
+                    favouritesViewModel.load()
+                    navController.navigate("favourites")
+                }
             )
         }
         composable("requests") {
             ProductRequestsScreen(onBack = { navController.popBackStack() })
+        }
+        composable("favourites") {
+            com.balaji.provision.ui.favourites.FavouritesScreen(
+                onBack = { navController.popBackStack() },
+                onOpenProduct = { productId -> navController.navigate("product/$productId") }
+            )
         }
         composable(
             route = "legal/{page}",

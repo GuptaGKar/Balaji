@@ -356,7 +356,56 @@ interface SupabaseApi {
         @Header("Content-Type") contentType: String = "application/json",
         @Body body: AttachOrderProofRequest
     ): Response<AttachOrderProofResponse>
+
+    // Favourites (F3)
+    @GET("rest/v1/favourites")
+    suspend fun getFavourites(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Query("select") select: String =
+            "product_id,created_at,products(name,price_paise,image_path,unit_label,quantity_type)",
+        @Query("order") order: String = "created_at.desc"
+    ): Response<List<FavouriteResponse>>
+
+    @POST("rest/v1/favourites")
+    suspend fun addFavourite(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Header("Content-Type") contentType: String = "application/json",
+        @Header("Prefer") prefer: String = "resolution=ignore-duplicates,return=minimal",
+        @Body body: FavouriteRequest
+    ): Response<Unit>
+
+    @DELETE("rest/v1/favourites")
+    suspend fun removeFavourite(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Query("product_id") productId: String,
+        @Header("Prefer") prefer: String = "return=minimal"
+    ): Response<Unit>
 }
+
+@Serializable
+data class FavouriteProductResponse(
+    val name: String? = null,
+    val price_paise: Long? = null,
+    val image_path: String? = null,
+    val unit_label: String? = null,
+    val quantity_type: String? = null
+)
+
+@Serializable
+data class FavouriteResponse(
+    val product_id: String,
+    val created_at: String? = null,
+    val products: FavouriteProductResponse? = null
+)
+
+@Serializable
+data class FavouriteRequest(
+    val customer_id: String,
+    val product_id: String
+)
 
 @Serializable
 data class OrderProofResponse(
