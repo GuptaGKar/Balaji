@@ -115,6 +115,12 @@ INSERT INTO order_assignments (order_id, delivery_user_id, assigned_by)
 SELECT id, 'hhhhhhhh-0000-0000-0000-000000000001', 'ffffffff-0000-0000-0000-000000000001'
 FROM orders WHERE public_order_number = 'RIDER-STATUS-001';
 
+-- Dispatch proof is mandatory before the order can leave the store.
+INSERT INTO order_proofs (order_id, stage, kind, path)
+SELECT id, 'dispatch', 'image', 'cccccccc-0000-0000-0000-000000000001/proof/dispatch.jpg'
+FROM orders WHERE public_order_number = 'RIDER-STATUS-001'
+ON CONFLICT (order_id, stage) DO NOTHING;
+
 SET LOCAL request.jwt.claims.sub = 'hhhhhhhh-0000-0000-0000-000000000001';
 SET LOCAL request.jwt.claims.role = 'delivery';
 SELECT lives_ok(
@@ -124,6 +130,11 @@ RESET request.jwt.claims.sub;
 RESET request.jwt.claims.role;
 
 -- 10. rider_update_status: valid transition out_for_delivery -> delivered
+INSERT INTO order_proofs (order_id, stage, kind, path)
+SELECT id, 'delivery', 'video', 'hhhhhhhh-0000-0000-0000-000000000001/proof/delivery.mp4'
+FROM orders WHERE public_order_number = 'RIDER-STATUS-001'
+ON CONFLICT (order_id, stage) DO NOTHING;
+
 SET LOCAL request.jwt.claims.sub = 'hhhhhhhh-0000-0000-0000-000000000001';
 SET LOCAL request.jwt.claims.role = 'delivery';
 SELECT lives_ok(

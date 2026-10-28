@@ -265,7 +265,206 @@ interface SupabaseApi {
         @Header("Prefer") prefer: String = "return=representation",
         @Body body: AddressRequest
     ): Response<AddressResponse>
+
+    // Product requests: a customer asks the store to stock a new item for sale.
+    @GET("rest/v1/product_requests")
+    suspend fun getProductRequests(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Query("select") select: String =
+            "id,item_name,quantity_text,note,photo_path,status,staff_reply,created_at,customer_id",
+        @Query("order") order: String = "created_at.desc",
+        @Query("limit") limit: Int = 100
+    ): Response<List<ProductRequestResponse>>
+
+    @GET("rest/v1/product_requests")
+    suspend fun getStaffProductRequests(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Query("select") select: String =
+            "id,item_name,quantity_text,note,photo_path,status,staff_reply,created_at,customer_id,profiles(display_name,phone)",
+        @Query("order") order: String = "created_at.desc",
+        @Query("limit") limit: Int = 100
+    ): Response<List<ProductRequestResponse>>
+
+    @POST("rest/v1/rpc/create_product_request")
+    suspend fun createProductRequest(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Header("Content-Type") contentType: String = "application/json",
+        @Body body: CreateProductRequestRequest
+    ): Response<CreateProductRequestResponse>
+
+    @POST("rest/v1/rpc/staff_update_product_request")
+    suspend fun updateProductRequest(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Header("Content-Type") contentType: String = "application/json",
+        @Body body: UpdateProductRequestRequest
+    ): Response<UpdateProductRequestResponse>
+
+    // Reviews and order photos
+    @POST("rest/v1/rpc/submit_order_review")
+    suspend fun submitOrderReview(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Header("Content-Type") contentType: String = "application/json",
+        @Body body: SubmitOrderReviewRequest
+    ): Response<SubmitOrderReviewResponse>
+
+    @POST("rest/v1/rpc/attach_order_image")
+    suspend fun attachOrderImage(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Header("Content-Type") contentType: String = "application/json",
+        @Body body: AttachOrderImageRequest
+    ): Response<AttachOrderImageResponse>
+
+    @POST("storage/v1/object/order-images/{path}")
+    suspend fun uploadOrderImage(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Header("Content-Type") contentType: String,
+        @Header("x-upsert") upsert: String = "true",
+        @Path(value = "path", encoded = true) path: String,
+        @Body body: okhttp3.RequestBody
+    ): Response<Unit>
+
+    // Dispatch / delivery proof (photo or video)
+    @GET("rest/v1/order_proofs")
+    suspend fun getOrderProofs(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Query("order_id") orderId: String,
+        @Query("select") select: String = "id,order_id,stage,kind,path,created_at"
+    ): Response<List<OrderProofResponse>>
+
+    @POST("storage/v1/object/order-proofs/{path}")
+    suspend fun uploadOrderProof(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Header("Content-Type") contentType: String,
+        @Header("x-upsert") upsert: String = "true",
+        @Path(value = "path", encoded = true) path: String,
+        @Body body: okhttp3.RequestBody
+    ): Response<Unit>
+
+    @POST("rest/v1/rpc/attach_order_proof")
+    suspend fun attachOrderProof(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Header("Content-Type") contentType: String = "application/json",
+        @Body body: AttachOrderProofRequest
+    ): Response<AttachOrderProofResponse>
 }
+
+@Serializable
+data class OrderProofResponse(
+    val id: String,
+    val order_id: String,
+    val stage: String,
+    val kind: String,
+    val path: String? = null,
+    val created_at: String? = null
+)
+
+@Serializable
+data class AttachOrderProofRequest(
+    val p_order_id: String,
+    val p_stage: String,
+    val p_kind: String,
+    val p_path: String
+)
+
+@Serializable
+data class AttachOrderProofResponse(
+    val order_id: String? = null,
+    val stage: String? = null,
+    val kind: String? = null,
+    val path: String? = null,
+    val error: String? = null,
+    val message: String? = null
+)
+
+@Serializable
+data class ProductRequestResponse(
+    val id: String,
+    val item_name: String,
+    val quantity_text: String? = null,
+    val note: String? = null,
+    val photo_path: String? = null,
+    val status: String,
+    val staff_reply: String? = null,
+    val created_at: String,
+    val customer_id: String? = null,
+    val profiles: RequestCustomerResponse? = null
+)
+
+@Serializable
+data class RequestCustomerResponse(
+    val display_name: String? = null,
+    val phone: String? = null
+)
+
+@Serializable
+data class CreateProductRequestRequest(
+    val p_item_name: String,
+    val p_quantity_text: String? = null,
+    val p_note: String? = null,
+    val p_photo_path: String? = null
+)
+
+@Serializable
+data class CreateProductRequestResponse(
+    val request_id: String? = null,
+    val status: String? = null,
+    val error: String? = null,
+    val message: String? = null
+)
+
+@Serializable
+data class UpdateProductRequestRequest(
+    val p_request_id: String,
+    val p_status: String,
+    val p_staff_reply: String? = null,
+    val p_linked_product_id: String? = null
+)
+
+@Serializable
+data class UpdateProductRequestResponse(
+    val request_id: String? = null,
+    val status: String? = null,
+    val error: String? = null,
+    val message: String? = null
+)
+
+@Serializable
+data class SubmitOrderReviewRequest(
+    val p_order_id: String,
+    val p_rating: Int,
+    val p_comment: String? = null
+)
+
+@Serializable
+data class SubmitOrderReviewResponse(
+    val review_id: String? = null,
+    val error: String? = null,
+    val message: String? = null
+)
+
+@Serializable
+data class AttachOrderImageRequest(
+    val p_order_id: String,
+    val p_image_path: String
+)
+
+@Serializable
+data class AttachOrderImageResponse(
+    val order_id: String? = null,
+    val image_path: String? = null,
+    val error: String? = null,
+    val message: String? = null
+)
 
 // Data classes matching Supabase responses
 @Serializable

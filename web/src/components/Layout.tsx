@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   Tag,
   Smartphone,
+  PackageSearch,
 } from "lucide-react";
 
 const navigation = [
@@ -29,6 +30,7 @@ const navigation = [
   { name: "Orders Queue", href: "/orders", icon: FileText },
   { name: "Catalogue", href: "/catalogue", icon: Package },
   { name: "Coupons & Offers", href: "/coupons", icon: Tag },
+  { name: "Product Requests", href: "/requests", icon: PackageSearch },
   { name: "Inventory", href: "/inventory", icon: ShoppingCart },
   { name: "Reports & Sales", href: "/reports", icon: BarChart2 },
   { name: "Audit Log", href: "/audit", icon: ClipboardList },

@@ -69,14 +69,30 @@ BEGIN
     ELSE
       v_qty_base := (v_item->>'qty_base')::bigint;
 
+      -- Quantity rules stay server-side: pack limits and weight step multiples.
       IF v_qty_base <= 0 THEN
         v_available := false;
         v_error := 'Quantity must be positive';
+      ELSIF v_product.quantity_type = 'PACKED' THEN
+        IF v_qty_base < v_product.min_qty
+           OR v_qty_base > COALESCE(v_product.max_qty, v_qty_base) THEN
+          v_available := false;
+          v_error := 'Invalid pack quantity';
+        END IF;
+      ELSE
+        IF v_product.step_qty > 0 AND v_qty_base % v_product.step_qty <> 0 THEN
+          v_available := false;
+          v_error := 'Quantity must be multiple of step (' || v_product.step_qty || 'g)';
+        ELSIF v_qty_base < v_product.min_qty
+              OR v_qty_base > COALESCE(v_product.max_qty, v_qty_base) THEN
+          v_available := false;
+          v_error := 'Quantity out of range';
+        END IF;
       END IF;
 
       IF v_product.stock_qty < v_qty_base THEN
         v_available := false;
-        v_error := 'Only ' || v_product.stock_qty || ' in stock';
+        v_error := COALESCE(v_error, '') || 'Only ' || v_product.stock_qty || ' in stock';
       END IF;
 
       IF NOT v_product.active OR NOT v_product.available THEN
@@ -352,8 +368,10 @@ BEGIN
 END;
 $$;
 
+-- Only the text-argument signature exists: the function above is declared with a
+-- DEFAULT on p_coupon_code, so GRANT ... ON FUNCTION public.get_latest_app_release()
+-- would fail with 42883. Callers may still omit the argument.
 GRANT EXECUTE ON FUNCTION public.get_latest_app_release(text) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.get_latest_app_release() TO anon, authenticated;
 
 -- 4. Storage bucket for app APKs
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
@@ -423,5 +441,9 @@ BEGIN
       );
   END IF;
 END $$;
+
+-- PostgREST caches the RPC catalogue. Without this, a client can keep getting the
+-- old "function is not unique" ambiguity for quote_cart until the cache expires.
+NOTIFY pgrst, 'reload schema';
 
 COMMIT;

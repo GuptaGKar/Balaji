@@ -90,6 +90,7 @@ import com.balaji.provision.ui.orders.OrdersScreen
 import com.balaji.provision.ui.profile.LegalPage
 import com.balaji.provision.ui.profile.LegalScreen
 import com.balaji.provision.ui.profile.ProfileScreen
+import com.balaji.provision.ui.requests.ProductRequestsScreen
 import com.balaji.provision.ui.splash.SplashScreen
 import com.balaji.provision.ui.staff.StaffApp
 import com.balaji.provision.ui.theme.BalajiTheme
@@ -550,8 +551,12 @@ fun AppNavHost(
                 onToggleTheme = onToggleTheme,
                 onOpenPrivacy = { navController.navigate("legal/privacy") },
                 onOpenTerms = { navController.navigate("legal/terms") },
-                onOpenAccountDeletion = { navController.navigate("legal/account-deletion") }
+                onOpenAccountDeletion = { navController.navigate("legal/account-deletion") },
+                onOpenRequests = { navController.navigate("requests") }
             )
+        }
+        composable("requests") {
+            ProductRequestsScreen(onBack = { navController.popBackStack() })
         }
         composable(
             route = "legal/{page}",

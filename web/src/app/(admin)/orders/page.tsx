@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase";
+import { SafeImage } from "@/components/SafeImage";
 import { formatRupees } from "@/lib/money";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -49,9 +50,25 @@ type Order = {
     address_lines?: string;
   } | null;
   customer_note: string | null;
+  image_path: string | null;
   item_subtotal_paise: number;
   delivery_fee_paise: number;
 };
+
+type OrderReview = { rating: number; comment: string | null };
+
+function orderImageUrl(path: string): string {
+  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/+$/, "");
+  return `${base}/storage/v1/object/public/order-images/${path}`;
+}
+
+function proofUrl(path: string): string {
+  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/+$/, "");
+  return `${base}/storage/v1/object/public/order-proofs/${path}`;
+}
+
+type ProofStage = "dispatch" | "delivery";
+type OrderProof = { kind: string; path: string };
 
 type OrderBill = {
   id: string;
@@ -96,6 +113,10 @@ export default function OrdersPage() {
   const [issuingBill, setIssuingBill] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [removingItemId, setRemovingItemId] = useState<string | null>(null);
+  const [reviews, setReviews] = useState<Record<string, OrderReview>>({});
+  const [proofs, setProofs] = useState<Partial<Record<ProofStage, OrderProof>>>({});
+  const [proofUploading, setProofUploading] = useState<ProofStage | null>(null);
+  const [proofError, setProofError] = useState("");
 
   const supabase = createClient();
 
@@ -104,7 +125,7 @@ export default function OrdersPage() {
     let query = supabase
       .from("orders")
       .select(
-        "id, public_order_number, status, grand_total_paise, created_at, customer_id, payment_method, payment_status, cod_collected_paise, address_snapshot, customer_note, item_subtotal_paise, delivery_fee_paise",
+        "id, public_order_number, status, grand_total_paise, created_at, customer_id, payment_method, payment_status, cod_collected_paise, address_snapshot, customer_note, image_path, item_subtotal_paise, delivery_fee_paise",
       )
       .order("created_at", { ascending: false })
       .limit(500);
@@ -115,9 +136,103 @@ export default function OrdersPage() {
       setLoading(false);
       return;
     }
-    setOrders((data as Order[]) || []);
+    const loaded = (data as Order[]) || [];
+    setOrders(loaded);
+
+    // Reviews are one row per delivered order; fetch them for the visible page only.
+    const ids = loaded.map((order) => order.id);
+    if (ids.length > 0) {
+      const { data: reviewRows } = await supabase
+        .from("order_reviews")
+        .select("order_id, rating, comment")
+        .in("order_id", ids);
+      const next: Record<string, OrderReview> = {};
+      (
+        (reviewRows as { order_id: string; rating: number; comment: string | null }[] | null) || []
+      ).forEach((row) => {
+        next[row.order_id] = { rating: row.rating, comment: row.comment };
+      });
+      setReviews(next);
+    } else {
+      setReviews({});
+    }
     setLoading(false);
   }, [statusFilter, supabase]);
+
+  // Proof for the order that is open in the modal.
+  useEffect(() => {
+    const orderId = selectedOrder?.id;
+    if (!orderId) {
+      setProofs({});
+      setProofError("");
+      return;
+    }
+    supabase
+      .from("order_proofs")
+      .select("stage, kind, path")
+      .eq("order_id", orderId)
+      .then(({ data }) => {
+        const next: Partial<Record<ProofStage, OrderProof>> = {};
+        ((data as { stage: ProofStage; kind: string; path: string }[] | null) || []).forEach(
+          (row) => {
+            next[row.stage] = { kind: row.kind, path: row.path };
+          },
+        );
+        setProofs(next);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is recreated per render
+  }, [selectedOrder?.id]);
+
+  const uploadOrderProof = async (stage: ProofStage, file: File) => {
+    if (!selectedOrder) return;
+    setProofError("");
+    if (file.size > 50 * 1024 * 1024) {
+      setProofError("The proof file must be 50 MB or smaller.");
+      return;
+    }
+    const { data: userData } = await supabase.auth.getUser();
+    const uid = userData.user?.id;
+    if (!uid) {
+      setProofError("Your session expired. Sign in again.");
+      return;
+    }
+    const mime = file.type || "application/octet-stream";
+    const kind = mime.startsWith("video/") ? "video" : "image";
+    const extension = file.name.includes(".")
+      ? file.name.split(".").pop()!.toLowerCase()
+      : kind === "video"
+        ? "mp4"
+        : "jpg";
+    const path = `${uid}/proof/${crypto.randomUUID()}.${extension}`;
+
+    setProofUploading(stage);
+    const { error: uploadError } = await supabase.storage
+      .from("order-proofs")
+      .upload(path, file, { contentType: mime, upsert: true });
+    if (uploadError) {
+      setProofUploading(null);
+      setProofError(uploadError.message);
+      return;
+    }
+
+    const { data, error } = await supabase.rpc("attach_order_proof", {
+      p_order_id: selectedOrder.id,
+      p_stage: stage,
+      p_kind: kind,
+      p_path: path,
+    });
+    setProofUploading(null);
+    if (error) {
+      setProofError(error.message);
+      return;
+    }
+    const result = data as { error?: string; message?: string } | null;
+    if (result?.error) {
+      setProofError(result.message || result.error);
+      return;
+    }
+    setProofs((prev) => ({ ...prev, [stage]: { kind, path } }));
+  };
 
   const fetchOrdersRef = useRef(fetchOrders);
   useEffect(() => {
@@ -602,6 +717,32 @@ export default function OrdersPage() {
                     <span className="font-bold">Note:</span> {selectedOrder.customer_note}
                   </p>
                 )}
+                {selectedOrder.image_path && (
+                  <div className="mt-3">
+                    <p className="text-xs font-bold text-slate-400 uppercase">Customer photo</p>
+                    <a
+                      href={orderImageUrl(selectedOrder.image_path)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-1 inline-block"
+                    >
+                      <SafeImage
+                        src={orderImageUrl(selectedOrder.image_path)}
+                        alt="Photo attached to this order"
+                        className="h-20 w-28 rounded-lg border border-slate-200 object-cover"
+                        fallback={<span className="text-xs text-slate-500">Photo unavailable</span>}
+                      />
+                    </a>
+                  </div>
+                )}
+                {reviews[selectedOrder.id] && (
+                  <p className="mt-3 text-xs text-slate-600">
+                    <span className="font-bold">Review:</span> {reviews[selectedOrder.id].rating}/5
+                    {reviews[selectedOrder.id].comment
+                      ? ` — ${reviews[selectedOrder.id].comment}`
+                      : ""}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -729,6 +870,64 @@ export default function OrdersPage() {
               </div>
             </div>
 
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-bold text-slate-400 uppercase">
+                Dispatch &amp; delivery proof
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                A photo or a video is required before dispatch and before delivery. The same rule is
+                enforced by the server for every client.
+              </p>
+              {proofError && <p className="mt-2 text-xs text-red-600">{proofError}</p>}
+              {(["dispatch", "delivery"] as const).map((stage) => {
+                const proof = proofs[stage];
+                const label = stage === "dispatch" ? "Dispatch" : "Delivery";
+                return (
+                  <div
+                    key={stage}
+                    className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-3"
+                  >
+                    <div>
+                      <p className="text-sm font-bold text-slate-800">{label}</p>
+                      <p className="text-xs text-slate-500">
+                        {proof
+                          ? `Uploaded (${proof.kind})`
+                          : stage === "dispatch"
+                            ? "Required before Out for delivery"
+                            : "Required before Delivered"}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {proof && (
+                        <a
+                          href={proofUrl(proof.path)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs font-semibold text-orange-700 hover:underline"
+                        >
+                          View
+                        </a>
+                      )}
+                      <label className="cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-400">
+                        {proofUploading === stage ? "Uploading…" : proof ? "Replace" : "Upload"}
+                        <input
+                          type="file"
+                          accept="image/*,video/*"
+                          className="hidden"
+                          disabled={proofUploading !== null}
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            if (file) void uploadOrderProof(stage, file);
+                            event.target.value = "";
+                          }}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
               {selectedOrder.status === "pending_review" &&
                 actionButton(
@@ -745,19 +944,31 @@ export default function OrdersPage() {
                   "bg-red-600 hover:bg-red-700 !px-4 !py-2 !rounded-xl",
                 )}
               {selectedOrder.status === "ready_for_dispatch" &&
-                actionButton(
-                  selectedOrder,
-                  "out_for_delivery",
-                  "Dispatch Delivery",
-                  "bg-emerald-600 hover:bg-emerald-700 !px-4 !py-2 !rounded-xl",
-                )}
+                (proofs.dispatch ? (
+                  actionButton(
+                    selectedOrder,
+                    "out_for_delivery",
+                    "Dispatch Delivery",
+                    "bg-emerald-600 hover:bg-emerald-700 !px-4 !py-2 !rounded-xl",
+                  )
+                ) : (
+                  <span className="text-xs font-semibold text-red-600">
+                    Upload the dispatch proof to dispatch
+                  </span>
+                ))}
               {selectedOrder.status === "out_for_delivery" &&
-                actionButton(
-                  selectedOrder,
-                  "delivered",
-                  "Mark Delivered",
-                  "bg-green-700 hover:bg-green-800 !px-4 !py-2 !rounded-xl",
-                )}
+                (proofs.delivery ? (
+                  actionButton(
+                    selectedOrder,
+                    "delivered",
+                    "Mark Delivered",
+                    "bg-green-700 hover:bg-green-800 !px-4 !py-2 !rounded-xl",
+                  )
+                ) : (
+                  <span className="text-xs font-semibold text-red-600">
+                    Upload the delivery proof to complete
+                  </span>
+                ))}
               {["pending_review", "accepted", "preparing", "ready_for_dispatch"].includes(
                 selectedOrder.status,
               ) &&

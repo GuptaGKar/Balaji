@@ -40,6 +40,17 @@ QA debug builds are beside them: `balaji-provision-1.7-debug.apk` and
 `balaji-staff-1.7-debug.apk`. They are signed with the debug key, so Android
 refuses to install either one over a release-key build (and vice versa); the
 in-app updater therefore cannot replace a debug build with a published release.
+If a debug build is what gets distributed, the `/app-updates` row must point at a
+debug-signed APK, otherwise every update attempt ends in
+`INSTALL_FAILED_UPDATE_INCOMPATIBLE` on the phone.
+
+A third variant exists for isolating minification problems:
+`balaji-provision-1.7-release-unminified.apk` and
+`balaji-staff-1.7-release-unminified.apk`. They use the upload key and the same
+versionCode 8 as the minified release, so they install over it and are accepted by
+Play, but R8 and resource shrinking are skipped (built with
+`-Pbalaji.minifyRelease=false`). Use them to decide whether a device-only failure
+comes from minification; ship the minified build once that is settled.
 
 ### What's new in 1.7
 

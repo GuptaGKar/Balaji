@@ -96,6 +96,13 @@ fun OrdersScreen(
     var cancelReason by remember { mutableStateOf("") }
     var selectedTab by rememberSaveable { mutableStateOf(OrdersTab.ALL) }
 
+    // Reviews are submitted from the previous-orders list; one review per delivered order.
+    val requestsViewModel: com.balaji.provision.ui.requests.ProductRequestsViewModel = hiltViewModel()
+    var reviewTarget by remember { mutableStateOf<OrderView?>(null) }
+    var reviewRating by remember { mutableStateOf(5) }
+    var reviewComment by remember { mutableStateOf("") }
+    var reviewSaving by remember { mutableStateOf(false) }
+
     val activeStatuses = remember {
         setOf("pending_review", "accepted", "preparing", "ready_for_dispatch", "out_for_delivery")
     }
@@ -270,6 +277,7 @@ fun OrdersScreen(
                                             order = order,
                                             isCurrent = false,
                                             onOpen = { onOpenOrder(order.id) },
+                                            onReview = { reviewTarget = order },
                                             onCancel = {
                                                 cancelReason = ""
                                                 cancelTarget = order
@@ -318,6 +326,7 @@ fun OrdersScreen(
                                             order = order,
                                             isCurrent = false,
                                             onOpen = { onOpenOrder(order.id) },
+                                            onReview = { reviewTarget = order },
                                             onCancel = {
                                                 cancelReason = ""
                                                 cancelTarget = order
@@ -385,6 +394,65 @@ fun OrdersScreen(
             }
         )
     }
+
+    reviewTarget?.let { order ->
+        AlertDialog(
+            onDismissRequest = { if (!reviewSaving) reviewTarget = null },
+            title = { Text("Rate order #${order.publicOrderNumber}") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("How was this order?")
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        (1..5).forEach { star ->
+                            TextButton(onClick = { reviewRating = star }) {
+                                Text(
+                                    text = if (star <= reviewRating) "★" else "☆",
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                    OutlinedTextField(
+                        value = reviewComment,
+                        onValueChange = { if (it.length <= 1000) reviewComment = it },
+                        label = { Text("Comment (optional)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 4,
+                        shape = RoundedCornerShape(14.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !reviewSaving,
+                    onClick = {
+                        reviewSaving = true
+                        requestsViewModel.reviewOrder(
+                            orderId = order.id,
+                            rating = reviewRating,
+                            comment = reviewComment.trim().ifBlank { null }
+                        ) { success, message ->
+                            reviewSaving = false
+                            if (success) {
+                                reviewTarget = null
+                                reviewComment = ""
+                                reviewRating = 5
+                            }
+                            scope.launch { snackbarHostState.showSnackbar(message) }
+                        }
+                    }
+                ) {
+                    Text(if (reviewSaving) "Sending..." else "Send review")
+                }
+            },
+            dismissButton = {
+                TextButton(enabled = !reviewSaving, onClick = { reviewTarget = null }) {
+                    Text("Not now")
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -392,7 +460,8 @@ fun OrderCard(
     order: OrderView,
     isCurrent: Boolean = false,
     onCancel: () -> Unit,
-    onOpen: () -> Unit = {}
+    onOpen: () -> Unit = {},
+    onReview: (() -> Unit)? = null
 ) {
     Card(
         modifier = Modifier
@@ -554,6 +623,18 @@ fun OrderCard(
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text("Cancel", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+
+                if (!order.canCancel && order.status.equals("delivered", ignoreCase = true) &&
+                    onReview != null
+                ) {
+                    OutlinedButton(
+                        onClick = { onReview?.invoke() },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Rate order", style = MaterialTheme.typography.labelMedium)
                     }
                 }
 

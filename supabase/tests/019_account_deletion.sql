@@ -79,6 +79,12 @@ SELECT results_eq(
   'active orders block account deletion'
 );
 
+-- Delivered now requires a delivery proof (order-proofs rule).
+INSERT INTO public.order_proofs (order_id, stage, kind, path)
+VALUES ('f1f1f1f1-1111-4111-8111-111111111111', 'delivery', 'image',
+        'e3e3e3e3-3333-4333-8333-333333333333/proof/delivery.jpg')
+ON CONFLICT (order_id, stage) DO NOTHING;
+
 UPDATE public.orders SET status = 'delivered' WHERE id = 'f1f1f1f1-1111-4111-8111-111111111111';
 
 SELECT results_eq(

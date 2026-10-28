@@ -87,10 +87,17 @@ android {
         }
     }
 
+    // R8 stays on for release by default. A build without shrinking can be produced to
+    // isolate a minification-only failure on a real device:
+    //   ./gradlew :app:assembleCustomerRelease -Pbalaji.minifyRelease=false
+    // Both variants share the upload key and versionCode, so either installs over the other.
+    val minifyRelease = (project.findProperty("balaji.minifyRelease") as String?)
+        ?.toBoolean() ?: true
+
     buildTypes {
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            isMinifyEnabled = minifyRelease
+            isShrinkResources = minifyRelease
             isDebuggable = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.getByName("release")

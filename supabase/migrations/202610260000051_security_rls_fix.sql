@@ -6,7 +6,13 @@
 CREATE INDEX IF NOT EXISTS idx_orders_status_created_desc ON orders(status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_products_category_active_avail ON products(category_id, active, available);
 
--- 2. Auto-Provision Manager Profile on Auth Signup Trigger
+-- 2. Auto-Provision Customer Profile on Auth Signup Trigger
+--
+-- Every self-service signup (phone OTP from the Android app, or any direct call to
+-- the auth API) becomes a customer. The role is NOT read from raw_user_meta_data:
+-- that field is client-controlled, so trusting it would let anyone sign up as a
+-- manager. Staff/rider accounts are created through /api/staff with the service
+-- role, which sets the real role on the profile right after the auth user exists.
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -17,13 +23,13 @@ BEGIN
   INSERT INTO public.profiles (id, role, display_name, phone, is_active, must_change_password)
   VALUES (
     NEW.id,
-    COALESCE((NEW.raw_user_meta_data->>'role')::user_role, 'manager'::user_role),
-    COALESCE(NEW.raw_user_meta_data->>'display_name', NEW.email, 'Store Manager'),
+    'customer'::public.user_role,
+    COALESCE(NEW.raw_user_meta_data->>'display_name', NEW.email, NEW.phone, 'Customer'),
     NEW.phone,
     true,
     false
   )
-  ON CONFLICT (id) DO UPDATE SET is_active = true;
+  ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
 END;
 $$;
@@ -88,117 +94,19 @@ CREATE POLICY "order_items_read_own" ON order_items
     )
   );
 
--- 6. Hardened place_order function enforcing server-side customer_id = auth.uid()
-CREATE OR REPLACE FUNCTION public.place_order(
-  p_payload jsonb,
-  p_idempotency_key text
-)
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, extensions
-AS $$
-DECLARE
-  v_user_id uuid;
-  v_order_id uuid;
-  v_public_order_number text;
-  v_quote jsonb;
-  v_item jsonb;
-  v_product public.products%ROWTYPE;
-  v_qty_base bigint;
-  v_unit_price bigint;
-  v_line_total bigint;
-  v_cached_response jsonb;
-  v_address jsonb;
-BEGIN
-  -- Authoritative customer_id comes from auth.uid()
-  v_user_id := auth.uid();
-  IF v_user_id IS NULL THEN
-    RAISE EXCEPTION 'Authentication required to place an order.'
-      USING ERRCODE = '42501';
-  END IF;
-
-  -- Idempotency check
-  SELECT response INTO v_cached_response
-  FROM public.idempotency_keys
-  WHERE user_id = v_user_id AND scope = 'place_order' AND key = p_idempotency_key;
-
-  IF v_cached_response IS NOT NULL THEN
-    RETURN v_cached_response;
-  END IF;
-
-  -- Record idempotency key
-  INSERT INTO public.idempotency_keys (user_id, scope, key, request_hash)
-  VALUES (v_user_id, 'place_order', p_idempotency_key, md5(p_payload::text))
-  ON CONFLICT (user_id, scope, key) DO NOTHING;
-
-  -- Calculate quote
-  v_quote := public.quote_cart(p_payload->'items');
-
-  IF (v_quote->>'grand_total_paise')::bigint <= 0 THEN
-    RAISE EXCEPTION 'Cart is empty or invalid.';
-  END IF;
-
-  v_address := p_payload->'address';
-  v_public_order_number := 'BPS/' || to_char(now(), 'YY') || '/' || LPAD(floor(random() * 1000000)::text, 6, '0');
-  v_order_id := gen_random_uuid();
-
-  -- Insert order
-  INSERT INTO public.orders (
-    id, public_order_number, customer_id, address_snapshot,
-    status, payment_method, payment_status,
-    item_subtotal_paise, discount_paise, delivery_fee_paise, tax_paise, grand_total_paise,
-    fee_breakdown, customer_note, idempotency_key
-  ) VALUES (
-    v_order_id, v_public_order_number, v_user_id, v_address,
-    'pending_review',
-    COALESCE(p_payload->>'payment_method', 'cod')::payment_method,
-    'unpaid',
-    (v_quote->>'item_subtotal_paise')::bigint,
-    (v_quote->>'discount_paise')::bigint,
-    (v_quote->>'delivery_fee_paise')::bigint,
-    (v_quote->>'tax_paise')::bigint,
-    (v_quote->>'grand_total_paise')::bigint,
-    v_quote,
-    p_payload->>'customer_note',
-    p_idempotency_key
-  );
-
-  -- Insert line items
-  FOR v_item IN SELECT * FROM jsonb_array_elements(p_payload->'items')
-  LOOP
-    SELECT * INTO v_product FROM public.products WHERE id = (v_item->>'product_id')::uuid;
-    IF v_product.id IS NULL OR NOT v_product.active OR NOT v_product.available THEN
-      RAISE EXCEPTION 'Product % is unavailable.', COALESCE(v_item->>'product_id', 'unknown');
-    END IF;
-
-    v_qty_base := (v_item->>'qty_base')::bigint;
-    v_unit_price := v_product.price_paise;
-    v_line_total := (v_unit_price::numeric * (v_qty_base::numeric / v_product.price_basis_qty::numeric))::bigint;
-
-    INSERT INTO public.order_items (
-      order_id, product_id, sku_snapshot, name_snapshot, quantity_type_snapshot,
-      unit_label_snapshot, price_basis_qty_snapshot, qty_base, unit_price_paise, line_total_paise
-    ) VALUES (
-      v_order_id, v_product.id, v_product.sku, v_product.name, v_product.quantity_type,
-      v_product.unit_label, v_product.price_basis_qty, v_qty_base, v_unit_price, v_line_total
-    );
-
-    UPDATE public.products
-    SET stock_qty = GREATEST(0, stock_qty - v_qty_base)
-    WHERE id = v_product.id;
-  END LOOP;
-
-  INSERT INTO public.order_status_events (order_id, from_status, to_status, actor_id, reason)
-  VALUES (v_order_id, NULL, 'pending_review', v_user_id, 'Order placed by customer');
-
-  RETURN jsonb_build_object(
-    'order_id', v_order_id,
-    'public_order_number', v_public_order_number,
-    'breakdown', v_quote
-  );
-END;
-$$;
+-- 6. place_order is deliberately NOT redefined in this migration.
+--
+-- Earlier revisions replaced public.place_order(jsonb, text) with a body whose second
+-- parameter had no default. Applying that over the coupon-aware definition from
+-- 20261026000006_coupons.sql fails with 42P13 ("cannot remove parameter defaults from
+-- existing function"), and forcing it through with DROP FUNCTION first would silently
+-- drop coupon validation, coupon usage counting, the empty-cart guard, the store-open
+-- guard and the FOR UPDATE stock re-check.
+--
+-- The server-side identity rule this migration exists for is already enforced:
+-- 20261022000021_address_coordinates.sql and 20261026000006_coupons.sql both derive
+-- customer_id from auth.uid() and never from the client payload. This file therefore
+-- stops at the privilege grants below.
 
 -- 7. SECURITY INVOKER Function for Web Dashboard Stats
 CREATE OR REPLACE FUNCTION public.get_dashboard_stats()
@@ -241,6 +149,19 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.quote_cart(jsonb) TO public;
+-- Grant whichever quote_cart signature exists at the time this migration runs.
+-- 20261026000006_coupons.sql adds quote_cart(jsonb, text) while keeping the
+-- quote_cart(jsonb) wrapper, and 20261027000001 drops the wrapper again; naming a
+-- fixed signature here would fail depending on the order the files are applied.
+DO $$
+BEGIN
+  IF to_regprocedure('public.quote_cart(jsonb, text)') IS NOT NULL THEN
+    EXECUTE 'GRANT EXECUTE ON FUNCTION public.quote_cart(jsonb, text) TO public';
+  END IF;
+  IF to_regprocedure('public.quote_cart(jsonb)') IS NOT NULL THEN
+    EXECUTE 'GRANT EXECUTE ON FUNCTION public.quote_cart(jsonb) TO public';
+  END IF;
+END $$;
+
 GRANT EXECUTE ON FUNCTION public.place_order(jsonb, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_dashboard_stats() TO authenticated;

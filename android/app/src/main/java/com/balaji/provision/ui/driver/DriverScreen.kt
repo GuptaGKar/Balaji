@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -67,6 +69,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.balaji.provision.domain.model.RiderOrder
 import com.balaji.provision.domain.model.formatPaise
+import com.balaji.provision.ui.proof.OrderProofViewModel
 
 @Composable
 fun DriverScreen(
@@ -80,6 +83,19 @@ fun DriverScreen(
 
     var deliveredOrder by remember { mutableStateOf<RiderOrder?>(null) }
     var failedOrder by remember { mutableStateOf<RiderOrder?>(null) }
+
+    // Delivery proof: a photo or video is mandatory before the order can be marked delivered.
+    val proofViewModel: OrderProofViewModel = hiltViewModel()
+    val proofState by proofViewModel.state.collectAsState()
+    var proofTarget by remember { mutableStateOf<RiderOrder?>(null) }
+    val proofPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        val order = proofTarget
+        if (uri != null && order != null) {
+            proofViewModel.upload(order.id, "delivery", uri)
+        }
+    }
 
     DisposableEffect(lifecycleOwner) {
         viewModel.startPolling()
@@ -171,30 +187,79 @@ fun DriverScreen(
         }
     }
 
+    LaunchedEffect(deliveredOrder?.id) {
+        deliveredOrder?.let { proofViewModel.load(it.id) }
+    }
+
+    LaunchedEffect(proofState.message) {
+        proofState.message?.let {
+            snackbarHostState.showSnackbar(it)
+            proofViewModel.consumeMessage()
+        }
+    }
+
     deliveredOrder?.let { order ->
+        val hasProof = proofState.proofs.containsKey("delivery")
+        val uploading = proofState.uploadingStage != null
         AlertDialog(
-            onDismissRequest = { deliveredOrder = null },
+            onDismissRequest = { if (!uploading) deliveredOrder = null },
             title = { Text("Confirm delivery") },
             text = {
-                Text(
-                    if (order.isCod) {
-                        "Mark order ${order.orderNumber} as delivered and record " +
-                            "${formatPaise(order.grandTotalPaise)} cash collected?"
-                    } else {
-                        "Mark order ${order.orderNumber} as delivered?"
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        if (order.isCod) {
+                            "Mark order ${order.orderNumber} as delivered and record " +
+                                "${formatPaise(order.grandTotalPaise)} cash collected?"
+                        } else {
+                            "Mark order ${order.orderNumber} as delivered?"
+                        }
+                    )
+                    Text(
+                        text = if (hasProof) {
+                            "Delivery proof uploaded."
+                        } else {
+                            "A photo or video of the delivered items is required first."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (hasProof) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.error
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            proofTarget = order
+                            proofPicker.launch(arrayOf("image/*", "video/*"))
+                        },
+                        enabled = !uploading
+                    ) {
+                        Text(if (hasProof) "Replace photo/video" else "Upload photo/video")
                     }
-                )
+                    if (uploading) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Text("Uploading proof…", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
             },
             confirmButton = {
                 TextButton(
                     onClick = {
                         viewModel.updateStatus(order, "delivered")
                         deliveredOrder = null
-                    }
+                    },
+                    enabled = hasProof && !uploading
                 ) { Text("Yes, delivered") }
             },
             dismissButton = {
-                TextButton(onClick = { deliveredOrder = null }) { Text("Cancel") }
+                TextButton(onClick = { deliveredOrder = null }, enabled = !uploading) {
+                    Text("Cancel")
+                }
             }
         )
     }

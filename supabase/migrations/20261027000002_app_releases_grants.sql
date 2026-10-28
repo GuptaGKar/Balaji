@@ -9,6 +9,16 @@
 
 BEGIN;
 
+-- This file only tightens an existing table. Fail with an actionable message instead
+-- of 42P01 when the previous migration was rejected and rolled back.
+DO $$
+BEGIN
+  IF to_regclass('public.app_releases') IS NULL THEN
+    RAISE EXCEPTION
+      'public.app_releases is missing. Apply 20261027000001_free_delivery_fix_and_app_updates.sql first.';
+  END IF;
+END $$;
+
 REVOKE ALL ON public.app_releases FROM authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.app_releases TO authenticated;
 

@@ -21,7 +21,8 @@ import javax.inject.Inject
 sealed interface OrderPlacementState {
     data object Idle : OrderPlacementState
     data object Placing : OrderPlacementState
-    data class Placed(val orderNumber: String) : OrderPlacementState
+    /** [orderId] lets the checkout screen attach the optional order photo after placement. */
+    data class Placed(val orderNumber: String, val orderId: String = "") : OrderPlacementState
     data class Failed(val message: String) : OrderPlacementState
 }
 
@@ -130,7 +131,8 @@ class CartViewModel @Inject constructor(
                         // The order exists; an empty local basket is best-effort.
                     }
                     _orderPlacement.value = OrderPlacementState.Placed(
-                        result.response.public_order_number.orEmpty()
+                        result.response.public_order_number.orEmpty(),
+                        result.response.order_id.orEmpty()
                     )
                 }
                 is PlaceOrderResult.Failure -> {

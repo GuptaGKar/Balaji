@@ -4,6 +4,8 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -62,6 +64,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -74,6 +77,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlinx.coroutines.launch
 import com.balaji.provision.BuildConfig
 import com.balaji.provision.domain.model.LowStockProduct
 import com.balaji.provision.domain.model.ManagerOrder
@@ -98,6 +102,31 @@ fun ManagerScreen(
     var adjustingProduct by remember { mutableStateOf<LowStockProduct?>(null) }
     var editingPriceProduct by remember { mutableStateOf<com.balaji.provision.domain.model.Product?>(null) }
     var removingItem by remember { mutableStateOf<ManagerOrderLine?>(null) }
+
+    // Dispatch/delivery proof. The server rejects the transition without it; the UI
+    // blocks it first so staff get an explanation instead of an error.
+    val proofViewModel: com.balaji.provision.ui.proof.OrderProofViewModel = hiltViewModel()
+    val proofState by proofViewModel.state.collectAsState()
+    var proofStage by remember { mutableStateOf("dispatch") }
+    val managerScope = rememberCoroutineScope()
+    val proofPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        val orderId = state.selectedOrderId
+        if (uri != null && orderId != null) {
+            proofViewModel.upload(orderId, proofStage, uri)
+        }
+    }
+
+    LaunchedEffect(state.selectedOrderId) {
+        state.selectedOrderId?.let { proofViewModel.load(it) }
+    }
+    LaunchedEffect(proofState.message) {
+        proofState.message?.let {
+            snackbarHostState.showSnackbar(it)
+            proofViewModel.consumeMessage()
+        }
+    }
 
     LaunchedEffect(state.message) {
         state.message?.let {
@@ -132,7 +161,7 @@ fun ManagerScreen(
                 .padding(padding)
         ) {
             TabRow(selectedTabIndex = selectedTab) {
-                listOf("Overview", "Orders", "Stock").forEachIndexed { index, label ->
+                listOf("Overview", "Orders", "Stock", "Requests").forEachIndexed { index, label ->
                     Tab(
                         selected = selectedTab == index,
                         onClick = { selectedTab = index },
@@ -162,11 +191,12 @@ fun ManagerScreen(
                     state = state,
                     onOpenOrder = viewModel::openOrder
                 )
-                else -> StockTab(
+                selectedTab == 2 -> StockTab(
                     state = state,
                     onAdjust = { adjustingProduct = it },
                     onEditPrice = { editingPriceProduct = it }
                 )
+                else -> StaffRequestsTab()
             }
         }
     }
@@ -178,11 +208,30 @@ fun ManagerScreen(
             onRetryItems = viewModel::reloadOrderItems,
             onRemoveItem = { removingItem = it },
             onAction = { action ->
-                if (action.requiresReason) {
-                    reasonAction = ReasonAction(action.toStatus, action.label)
-                } else {
-                    viewModel.transitionOrder(action.toStatus)
+                when {
+                    action.toStatus == "out_for_delivery" && !proofState.proofs.containsKey("dispatch") -> {
+                        managerScope.launch {
+                            snackbarHostState.showSnackbar(
+                                "Upload the dispatch photo or video first."
+                            )
+                        }
+                    }
+                    action.toStatus == "delivered" && !proofState.proofs.containsKey("delivery") -> {
+                        managerScope.launch {
+                            snackbarHostState.showSnackbar(
+                                "Upload the delivery photo or video first."
+                            )
+                        }
+                    }
+                    action.requiresReason -> reasonAction = ReasonAction(action.toStatus, action.label)
+                    else -> viewModel.transitionOrder(action.toStatus)
                 }
+            },
+            proofs = proofState.proofs,
+            uploadingStage = proofState.uploadingStage,
+            onUploadProof = { stage ->
+                proofStage = stage
+                proofPicker.launch(arrayOf("image/*", "video/*"))
             },
             onAssignRider = {
                 viewModel.loadRiders()
@@ -741,7 +790,10 @@ private fun ManagerOrderSheet(
     onRetryItems: () -> Unit,
     onRemoveItem: (ManagerOrderLine) -> Unit,
     onAction: (ManagerOrderAction) -> Unit,
-    onAssignRider: () -> Unit
+    onAssignRider: () -> Unit,
+    proofs: Map<String, String> = emptyMap(),
+    uploadingStage: String? = null,
+    onUploadProof: (String) -> Unit = {}
 ) {
     val order = state.selectedOrder ?: return
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -769,6 +821,12 @@ private fun ManagerOrderSheet(
                 }
                 StatusPill(order.status)
             }
+
+            ProofSection(
+                proofs = proofs,
+                uploadingStage = uploadingStage,
+                onUpload = onUploadProof
+            )
 
             Card(
                 colors = CardDefaults.cardColors(
@@ -1332,5 +1390,205 @@ private fun openInBrowser(context: Context, url: String) {
         context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
     } catch (_: ActivityNotFoundException) {
         Toast.makeText(context, "No browser app found", Toast.LENGTH_SHORT).show()
+    }
+}
+
+/**
+ * Dispatch and delivery proof. Photos and videos both count; the transition itself is
+ * blocked by the database until the matching proof exists.
+ */
+@Composable
+private fun ProofSection(
+    proofs: Map<String, String>,
+    uploadingStage: String?,
+    onUpload: (String) -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Dispatch & delivery proof", fontWeight = FontWeight.SemiBold)
+            ProofRow(
+                label = "Dispatch",
+                detail = proofs["dispatch"]?.let { "Uploaded ($it)" }
+                    ?: "Required before Out for delivery",
+                present = proofs.containsKey("dispatch"),
+                busy = uploadingStage == "dispatch",
+                onUpload = { onUpload("dispatch") }
+            )
+            ProofRow(
+                label = "Delivery",
+                detail = proofs["delivery"]?.let { "Uploaded ($it)" }
+                    ?: "Required before Delivered",
+                present = proofs.containsKey("delivery"),
+                busy = uploadingStage == "delivery",
+                onUpload = { onUpload("delivery") }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProofRow(
+    label: String,
+    detail: String,
+    present: Boolean,
+    busy: Boolean,
+    onUpload: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(label, fontWeight = FontWeight.Medium)
+            Text(
+                text = detail,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (present) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        if (busy) {
+            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+        } else {
+            OutlinedButton(onClick = onUpload) {
+                Text(if (present) "Replace" else "Upload")
+            }
+        }
+    }
+}
+
+/**
+ * Staff inbox for "please stock this" requests from customers. The app can accept or
+ * reject a request; closing it as "added" needs the catalogue product, so that step
+ * stays on the web dashboard where the product is created.
+ */
+@Composable
+private fun StaffRequestsTab(
+    viewModel: com.balaji.provision.ui.requests.ProductRequestsViewModel = hiltViewModel()
+) {
+    val state by viewModel.state.collectAsState()
+
+    LaunchedEffect(Unit) { viewModel.load(staffView = true) }
+
+    when {
+        state.loading && state.requests.isEmpty() -> Box(Modifier.fillMaxSize()) {
+            CircularProgressIndicator(Modifier.align(Alignment.Center))
+        }
+
+        state.loadError != null && state.requests.isEmpty() -> Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = state.loadError.orEmpty(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error
+            )
+            Button(onClick = { viewModel.load(staffView = true) }) { Text("Retry") }
+        }
+
+        state.requests.isEmpty() -> Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("No product requests", style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = "Customers can ask for a new item from the customer app.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        else -> LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(state.requests, key = { it.id }) { request ->
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = request.itemName,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                text = request.status.uppercase(),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Text(
+                            text = listOfNotNull(
+                                request.customerName ?: "Customer",
+                                request.customerPhone
+                            ).joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        request.quantityText?.let {
+                            Text(it, style = MaterialTheme.typography.bodySmall)
+                        }
+                        request.note?.let {
+                            Text(it, style = MaterialTheme.typography.bodySmall)
+                        }
+                        if (request.status == "new") {
+                            Row(
+                                modifier = Modifier.padding(top = 6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = { viewModel.update(request.id, "accepted", null) },
+                                    enabled = state.actionId == null
+                                ) { Text("Accept") }
+                                OutlinedButton(
+                                    onClick = { viewModel.update(request.id, "rejected", null) },
+                                    enabled = state.actionId == null
+                                ) { Text("Reject") }
+                            }
+                        } else if (request.status == "accepted") {
+                            Text(
+                                text = "Add it in the catalogue, then mark it added on the web dashboard.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
+                        request.staffReply?.let {
+                            Text(
+                                text = "Reply: $it",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }

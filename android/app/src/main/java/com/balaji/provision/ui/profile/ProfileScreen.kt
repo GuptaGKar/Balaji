@@ -75,6 +75,7 @@ fun ProfileScreen(
     onOpenPrivacy: () -> Unit = {},
     onOpenTerms: () -> Unit = {},
     onOpenAccountDeletion: () -> Unit = {},
+    onOpenRequests: () -> Unit = {},
     homeViewModel: HomeViewModel = hiltViewModel(),
     authViewModel: AuthViewModel = hiltViewModel(),
     accountViewModel: AccountViewModel = hiltViewModel()
@@ -525,6 +526,7 @@ fun ProfileScreen(
                     InfoRow("Privacy policy", "Open", onClick = onOpenPrivacy)
                     InfoRow("Terms of use", "Open", onClick = onOpenTerms)
                     InfoRow("Account deletion help", "Open", onClick = onOpenAccountDeletion)
+                    InfoRow("Request an item", "Open", onClick = onOpenRequests)
                     if (session != null) {
                         TextButton(
                             onClick = {

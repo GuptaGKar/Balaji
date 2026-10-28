@@ -1,6 +1,9 @@
 package com.balaji.provision.ui.checkout
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -76,6 +79,8 @@ import com.balaji.provision.ui.components.SummaryRow
 import com.balaji.provision.ui.home.HomeViewModel
 import com.balaji.provision.ui.theme.appColors
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Checkout in three steps: address → payment → review.
@@ -114,6 +119,15 @@ fun CheckoutScreen(
     val unavailableLines = quote?.lines?.filter { !it.available }.orEmpty()
     val isPlacingOrder = placement is OrderPlacementState.Placing
 
+    // Optional order photo: picked at checkout, attached after the order is created.
+    val photoContext = androidx.compose.ui.platform.LocalContext.current
+    val photoViewModel: com.balaji.provision.ui.requests.ProductRequestsViewModel = hiltViewModel()
+    var pendingPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    var attachingPhoto by remember { mutableStateOf(false) }
+    val photoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri -> if (uri != null) pendingPhotoUri = uri }
+
     val canContinueAddress = session != null && selectedAddress != null &&
         quote != null && unavailableLines.isEmpty() && cart.items.isNotEmpty()
     val canContinuePayment = quote != null && unavailableLines.isEmpty() && cart.items.isNotEmpty()
@@ -139,6 +153,32 @@ fun CheckoutScreen(
         val failed = placement as? OrderPlacementState.Failed ?: return@LaunchedEffect
         cartViewModel.acknowledgeOrderPlacement()
         snackbarHostState.showSnackbar(failed.message)
+    }
+
+    // Attach the picked photo once the order exists. Failures are non-fatal: the order
+    // is already placed, so the customer only loses the attachment.
+    val placedForPhoto = placement as? OrderPlacementState.Placed
+    LaunchedEffect(placedForPhoto?.orderId, pendingPhotoUri) {
+        val orderId = placedForPhoto?.orderId?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
+        val uri = pendingPhotoUri ?: return@LaunchedEffect
+        attachingPhoto = true
+        val mimeType = photoContext.contentResolver.getType(uri) ?: "image/jpeg"
+        val bytes = withContext(Dispatchers.IO) {
+            runCatching {
+                photoContext.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            }.getOrNull()
+        }
+        if (bytes == null || bytes.isEmpty()) {
+            attachingPhoto = false
+            pendingPhotoUri = null
+            snackbarHostState.showSnackbar("Could not read that photo.")
+            return@LaunchedEffect
+        }
+        photoViewModel.attachPhoto(orderId, bytes, mimeType) { success, message ->
+            attachingPhoto = false
+            if (success) pendingPhotoUri = null
+            coroutineScope.launch { snackbarHostState.showSnackbar(message) }
+        }
     }
 
     LaunchedEffect(accountState.addresses) {
@@ -350,15 +390,23 @@ fun CheckoutScreen(
                             quoteFeeNote = quote?.feeRuleNote
                         )
 
-                        else -> ReviewStep(
-                            address = selectedAddress,
-                            customerNote = customerNote,
-                            quote = quote,
-                            unavailableLines = unavailableLines,
-                            onEditAddress = { step = 1 },
-                            onEditPayment = { step = 2 },
-                            onRetryQuote = { cartViewModel.refreshQuote() }
-                        )
+                        else -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            ReviewStep(
+                                address = selectedAddress,
+                                customerNote = customerNote,
+                                quote = quote,
+                                unavailableLines = unavailableLines,
+                                onEditAddress = { step = 1 },
+                                onEditPayment = { step = 2 },
+                                onRetryQuote = { cartViewModel.refreshQuote() }
+                            )
+                            OrderPhotoRow(
+                                hasPhoto = pendingPhotoUri != null,
+                                busy = attachingPhoto,
+                                onPick = { photoPicker.launch("image/*") },
+                                onClear = { pendingPhotoUri = null }
+                            )
+                        }
                     }
                 }
 
@@ -1076,6 +1124,59 @@ private fun CheckoutAddressOption(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        }
+    }
+}
+
+/** Optional image attached to the order, e.g. a handwritten list or a reference photo. */
+@Composable
+private fun OrderPhotoRow(
+    hasPhoto: Boolean,
+    busy: Boolean,
+    onPick: () -> Unit,
+    onClear: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                "Photo for the store (optional)",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                "Attach a handwritten list or a picture of what you need. Staff see it with your order.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onPick, enabled = !busy) {
+                    Text(if (hasPhoto) "Change photo" else "Attach photo")
+                }
+                if (hasPhoto) {
+                    TextButton(onClick = onClear, enabled = !busy) { Text("Remove") }
+                }
+            }
+            if (busy) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Text(
+                        "Uploading photo…",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
