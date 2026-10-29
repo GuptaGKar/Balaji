@@ -142,6 +142,11 @@ class CartViewModel @Inject constructor(
         }
     }
 
+    /** Delivery PIN for the quote; the view model re-quotes when it changes. */
+    fun setDeliveryPin(code: String?) {
+        cartRepository.setDeliveryPin(code)
+    }
+
     fun acknowledgeOrderPlacement() {
         if (_orderPlacement.value !is OrderPlacementState.Placing) {
             _orderPlacement.value = OrderPlacementState.Idle

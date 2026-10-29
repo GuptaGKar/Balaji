@@ -72,7 +72,9 @@ class AccountRepositoryImpl @Inject constructor(
             val profile = response.body()?.firstOrNull()
                 ?: return AccountResult.Failure("Your profile could not be found.")
             AccountResult.Success(profile.toDomain())
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            // Diagnostic only: never logs tokens or response bodies.
+            android.util.Log.e("AccountRepository", "loadProfile failed: ${e::class.java.name}", e)
             AccountResult.Failure("Could not reach the store. Check your connection and try again.")
         }
     }

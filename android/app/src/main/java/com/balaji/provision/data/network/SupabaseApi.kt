@@ -554,7 +554,9 @@ data class CategoryResponse(
 @Serializable
 data class QuoteCartRequest(
     val p_items: List<CartItemRequest>,
-    val p_coupon_code: String? = null
+    val p_coupon_code: String? = null,
+    /** Delivery PIN code; selects the per-PIN fee/free-delivery thresholds. */
+    val p_pin_code: String? = null
 )
 
 @Serializable

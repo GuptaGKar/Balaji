@@ -64,7 +64,8 @@ class AuthRepository @Inject constructor(
                     )
                 )
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            android.util.Log.e("AuthRepository", "requestOtp failed: ${e::class.java.name}", e)
             OtpResult.Failure("Could not reach the store. Check your connection and try again.")
         }
     }

@@ -31,6 +31,19 @@
     @retrofit2.http.* <methods>;
 }
 
+# Retrofit reflects on the generic signature of every declared method
+# (Response<List<ProfileResponse>> etc.). Keeping only the annotated members is not
+# enough: R8 also has to keep the interface itself, otherwise it strips the method
+# Signature and the first call dies with
+#   ClassCastException: java.lang.Class cannot be cast to ParameterizedType
+#   at retrofit2.HttpServiceMethod.parseAnnotations
+-if interface * { @retrofit2.http.* <methods>; }
+-keep,allowobfuscation interface <1>
+-keep,allowobfuscation,allowshrinking interface retrofit2.Call
+-keep,allowobfuscation,allowshrinking class retrofit2.Response
+-keep,allowobfuscation,allowshrinking class kotlin.coroutines.Continuation
+-keepattributes Signature,InnerClasses,EnclosingMethod,AnnotationDefault
+
 # Kotlinx Serialization
 -keepattributes *Annotation*, InnerClasses, Signature, EnclosingMethod
 -dontwarn kotlinx.serialization.**

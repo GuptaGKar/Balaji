@@ -166,10 +166,21 @@ export const loginSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>;
 
+const optionalRupees = z.preprocess((value) => {
+  if (value === "" || value === null || value === undefined) return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+}, z.number().min(0, "Must be 0 or more").optional());
+
 export const serviceAreaSchema = z.object({
   kind: serviceAreaKindEnum,
   value: z.string().min(1, "Value is required"),
   active: z.boolean().default(true),
+  // Optional per-PIN pricing, entered in rupees and stored in paise.
+  // Blank means "use the store-wide setting".
+  delivery_fee_rupees: optionalRupees,
+  charge_threshold_rupees: optionalRupees,
+  free_delivery_threshold_rupees: optionalRupees,
 });
 export type ServiceArea = z.infer<typeof serviceAreaSchema>;
 

@@ -72,6 +72,8 @@ export default function CouponsPage() {
   // Form states
   const [code, setCode] = useState("");
   const [description, setDescription] = useState("");
+  // Comma-separated PIN codes. Empty means the coupon works for every PIN.
+  const [pinCodesText, setPinCodesText] = useState("");
   const [discountType, setDiscountType] = useState<"percent_off" | "rupees_off" | "free_delivery">(
     "percent_off",
   );
@@ -209,6 +211,10 @@ export default function CouponsPage() {
               : null,
           category_ids: appliesTo === "categories" ? selectedCategoryIds : [],
           product_ids: appliesTo === "products" ? selectedProductIds : [],
+          pin_codes: pinCodesText
+            .split(",")
+            .map((entry) => entry.trim())
+            .filter(Boolean),
           min_order_paise: minOrderPaise,
           max_discount_paise: maxDiscountPaise,
           usage_limit: limit,
@@ -597,6 +603,24 @@ export default function CouponsPage() {
                   />
                 </div>
               )}
+
+              {/* PIN restriction: empty = all PIN codes */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  PIN codes (comma separated)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Blank = all PIN codes, e.g. 122001, 122002"
+                  value={pinCodesText}
+                  onChange={(e) => setPinCodesText(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  A customer whose delivery PIN is not in this list sees “This coupon is not
+                  available for your PIN code.”
+                </p>
+              </div>
 
               {/* Scope Selector: All / Categories / Products */}
               <div>

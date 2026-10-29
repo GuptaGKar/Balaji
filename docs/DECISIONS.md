@@ -449,3 +449,11 @@ Exact PIN codes/neighbourhoods · real delivery fee and free-delivery amount · 
 
 
 
+
+## R8 release failure: Retrofit generic signatures (2026-10-29)
+
+- **Symptom.** The minified release build launched fine but every network call failed with "Could not reach the store." After the owner signed in on an unminified build, the same session on the minified build showed "Could not load your account".
+- **Root cause.** R8 kept the annotated methods but not the API interfaces themselves, so the method generic `Signature` attribute was stripped. Retrofit then saw `Response<List<ProfileResponse>>` as a raw `Class` and threw `ClassCastException: java.lang.Class cannot be cast to java.lang.reflect.ParameterizedType` in `HttpServiceMethod.parseAnnotations`. Every repository `catch` swallowed the exception, so the UI only showed the generic connection message.
+- **Fix.** Added the official Retrofit 2.9 rules to `android/app/proguard-rules.pro`: `-if interface * { @retrofit2.http.* <methods>; }` + `-keep,allowobfuscation interface <1>`, keep rules for `retrofit2.Call`, `retrofit2.Response` and `kotlin.coroutines.Continuation`, and `-keepattributes Signature,InnerClasses,EnclosingMethod,AnnotationDefault`.
+- **Diagnosability.** `AuthRepository.requestOtp` and `AccountRepository.loadProfile` now log the exception class and stack (`Log.e`, no tokens or bodies). Without that line the defect was invisible; it is kept permanently.
+- **Verification on the device (R8 APK, same session, installed over the previous build):** login, Home with live catalogue, Requests showing the staff's `Accepted` change, Favourites list, and a complete order - accept, preparing, ready, out for delivery (dispatch proof), delivery proof, delivered (COD paid) - all on the release builds. Web build, headers and route protection also verified. pgTAP suites remain unexecuted (no Docker/Postgres).

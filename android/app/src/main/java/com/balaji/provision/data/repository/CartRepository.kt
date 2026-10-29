@@ -75,6 +75,9 @@ class CartRepositoryImpl @Inject constructor(
 
     @Volatile private var pendingCouponCode: String? = null
 
+    /** Delivery PIN used by the quote; null until an address is chosen. */
+    @Volatile private var deliveryPin: String? = null
+
     private val _cartFlow = MutableStateFlow<Cart>(Cart.empty())
     override val cartFlow: StateFlow<Cart> = _cartFlow.asStateFlow()
 
@@ -162,7 +165,8 @@ class CartRepositoryImpl @Inject constructor(
             val coupon = pendingCouponCode?.trim()?.takeIf { it.isNotBlank() }
             val request = QuoteCartRequest(
                 p_items = items.map { CartItemRequest(it.productId, it.qtyBase) },
-                p_coupon_code = coupon
+                p_coupon_code = coupon,
+                p_pin_code = deliveryPin
             )
             val anonKey = BuildConfig.SUPABASE_ANON_KEY
             val response = api.quoteCart(apiKey = anonKey, auth = "Bearer $anonKey", body = request)
@@ -331,6 +335,15 @@ class CartRepositoryImpl @Inject constructor(
         scheduleQuoteRefresh(debounceMillis = 0L)
     }
 
+    override fun setDeliveryPin(code: String?) {
+        val clean = code?.trim()?.takeIf { it.isNotBlank() }
+        if (clean == deliveryPin) return
+        deliveryPin = clean
+        // The PIN decides the fee and the free-delivery threshold, and a coupon can be
+        // limited to PINs, so the cart has to re-quote when the address changes.
+        scheduleQuoteRefresh(debounceMillis = 0L)
+    }
+
     private fun mapToQuoteBreakdown(response: QuoteCartResponse): QuoteBreakdown {
         return QuoteBreakdown(
             lines = response.lines.map { l ->
@@ -378,6 +391,8 @@ interface CartRepository {
     fun refreshQuote() {}
     fun applyCoupon(code: String) {}
     fun removeCoupon() {}
+    /** Selected delivery PIN; the quote uses its per-PIN fee when the store has one. */
+    fun setDeliveryPin(code: String?) {}
     suspend fun getCart(): Cart
     suspend fun addItem(item: CartItem): Cart
     suspend fun updateQuantity(productId: String, qtyBase: Long): Cart

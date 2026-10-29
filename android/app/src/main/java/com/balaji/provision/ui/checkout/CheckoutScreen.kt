@@ -149,6 +149,11 @@ fun CheckoutScreen(
         step -= 1
     }
 
+    // Per-PIN pricing: the fee and any PIN-restricted coupon follow the chosen address.
+    LaunchedEffect(selectedAddress?.postalCode) {
+        cartViewModel.setDeliveryPin(selectedAddress?.postalCode)
+    }
+
     LaunchedEffect(placement) {
         val failed = placement as? OrderPlacementState.Failed ?: return@LaunchedEffect
         cartViewModel.acknowledgeOrderPlacement()

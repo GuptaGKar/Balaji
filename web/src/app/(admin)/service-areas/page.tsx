@@ -9,7 +9,12 @@ import { cn } from "@/lib/utils";
 import { Plus, Edit, Trash2, Loader2, Save, X, MapPin, Building2 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 
-type ServiceAreaWithId = ServiceArea & { id: string };
+type ServiceAreaWithId = ServiceArea & {
+  id: string;
+  delivery_fee_paise: number | null;
+  delivery_charge_threshold_paise: number | null;
+  free_delivery_threshold_paise: number | null;
+};
 
 export default function ServiceAreasPage() {
   const [areas, setAreas] = useState<ServiceAreaWithId[]>([]);
@@ -43,13 +48,23 @@ export default function ServiceAreasPage() {
 
   const onSubmit = async (data: ServiceArea) => {
     const supabase = createClient();
+    // The form works in rupees; the database stores integer paise. Blank = store default.
+    const toPaise = (rupees?: number) => (rupees === undefined ? null : Math.round(rupees * 100));
+    const payload = {
+      kind: data.kind,
+      value: data.value.trim(),
+      active: data.active,
+      delivery_fee_paise: toPaise(data.delivery_fee_rupees),
+      delivery_charge_threshold_paise: toPaise(data.charge_threshold_rupees),
+      free_delivery_threshold_paise: toPaise(data.free_delivery_threshold_rupees),
+    };
     try {
       if (editingId) {
-        const { error } = await supabase.from("service_areas").update(data).eq("id", editingId);
+        const { error } = await supabase.from("service_areas").update(payload).eq("id", editingId);
         if (error) throw error;
         toast.success("Updated");
       } else {
-        const { error } = await supabase.from("service_areas").insert(data);
+        const { error } = await supabase.from("service_areas").insert(payload);
         if (error) {
           if (error.code === "23505") throw new Error("This PIN/neighbourhood already exists");
           throw error;
@@ -79,7 +94,21 @@ export default function ServiceAreasPage() {
   };
 
   const startEdit = (area: ServiceAreaWithId) => {
-    form.reset(area);
+    form.reset({
+      kind: area.kind,
+      value: area.value,
+      active: area.active,
+      delivery_fee_rupees:
+        area.delivery_fee_paise == null ? undefined : area.delivery_fee_paise / 100,
+      charge_threshold_rupees:
+        area.delivery_charge_threshold_paise == null
+          ? undefined
+          : area.delivery_charge_threshold_paise / 100,
+      free_delivery_threshold_rupees:
+        area.free_delivery_threshold_paise == null
+          ? undefined
+          : area.free_delivery_threshold_paise / 100,
+    });
     setEditingId(area.id);
   };
   const cancelEdit = () => {
@@ -173,7 +202,28 @@ export default function ServiceAreasPage() {
                         {area.kind}
                       </span>
                     </td>
-                    <td className="px-6 py-4 font-medium text-gray-900">{area.value}</td>
+                    <td className="px-6 py-4 font-medium text-gray-900">
+                      {area.value}
+                      <p className="mt-1 text-xs text-gray-500">
+                        {area.delivery_fee_paise == null &&
+                        area.delivery_charge_threshold_paise == null &&
+                        area.free_delivery_threshold_paise == null
+                          ? "Store-wide delivery pricing"
+                          : [
+                              area.delivery_fee_paise == null
+                                ? null
+                                : `Fee ₹${(area.delivery_fee_paise / 100).toFixed(2)}`,
+                              area.delivery_charge_threshold_paise == null
+                                ? null
+                                : `Charge above ₹${(area.delivery_charge_threshold_paise / 100).toFixed(2)}`,
+                              area.free_delivery_threshold_paise == null
+                                ? null
+                                : `Free at ₹${(area.free_delivery_threshold_paise / 100).toFixed(2)}`,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                      </p>
+                    </td>
                     <td className="px-6 py-4">
                       <span
                         className={cn(
@@ -272,6 +322,49 @@ function ServiceAreaForm({
             <option value="true">Active</option>
             <option value="false">Inactive</option>
           </select>
+        </div>
+        <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-indigo-200">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Delivery fee (₹)</label>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              {...form.register("delivery_fee_rupees")}
+              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
+              placeholder="Store default"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Charge fee below (₹)
+            </label>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              {...form.register("charge_threshold_rupees")}
+              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
+              placeholder="Store default"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Free delivery from (₹)
+            </label>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              {...form.register("free_delivery_threshold_rupees")}
+              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
+              placeholder="Store default"
+            />
+          </div>
+          <p className="md:col-span-3 text-xs text-gray-500">
+            Blank fields use the store-wide delivery settings. No minimum order is ever enforced — a
+            cart below the charge threshold is still accepted and pays this fee.
+          </p>
         </div>
         <div className="md:col-span-3 flex justify-end gap-3 pt-4 border-t border-indigo-200">
           <button
