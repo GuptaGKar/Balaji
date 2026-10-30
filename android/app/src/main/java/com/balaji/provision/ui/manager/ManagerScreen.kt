@@ -1513,19 +1513,21 @@ private fun ProofSection(
             Text("Dispatch & delivery proof", fontWeight = FontWeight.SemiBold)
             ProofRow(
                 label = "Dispatch",
-                detail = proofs["dispatch"]?.let { "Uploaded ($it)" }
+                detail = proofs["dispatch"]?.let { "Uploaded - tap View to open" }
                     ?: "Required before Out for delivery",
                 present = proofs.containsKey("dispatch"),
                 busy = uploadingStage == "dispatch",
-                onUpload = { onUpload("dispatch") }
+                onUpload = { onUpload("dispatch") },
+                url = proofs["dispatch"]
             )
             ProofRow(
                 label = "Delivery",
-                detail = proofs["delivery"]?.let { "Uploaded ($it)" }
+                detail = proofs["delivery"]?.let { "Uploaded - tap View to open" }
                     ?: "Required before Delivered",
                 present = proofs.containsKey("delivery"),
                 busy = uploadingStage == "delivery",
-                onUpload = { onUpload("delivery") }
+                onUpload = { onUpload("delivery") },
+                url = proofs["delivery"]
             )
         }
     }
@@ -1537,8 +1539,10 @@ private fun ProofRow(
     detail: String,
     present: Boolean,
     busy: Boolean,
-    onUpload: () -> Unit
+    onUpload: () -> Unit,
+    url: String? = null
 ) {
+    val context = LocalContext.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1556,8 +1560,24 @@ private fun ProofRow(
         if (busy) {
             CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
         } else {
-            OutlinedButton(onClick = onUpload) {
-                Text(if (present) "Replace" else "Upload")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (url != null) {
+                    // Hand the media to the device's viewer/gallery so photos and videos
+                    // actually open instead of showing a bare URL.
+                    TextButton(onClick = {
+                        runCatching {
+                            context.startActivity(
+                                android.content.Intent(
+                                    android.content.Intent.ACTION_VIEW,
+                                    Uri.parse(url)
+                                )
+                            )
+                        }
+                    }) { Text("View") }
+                }
+                OutlinedButton(onClick = onUpload) {
+                    Text(if (present) "Replace" else "Upload")
+                }
             }
         }
     }
