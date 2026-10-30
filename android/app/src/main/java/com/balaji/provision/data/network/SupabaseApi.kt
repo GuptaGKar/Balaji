@@ -189,6 +189,22 @@ interface SupabaseApi {
         @Query("limit") limit: Int = 1
     ): Response<List<StoreSettingsResponse>>
 
+    @POST("rest/v1/rpc/staff_store_status")
+    suspend fun staffStoreStatus(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Header("Content-Type") contentType: String = "application/json",
+        @Body body: Map<String, String> = emptyMap()
+    ): Response<StoreOpenResponse>
+
+    @POST("rest/v1/rpc/staff_set_store_open")
+    suspend fun staffSetStoreOpen(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Header("Content-Type") contentType: String = "application/json",
+        @Body body: Map<String, Boolean>
+    ): Response<StoreOpenResponse>
+
     // In-app release updates (public read)
     @POST("rest/v1/rpc/get_latest_app_release")
     suspend fun getLatestAppRelease(
@@ -549,6 +565,13 @@ data class CategoryResponse(
     val sort_order: Int,
     val active: Boolean,
     val image_path: String? = null
+)
+
+@Serializable
+data class StoreOpenResponse(
+    // The RPC returns snake_case; the property matches so no SerialName is needed here.
+    val store_open: Boolean = true,
+    val previous: Boolean? = null
 )
 
 @Serializable

@@ -29,7 +29,7 @@ interface BannerItem {
 }
 
 const BANNER_IMAGE_BUCKET = "banner-images";
-const BANNER_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
+const BANNER_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 const BANNER_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 const BANNER_IMAGE_URL_PREFIX = `${(process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "")}/storage/v1/object/public/${BANNER_IMAGE_BUCKET}/`;
 
@@ -88,7 +88,7 @@ function validateBannerFile(file: File): string | null {
   }
   if (file.size > BANNER_IMAGE_MAX_BYTES) {
     const sizeMb = (file.size / 1024 / 1024).toFixed(1);
-    return `That image is ${sizeMb} MB. The maximum size is 2 MB.`;
+    return `That image is ${sizeMb} MB. The maximum size is 10 MB.`;
   }
   return null;
 }
@@ -610,7 +610,7 @@ export default function SettingsPage() {
 
         <Section
           title="Mobile App Promotional Banners"
-          description="Upload the rotating hero images shown at the top of the Android app. JPEG, PNG or WebP up to 2 MB; a wide 2:1 image works best."
+          description="Upload the rotating hero images shown at the top of the Android app. JPEG, PNG or WebP up to 10 MB; a wide 2:1 image works best."
         >
           <div className="space-y-4">
             {banners.map((banner, index) => {
@@ -855,7 +855,7 @@ function BannerImageField({
       <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
         <label className="block text-xs font-semibold text-slate-700">Banner Image</label>
         <span className="text-[11px] font-medium text-slate-500">
-          JPEG, PNG or WebP · max 2 MB · wide 2:1 image
+          JPEG, PNG or WebP · max 10 MB · wide 2:1 image
         </span>
       </div>
 
@@ -995,7 +995,7 @@ function BannerImageField({
                 Drop an image here or click to choose
               </span>
               <span className="text-xs text-slate-500">
-                JPEG, PNG or WebP up to 2 MB. A wide 2:1 image works best.
+                JPEG, PNG or WebP up to 10 MB. A wide 2:1 image works best.
               </span>
             </>
           )}

@@ -2,6 +2,8 @@
 
 Hyperlocal grocery ordering platform: a native **Android customer app** and a separate **store-management website** (`web/`, Next.js) sharing one **Supabase** backend (Postgres, Auth, Storage, Realtime). Single store, single inventory, local delivery area, low budget, modular monolith.
 
+> **Current status, scope, open problems and targets:** see [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md). Test evidence is in [`QA_LOG.md`](QA_LOG.md); dated decisions are in [`docs/DECISIONS.md`](docs/DECISIONS.md).
+
 > Planning baseline only — not legal, tax, payment-provider, or security certification.
 > Store contact: **9837803293**. Online payments are **disabled** until milestone M11 passes.
 

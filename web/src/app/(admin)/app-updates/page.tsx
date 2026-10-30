@@ -140,6 +140,18 @@ export default function AppUpdatesPage() {
 
         if (uploadError) throw uploadError;
 
+        // Keep the permanent download link alive: the printed QR codes point at
+        // <audience>/latest.apk, so every publish must overwrite that object.
+        await supabase.storage
+          .from(STORAGE_BUCKET)
+          .upload(`${audience}/latest.apk`, selectedFile, {
+            contentType: "application/vnd.android.package-archive",
+            upsert: true,
+            // The printed QR points here; a long CDN cache would serve the previous
+            // build for up to an hour after a release.
+            cacheControl: "60",
+          });
+
         setUploadProgress(85);
         const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
         finalApkUrl = urlData.publicUrl;

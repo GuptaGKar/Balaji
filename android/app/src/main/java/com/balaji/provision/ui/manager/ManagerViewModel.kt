@@ -34,6 +34,8 @@ data class ManagerUiState(
     val adjustingProductId: String? = null,
     val products: List<Product> = emptyList(),
     val isProductsLoading: Boolean = false,
+    val storeOpen: Boolean = true,
+    val isStoreToggleInProgress: Boolean = false,
     val updatingPriceProductId: String? = null,
     val message: String? = null,
     val actionError: String? = null
@@ -57,6 +59,25 @@ class ManagerViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ManagerUiState())
+
+    fun setStoreOpen(open: Boolean) {
+        if (_state.value.isStoreToggleInProgress) return
+        _state.update { it.copy(isStoreToggleInProgress = true, actionError = null, message = null) }
+        viewModelScope.launch {
+            when (val result = repository.setStoreOpen(open)) {
+                is ManagerResult.Success -> _state.update {
+                    it.copy(
+                        storeOpen = result.value,
+                        isStoreToggleInProgress = false,
+                        message = if (result.value) "Store opened" else "Store closed"
+                    )
+                }
+                is ManagerResult.Failure -> _state.update {
+                    it.copy(isStoreToggleInProgress = false, actionError = result.message)
+                }
+            }
+        }
+    }
     val state: StateFlow<ManagerUiState> = _state.asStateFlow()
 
     private var loadJob: Job? = null
@@ -66,6 +87,13 @@ class ManagerViewModel @Inject constructor(
     }
 
     fun refresh() {
+        // Keep the header switch honest even when another device changed the status.
+        viewModelScope.launch {
+            when (val status = repository.storeStatus()) {
+                is ManagerResult.Success -> _state.update { it.copy(storeOpen = status.value) }
+                is ManagerResult.Failure -> Unit
+            }
+        }
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
             val hasData = _state.value.orders.isNotEmpty() || _state.value.lowStock.isNotEmpty()

@@ -36,6 +36,10 @@ sealed interface ManagerResult<out T> {
 }
 
 interface ManagerRepository {
+    suspend fun storeStatus(): ManagerResult<Boolean>
+
+    suspend fun setStoreOpen(open: Boolean): ManagerResult<Boolean>
+
     suspend fun loadOrders(): ManagerResult<List<ManagerOrder>>
     suspend fun loadOrderItems(orderId: String): ManagerResult<List<ManagerOrderLine>>
     suspend fun loadRiders(): ManagerResult<List<RiderOption>>
@@ -75,6 +79,35 @@ class ManagerRepositoryImpl @Inject constructor(
 ) : ManagerRepository {
 
     private val json = Json { ignoreUnknownKeys = true }
+
+    override suspend fun storeStatus(): ManagerResult<Boolean> = call { token ->
+        val response = api.staffStoreStatus(
+            apiKey = BuildConfig.SUPABASE_ANON_KEY,
+            auth = "Bearer $token"
+        )
+        if (response.isSuccessful) {
+            ManagerResult.Success(response.body()?.store_open ?: true)
+        } else {
+            ManagerResult.Failure(
+                response.errorBody()?.string() ?: "Could not read the store status"
+            )
+        }
+    }
+
+    override suspend fun setStoreOpen(open: Boolean): ManagerResult<Boolean> = call { token ->
+        val response = api.staffSetStoreOpen(
+            apiKey = BuildConfig.SUPABASE_ANON_KEY,
+            auth = "Bearer $token",
+            body = mapOf("p_open" to open)
+        )
+        if (response.isSuccessful) {
+            ManagerResult.Success(response.body()?.store_open ?: open)
+        } else {
+            ManagerResult.Failure(
+                response.errorBody()?.string() ?: "Could not update the store status"
+            )
+        }
+    }
 
     override suspend fun loadOrders(): ManagerResult<List<ManagerOrder>> = call { token ->
         val response = api.getManagerOrders(

@@ -56,7 +56,9 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import android.net.Uri
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -118,6 +120,75 @@ fun ManagerScreen(
         }
     }
 
+    val context = LocalContext.current
+    var proofMenuStage by remember { mutableStateOf<String?>(null) }
+    var captureUri by remember { mutableStateOf<Uri?>(null) }
+
+    // Camera and video come from the system apps through FileProvider, so the staff
+    // build needs no CAMERA permission and no new manifest entry.
+    fun newCaptureUri(extension: String): Uri {
+        val dir = java.io.File(context.cacheDir, "proofs").apply { mkdirs() }
+        val file = java.io.File(dir, "proof-${System.currentTimeMillis()}.$extension")
+        return androidx.core.content.FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file
+        )
+    }
+
+    val capturePhoto = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        val uri = captureUri
+        val orderId = state.selectedOrderId
+        if (ok && uri != null && orderId != null) {
+            proofViewModel.upload(orderId, proofStage, uri)
+        }
+    }
+    val captureVideo = rememberLauncherForActivityResult(ActivityResultContracts.CaptureVideo()) { ok ->
+        val uri = captureUri
+        val orderId = state.selectedOrderId
+        if (ok && uri != null && orderId != null) {
+            proofViewModel.upload(orderId, proofStage, uri)
+        }
+    }
+
+    proofMenuStage?.let { stage ->
+        AlertDialog(
+            onDismissRequest = { proofMenuStage = null },
+            title = { Text("Verification proof") },
+            text = {
+                Text(
+                    if (stage == "dispatch") {
+                        "Capture a photo or record a video of the packed order. A proof is required before Out for delivery."
+                    } else {
+                        "Capture a photo or record a video at handover. A proof is required before Delivered."
+                    }
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val uri = newCaptureUri("jpg")
+                    captureUri = uri
+                    proofMenuStage = null
+                    capturePhoto.launch(uri)
+                }) { Text("Take photo") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        val uri = newCaptureUri("mp4")
+                        captureUri = uri
+                        proofMenuStage = null
+                        captureVideo.launch(uri)
+                    }) { Text("Record video") }
+                    TextButton(onClick = {
+                        proofMenuStage = null
+                        proofPicker.launch(arrayOf("image/*", "video/*"))
+                    }) { Text("Upload file") }
+                }
+            }
+        )
+    }
+
     LaunchedEffect(state.selectedOrderId) {
         state.selectedOrderId?.let { proofViewModel.load(it) }
     }
@@ -160,6 +231,35 @@ fun ManagerScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (state.storeOpen) "Store is open" else "Store is closed",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = if (state.storeOpen) {
+                            "Customers can browse and place orders."
+                        } else {
+                            "Customers see the store as closed. Orders already placed still go through."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = state.storeOpen,
+                    enabled = !state.isStoreToggleInProgress,
+                    onCheckedChange = { viewModel.setStoreOpen(it) }
+                )
+            }
+
             TabRow(selectedTabIndex = selectedTab) {
                 listOf("Overview", "Orders", "Stock", "Requests").forEachIndexed { index, label ->
                     Tab(
@@ -231,7 +331,7 @@ fun ManagerScreen(
             uploadingStage = proofState.uploadingStage,
             onUploadProof = { stage ->
                 proofStage = stage
-                proofPicker.launch(arrayOf("image/*", "video/*"))
+                proofMenuStage = stage
             },
             onAssignRider = {
                 viewModel.loadRiders()
