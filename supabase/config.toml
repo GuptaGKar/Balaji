@@ -58,8 +58,11 @@ enable_confirmations = true
 [auth.rate_limit]
 sms_sent = 30
 
+# Disabled locally: this block only affects `supabase start`/config push, and the
+# current CLI refuses to parse `env(VAR)` in `secrets`, which blocked every CLI command
+# (migrations, functions deploy). The hosted SMS hook is configured in the dashboard.
 [auth.hook.send_sms]
-enabled = true
+enabled = false
 uri = "http://host.docker.internal:54321/functions/v1/send-sms-hook"
 secrets = "env(SEND_SMS_HOOK_SECRET)"
 

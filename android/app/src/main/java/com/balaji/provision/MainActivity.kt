@@ -105,6 +105,13 @@ import kotlinx.coroutines.delay
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.balaji.provision.push.PushChannels.ensure(this)
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1001)
+        }
         enableEdgeToEdge()
         setContent {
             if (BuildConfig.IS_STAFF) {
@@ -144,6 +151,8 @@ fun MainAppScreen(
     // Update prompts live above the flavour switch so both the customer and the
     // staff/rider builds receive the releases published for their audience.
     val updateViewModel: AppUpdateViewModel = hiltViewModel()
+    // Keeps this install registered for push once the session is available (both flavours).
+    hiltViewModel<com.balaji.provision.push.PushSyncViewModel>()
     val updateState by updateViewModel.state.collectAsState()
 
     InAppUpdateDialog(

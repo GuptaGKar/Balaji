@@ -189,6 +189,15 @@ interface SupabaseApi {
         @Query("limit") limit: Int = 1
     ): Response<List<StoreSettingsResponse>>
 
+    @POST("rest/v1/device_tokens")
+    suspend fun upsertDeviceToken(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Header("Prefer") prefer: String = "resolution=merge-duplicates",
+        @Header("Content-Type") contentType: String = "application/json",
+        @Body body: DeviceTokenBody
+    ): Response<Unit>
+
     @POST("rest/v1/rpc/staff_store_status")
     suspend fun staffStoreStatus(
         @Header("apikey") apiKey: String,
@@ -565,6 +574,13 @@ data class CategoryResponse(
     val sort_order: Int,
     val active: Boolean,
     val image_path: String? = null
+)
+
+@Serializable
+data class DeviceTokenBody(
+    val user_id: String,
+    val token: String,
+    val app_flavour: String
 )
 
 @Serializable

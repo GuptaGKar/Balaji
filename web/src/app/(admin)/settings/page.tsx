@@ -690,7 +690,7 @@ export default function SettingsPage() {
 
         <Section
           title="Delivery Fee Configuration"
-          description="Amounts are stored as integer paise and applied by the server pricing engine"
+          description="Amounts are entered in rupees and applied by the server pricing engine"
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>

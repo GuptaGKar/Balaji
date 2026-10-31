@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "47492928789",
+    "project_id": "balaji-prov",
+    "storage_bucket": "balaji-prov.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:47492928789:android:a8b19668cd60a75783c51c",
+        "android_client_info": {
+          "package_name": "com.balaji.provision"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDlVbbBjN3AZqt7bgpnHKCtf515Nhy01aY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:47492928789:android:40f16f33eeae722783c51c",
+        "android_client_info": {
+          "package_name": "com.balaji.provision.staff"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDlVbbBjN3AZqt7bgpnHKCtf515Nhy01aY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
