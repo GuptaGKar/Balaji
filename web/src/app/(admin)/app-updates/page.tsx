@@ -11,6 +11,8 @@ import {
   Clock,
   ShieldAlert,
   Sparkles,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +35,8 @@ const MAX_APK_BYTES = 150 * 1024 * 1024; // 150MB
 export default function AppUpdatesPage() {
   const [releases, setReleases] = useState<AppReleaseItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<AppReleaseItem | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -114,6 +118,32 @@ export default function AppUpdatesPage() {
       return;
     }
 
+    if (minCode > vCode) {
+      setError("The minimum required code cannot be higher than this build's code.");
+      return;
+    }
+
+    // Guard against the "wrong details" loop: publishing a build that is not newer than
+    // what is already live makes every installed phone re-prompt for an update that can
+    // never install (or installs the same version again).
+    const latestForAudience = releases
+      .filter((r) => r.audience === audience && r.is_active)
+      .sort((a, b) => b.version_code - a.version_code)[0];
+
+    if (latestForAudience && vCode <= latestForAudience.version_code) {
+      setError(
+        `Build ${vCode} is not higher than the live build ${latestForAudience.version_code} ` +
+          `(v${latestForAudience.version_name}). Publishing it would make every phone re-prompt ` +
+          `for an update it cannot install. Rebuild with a higher versionCode.`,
+      );
+      return;
+    }
+
+    if (uploadMethod === "upload" && selectedFile && selectedFile.size < 300 * 1024) {
+      setError("That file is too small to be the release APK. Pick the signed release build.");
+      return;
+    }
+
     let finalApkUrl = directUrl.trim();
 
     if (uploadMethod === "upload") {
@@ -142,15 +172,13 @@ export default function AppUpdatesPage() {
 
         // Keep the permanent download link alive: the printed QR codes point at
         // <audience>/latest.apk, so every publish must overwrite that object.
-        await supabase.storage
-          .from(STORAGE_BUCKET)
-          .upload(`${audience}/latest.apk`, selectedFile, {
-            contentType: "application/vnd.android.package-archive",
-            upsert: true,
-            // The printed QR points here; a long CDN cache would serve the previous
-            // build for up to an hour after a release.
-            cacheControl: "60",
-          });
+        await supabase.storage.from(STORAGE_BUCKET).upload(`${audience}/latest.apk`, selectedFile, {
+          contentType: "application/vnd.android.package-archive",
+          upsert: true,
+          // The printed QR points here; a long CDN cache would serve the previous
+          // build for up to an hour after a release.
+          cacheControl: "60",
+        });
 
         setUploadProgress(85);
         const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
@@ -204,6 +232,72 @@ export default function AppUpdatesPage() {
     } finally {
       setUploading(false);
       setUploadProgress(0);
+    }
+  };
+
+  const saveReleaseEdits = async () => {
+    if (!editing) return;
+    setError(null);
+    if (!editing.version_name.trim() || editing.version_code <= 0) {
+      setError("Version name and a positive code are required.");
+      return;
+    }
+    if (editing.min_version_code > editing.version_code) {
+      setError("The minimum code cannot be higher than the build's code.");
+      return;
+    }
+    setBusyId(editing.id);
+    try {
+      const supabase = createClient();
+      const { error: updateErr } = await supabase
+        .from("app_releases")
+        .update({
+          version_name: editing.version_name.trim(),
+          version_code: editing.version_code,
+          min_version_code: editing.min_version_code,
+          release_notes: editing.release_notes.trim(),
+          force_update: editing.force_update,
+          is_active: editing.is_active,
+        })
+        .eq("id", editing.id);
+      if (updateErr) throw updateErr;
+      setSuccessMsg(`Updated v${editing.version_name} (build ${editing.version_code}).`);
+      setEditing(null);
+      await fetchReleases();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Could not update the release.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const deleteRelease = async (release: AppReleaseItem) => {
+    if (
+      !window.confirm(
+        `Permanently delete v${release.version_name} (build ${release.version_code}) for ${release.audience}? ` +
+          "The APK is removed from storage too. Installed phones keep working; they simply stop being offered this update.",
+      )
+    ) {
+      return;
+    }
+    setBusyId(release.id);
+    setError(null);
+    try {
+      const supabase = createClient();
+      const marker = "/object/public/app-releases/";
+      const idx = release.apk_url.indexOf(marker);
+      if (idx >= 0) {
+        const path = decodeURIComponent(release.apk_url.slice(idx + marker.length));
+        await supabase.storage.from(STORAGE_BUCKET).remove([path]);
+      }
+      const { error: delErr } = await supabase.from("app_releases").delete().eq("id", release.id);
+      if (delErr) throw delErr;
+      setSuccessMsg(`Deleted v${release.version_name} (build ${release.version_code}).`);
+      await fetchReleases();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Could not delete the release.");
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -474,6 +568,94 @@ export default function AppUpdatesPage() {
           </form>
         </div>
 
+        {editing && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+            <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl space-y-4">
+              <h3 className="text-lg font-bold text-slate-900">
+                Edit v{editing.version_name} ({editing.audience})
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-xs text-slate-600">
+                  Version name
+                  <input
+                    value={editing.version_name}
+                    onChange={(e) => setEditing({ ...editing, version_name: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="text-xs text-slate-600">
+                  Version code
+                  <input
+                    type="number"
+                    value={editing.version_code}
+                    onChange={(e) =>
+                      setEditing({ ...editing, version_code: Number(e.target.value) || 0 })
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="text-xs text-slate-600">
+                  Minimum code
+                  <input
+                    type="number"
+                    value={editing.min_version_code}
+                    onChange={(e) =>
+                      setEditing({ ...editing, min_version_code: Number(e.target.value) || 1 })
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </label>
+                <div className="flex flex-col justify-end gap-2 text-sm">
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={editing.force_update}
+                      onChange={(e) => setEditing({ ...editing, force_update: e.target.checked })}
+                    />
+                    Mandatory
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={editing.is_active}
+                      onChange={(e) => setEditing({ ...editing, is_active: e.target.checked })}
+                    />
+                    Active
+                  </label>
+                </div>
+              </div>
+              <label className="block text-xs text-slate-600">
+                Release notes
+                <textarea
+                  value={editing.release_notes}
+                  onChange={(e) => setEditing({ ...editing, release_notes: e.target.value })}
+                  rows={3}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                />
+              </label>
+              <p className="text-xs text-slate-500">
+                Raising the code here does not change the APK. To stop a bad update from looping on
+                phones, archive it or delete it and publish a build with a higher code.
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setEditing(null)}
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveReleaseEdits}
+                  disabled={busyId === editing.id}
+                  className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                >
+                  Save changes
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Release History */}
         <div className="lg:col-span-7 space-y-4">
           <div className="flex items-center justify-between pb-2 border-b border-slate-200">
@@ -540,6 +722,21 @@ export default function AppUpdatesPage() {
                         )}
                       >
                         {rel.is_active ? "Active" : "Archived"}
+                      </button>
+                      <button
+                        onClick={() => setEditing({ ...rel })}
+                        title="Edit version details"
+                        className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => deleteRelease(rel)}
+                        disabled={busyId === rel.id}
+                        title="Delete this release"
+                        className="p-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   </div>
