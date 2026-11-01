@@ -78,7 +78,7 @@ interface SupabaseApi {
         @Header("apikey") apiKey: String,
         @Header("Authorization") auth: String,
         @Query("customer_id") customerId: String? = null,
-        @Query("select") select: String = "id,public_order_number,status,payment_method,payment_status,item_subtotal_paise,delivery_fee_paise,tax_paise,grand_total_paise,created_at,accepted_at,delivered_at,order_items(id,sku_snapshot,name_snapshot,quantity_type_snapshot,unit_label_snapshot,price_basis_qty_snapshot,qty_base,unit_price_paise,line_total_paise,removed_at,removed_reason)",
+        @Query("select") select: String = "id,public_order_number,status,payment_method,payment_status,item_subtotal_paise,delivery_fee_paise,tax_paise,grand_total_paise,created_at,accepted_at,delivered_at,order_items(id,sku_snapshot,name_snapshot,quantity_type_snapshot,unit_label_snapshot,price_basis_qty_snapshot,qty_base,unit_price_paise,line_total_paise,removed_at,removed_reason,products(image_path))",
         @Query("order") order: String = "created_at.desc",
         @Query("limit") limit: Int = 100
     ): Response<List<OrderResponse>>
@@ -118,7 +118,7 @@ interface SupabaseApi {
         @Header("Authorization") auth: String,
         @Query("order_id") orderId: String,
         @Query("select") select: String =
-            "id,sku_snapshot,name_snapshot,quantity_type_snapshot,unit_label_snapshot,qty_base,unit_price_paise,line_total_paise,removed_at,removed_reason",
+            "id,sku_snapshot,name_snapshot,quantity_type_snapshot,unit_label_snapshot,qty_base,unit_price_paise,line_total_paise,removed_at,removed_reason,is_free_item,products(image_path)",
         @Query("order") order: String? = null
     ): Response<List<ManagerOrderItemResponse>>
 
@@ -188,6 +188,19 @@ interface SupabaseApi {
         @Query("select") select: String = "store_open,contact_phone,estimated_window_text,timezone,weekly_hours,delivery_fee_paise,delivery_charge_threshold_paise,free_delivery_threshold_paise,mid_tier_fee_paise,max_order_paise,cancellation_policy_text,tax_mode,tax_rate_bps,online_payment_enabled",
         @Query("limit") limit: Int = 1
     ): Response<List<StoreSettingsResponse>>
+
+    /**
+     * Server-side delivery pricing for one PIN code. Used so descriptive surfaces
+     * (the home strip) quote the same per-PIN rule the cart and checkout use,
+     * instead of the store-wide fallback.
+     */
+    @POST("rest/v1/rpc/compute_delivery_fee_for_pin")
+    suspend fun computeDeliveryFeeForPin(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Header("Content-Type") contentType: String = "application/json",
+        @Body body: DeliveryFeeRequest
+    ): Response<List<DeliveryFeeResponse>>
 
     @POST("rest/v1/device_tokens")
     suspend fun upsertDeviceToken(
@@ -591,11 +604,27 @@ data class StoreOpenResponse(
 )
 
 @Serializable
+data class DeliveryFeeRequest(
+    val p_eligible_subtotal: Long,
+    val p_pin_code: String
+)
+
+@Serializable
+data class DeliveryFeeResponse(
+    val fee_paise: Long = 0L,
+    val rule_note: String = "",
+    val below_charge_threshold: Boolean = false,
+    val amount_to_free_delivery: Long = 0L
+)
+
+@Serializable
 data class QuoteCartRequest(
     val p_items: List<CartItemRequest>,
     val p_coupon_code: String? = null,
     /** Delivery PIN code; selects the per-PIN fee/free-delivery thresholds. */
-    val p_pin_code: String? = null
+    val p_pin_code: String? = null,
+    /** Gift chosen from a free_item coupon's pool; the server validates it. */
+    val p_free_item_id: String? = null
 )
 
 @Serializable
@@ -617,7 +646,22 @@ data class QuoteCartResponse(
     val amount_to_free_delivery: Long,
     val coupon_code: String? = null,
     val coupon_applied: Boolean = false,
-    val coupon_error: String? = null
+    val coupon_error: String? = null,
+    val free_item_options: List<FreeItemOptionResponse> = emptyList(),
+    val free_item_selected_id: String? = null,
+    val free_item_selection_required: Boolean = false,
+    val free_item_error: String? = null
+)
+
+/** One claimable gift in a free-item coupon's pool. */
+@Serializable
+data class FreeItemOptionResponse(
+    val product_id: String,
+    val name: String,
+    val image_path: String? = null,
+    val display_qty: String = "",
+    val regular_price_paise: Long = 0,
+    val claimable: Boolean = true
 )
 
 @Serializable
@@ -629,7 +673,8 @@ data class QuoteLine(
     val unit_price_paise: Long,
     val line_total_paise: Long,
     val available: Boolean,
-    val error: String? = null
+    val error: String? = null,
+    val is_free_item: Boolean = false
 )
 
 @Serializable
@@ -644,7 +689,9 @@ data class PlaceOrderPayload(
     val address: AddressRequest,
     val payment_method: String = "cod",
     val customer_note: String? = null,
-    val coupon_code: String? = null
+    val coupon_code: String? = null,
+    /** Gift picked from a free_item coupon; validated and priced at 0 by the server. */
+    val free_item_product_id: String? = null
 )
 
 
@@ -724,7 +771,14 @@ data class OrderItemResponse(
     val quantity_type_snapshot: String? = null,
     val unit_label_snapshot: String? = null,
     val removed_at: String? = null,
-    val removed_reason: String? = null
+    val removed_reason: String? = null,
+    val products: OrderItemProductResponse? = null
+)
+
+/** Embedded product columns on an order item (FK order_items.product_id). */
+@Serializable
+data class OrderItemProductResponse(
+    val image_path: String? = null
 )
 
 @Serializable
@@ -978,7 +1032,8 @@ data class ManagerOrderResponse(
     val customer_note: String? = null,
     val item_subtotal_paise: Long = 0L,
     val delivery_fee_paise: Long = 0L,
-    val tax_paise: Long = 0L
+    val tax_paise: Long = 0L,
+    val coupon_code: String? = null
 )
 
 @Serializable
@@ -992,7 +1047,9 @@ data class ManagerOrderItemResponse(
     val unit_price_paise: Long = 0L,
     val line_total_paise: Long = 0L,
     val removed_at: String? = null,
-    val removed_reason: String? = null
+    val removed_reason: String? = null,
+    val is_free_item: Boolean = false,
+    val products: OrderItemProductResponse? = null
 )
 
 @Serializable

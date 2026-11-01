@@ -685,20 +685,30 @@ private fun CategoryFallbackIcon(name: String, iconSize: androidx.compose.ui.uni
 }
 
 /**
- * Free-delivery progress block shown in the cart and at checkout. [amountToFree]
- * comes from the server quote; the threshold is derived, never hardcoded.
+ * Free-delivery progress block shown in the cart and at checkout. [amountToFree],
+ * [deliveryFeePaise] and the threshold all come from the server quote; nothing is
+ * hardcoded.
+ *
+ * "Unlocked" is decided by the fee actually charged, not by the distance remaining:
+ * a store with no free-delivery tier reports 0 remaining while still charging a fee,
+ * which would otherwise read as "free delivery unlocked" above a paid delivery line.
  */
 @Composable
 fun FreeDeliveryProgress(
     subtotalPaise: Long,
     amountToFreePaise: Long,
+    deliveryFeePaise: Long,
     modifier: Modifier = Modifier,
     compact: Boolean = false
 ) {
-    val unlocked = amountToFreePaise <= 0L
-    val threshold = if (unlocked) subtotalPaise else subtotalPaise + amountToFreePaise
-    val progress = if (threshold <= 0L) 1f else {
-        (subtotalPaise.toFloat() / threshold.toFloat()).coerceIn(0f, 1f)
+    val unlocked = deliveryFeePaise <= 0L
+    val hasTarget = !unlocked && amountToFreePaise > 0L
+    val threshold = subtotalPaise + amountToFreePaise
+    val progress = when {
+        unlocked -> 1f
+        hasTarget && threshold > 0L ->
+            (subtotalPaise.toFloat() / threshold.toFloat()).coerceIn(0f, 1f)
+        else -> 0f
     }
     val accent = if (unlocked) MaterialTheme.appColors.success else MaterialTheme.colorScheme.primary
     val container = if (unlocked) {
@@ -722,10 +732,10 @@ fun FreeDeliveryProgress(
                 modifier = Modifier.size(16.dp)
             )
             Text(
-                text = if (unlocked) {
-                    "Free delivery unlocked"
-                } else {
-                    "Free delivery above ${formatPaise(threshold)}"
+                text = when {
+                    unlocked -> "Free delivery unlocked"
+                    hasTarget -> "Free delivery above ${formatPaise(threshold)}"
+                    else -> "${formatPaise(deliveryFeePaise)} delivery charge applies"
                 },
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.SemiBold,
@@ -736,19 +746,22 @@ fun FreeDeliveryProgress(
                 }
             )
         }
-        LinearProgressIndicator(
-            progress = progress,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(6.dp),
-            color = if (unlocked) MaterialTheme.appColors.success else MaterialTheme.colorScheme.primary,
-            trackColor = if (unlocked) {
-                MaterialTheme.appColors.success.copy(alpha = 0.25f)
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant
-            }
-        )
-        if (!unlocked) {
+        // A progress bar needs a destination; with no free tier configured there is none.
+        if (unlocked || hasTarget) {
+            LinearProgressIndicator(
+                progress = progress,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp),
+                color = if (unlocked) MaterialTheme.appColors.success else MaterialTheme.colorScheme.primary,
+                trackColor = if (unlocked) {
+                    MaterialTheme.appColors.success.copy(alpha = 0.25f)
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant
+                }
+            )
+        }
+        if (hasTarget) {
             Text(
                 text = "Add ${formatPaise(amountToFreePaise)} more for free delivery",
                 style = MaterialTheme.typography.labelSmall,

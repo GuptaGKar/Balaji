@@ -67,6 +67,7 @@ import com.balaji.provision.ui.components.EmptyState
 import com.balaji.provision.ui.components.ErrorState
 import com.balaji.provision.ui.components.LoadingState
 import com.balaji.provision.ui.components.MoneyText
+import com.balaji.provision.ui.components.ProductThumb
 import com.balaji.provision.ui.components.StatusPill
 import com.balaji.provision.ui.components.StoreTopBar
 import com.balaji.provision.ui.theme.appColors
@@ -538,9 +539,14 @@ fun OrderCard(
                 order.items.forEach { item ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.Top
                     ) {
+                        ProductThumb(
+                            name = item.name,
+                            imageUrl = item.imagePath,
+                            size = 44
+                        )
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 item.name,

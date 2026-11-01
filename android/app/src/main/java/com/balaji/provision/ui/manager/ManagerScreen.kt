@@ -29,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Logout
@@ -86,6 +87,9 @@ import com.balaji.provision.domain.model.ManagerOrder
 import com.balaji.provision.domain.model.ManagerOrderAction
 import com.balaji.provision.domain.model.ManagerOrderLine
 import com.balaji.provision.domain.model.formatPaise
+import com.balaji.provision.ui.components.LoadingState
+import com.balaji.provision.ui.components.ProductThumb
+import com.balaji.provision.ui.theme.appColors
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
@@ -226,6 +230,17 @@ fun ManagerScreen(
             )
         }
     ) { padding ->
+        if (state.itemsPageOrderId != null) {
+            // Full-screen "See items" page replaces the tab content.
+            OrderItemsPage(
+                state = state,
+                onBack = viewModel::closeItemsPage,
+                onRetry = { state.itemsPageOrderId?.let(viewModel::openItemsPage) },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            )
+        } else {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -282,6 +297,7 @@ fun ManagerScreen(
                     state = state,
                     isManager = role == "manager",
                     onOpenOrders = { selectedTab = 1 },
+                    onSeeItems = viewModel::openItemsPage,
                     onOpenOrder = { order ->
                         selectedTab = 1
                         viewModel.openOrder(order.id)
@@ -289,7 +305,8 @@ fun ManagerScreen(
                 )
                 selectedTab == 1 -> OrdersTab(
                     state = state,
-                    onOpenOrder = viewModel::openOrder
+                    onOpenOrder = viewModel::openOrder,
+                    onSeeItems = viewModel::openItemsPage
                 )
                 selectedTab == 2 -> StockTab(
                     state = state,
@@ -298,6 +315,7 @@ fun ManagerScreen(
                 )
                 else -> StaffRequestsTab()
             }
+        }
         }
     }
 
@@ -450,7 +468,8 @@ private fun OverviewTab(
     state: ManagerUiState,
     isManager: Boolean,
     onOpenOrders: () -> Unit,
-    onOpenOrder: (ManagerOrder) -> Unit
+    onOpenOrder: (ManagerOrder) -> Unit,
+    onSeeItems: (String) -> Unit
 ) {
     val dashboardUrl = BuildConfig.STAFF_WEB_URL.trim().trimEnd('/')
     val context = LocalContext.current
@@ -514,7 +533,11 @@ private fun OverviewTab(
             }
         } else {
             items(recent, key = { it.id }) { order ->
-                ManagerOrderCard(order = order, onClick = { onOpenOrder(order) })
+                ManagerOrderCard(
+                    order = order,
+                    onClick = { onOpenOrder(order) },
+                    onSeeItems = { onSeeItems(order.id) }
+                )
             }
         }
         item {
@@ -634,7 +657,8 @@ private fun WebToolsCard(
 @Composable
 private fun OrdersTab(
     state: ManagerUiState,
-    onOpenOrder: (String) -> Unit
+    onOpenOrder: (String) -> Unit,
+    onSeeItems: (String) -> Unit
 ) {
     var search by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable { mutableStateOf("all") }
@@ -702,7 +726,11 @@ private fun OrdersTab(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 items(visible, key = { it.id }) { order ->
-                    ManagerOrderCard(order = order, onClick = { onOpenOrder(order.id) })
+                    ManagerOrderCard(
+                        order = order,
+                        onClick = { onOpenOrder(order.id) },
+                        onSeeItems = { onSeeItems(order.id) }
+                    )
                 }
             }
         }
@@ -710,7 +738,11 @@ private fun OrdersTab(
 }
 
 @Composable
-private fun ManagerOrderCard(order: ManagerOrder, onClick: () -> Unit) {
+private fun ManagerOrderCard(
+    order: ManagerOrder,
+    onClick: () -> Unit,
+    onSeeItems: () -> Unit
+) {
     Card(onClick = onClick, shape = RoundedCornerShape(14.dp)) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -746,6 +778,12 @@ private fun ManagerOrderCard(order: ManagerOrder, onClick: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+            OutlinedButton(
+                onClick = onSeeItems,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("See items")
+            }
         }
     }
 }
@@ -763,6 +801,7 @@ private fun StockTab(
             p.name.contains(query, ignoreCase = true) ||
             p.sku.contains(query, ignoreCase = true)
     }
+    val imageByProductId = state.products.associate { it.id to it.imagePath }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -786,8 +825,14 @@ private fun StockTab(
                 Card(shape = RoundedCornerShape(14.dp)) {
                     Row(
                         modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
+                        ProductThumb(
+                            name = product.name,
+                            imageUrl = imageByProductId[product.id],
+                            size = 56
+                        )
                         Column(Modifier.weight(1f)) {
                             Text(product.name, fontWeight = FontWeight.SemiBold)
                             Text(
@@ -842,8 +887,14 @@ private fun StockTab(
                 Card(shape = RoundedCornerShape(14.dp)) {
                     Row(
                         modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
+                        ProductThumb(
+                            name = product.name,
+                            imageUrl = product.imagePath,
+                            size = 56
+                        )
                         Column(Modifier.weight(1f)) {
                             Text(product.name, fontWeight = FontWeight.SemiBold)
                             Text(
@@ -973,6 +1024,7 @@ private fun ManagerOrderSheet(
                 else -> state.selectedItems.forEach { item ->
                     OrderItemRow(
                         item = item,
+                        couponCode = order.couponCode,
                         canRemove = !item.removed &&
                             order.status in setOf("pending_review", "accepted", "preparing") &&
                             !state.isActionInProgress,
@@ -1049,12 +1101,19 @@ private fun ManagerOrderSheet(
 private fun OrderItemRow(
     item: ManagerOrderLine,
     canRemove: Boolean,
-    onRemove: () -> Unit
+    onRemove: () -> Unit,
+    couponCode: String? = null
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Top
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        ProductThumb(
+            name = item.name,
+            imageUrl = item.imagePath,
+            size = 44
+        )
         Column(Modifier.weight(1f)) {
             Text(
                 item.name,
@@ -1070,6 +1129,15 @@ private fun OrderItemRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            // Explain a zero-charge line so staff never guess where it came from.
+            if (item.isFreeItem) {
+                Text(
+                    text = "Free (via coupon: ${couponCode ?: "coupon"})",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.appColors.success
+                )
+            }
             if (canRemove) {
                 TextButton(
                     onClick = onRemove,
@@ -1079,7 +1147,144 @@ private fun OrderItemRow(
                 }
             }
         }
-        Text(formatPaise(item.lineTotalPaise), style = MaterialTheme.typography.bodyMedium)
+        Text(
+            text = if (item.isFreeItem) "FREE" else formatPaise(item.lineTotalPaise),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (item.isFreeItem) FontWeight.Bold else FontWeight.Normal,
+            color = if (item.isFreeItem) MaterialTheme.appColors.success
+            else MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+/**
+ * Full-screen item list for one order, opened from "See items" on an order card.
+ * Shows each product with its catalogue image, quantity and line total.
+ */
+@Composable
+private fun OrderItemsPage(
+    state: ManagerUiState,
+    onBack: () -> Unit,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val order = state.itemsPageOrder
+    Column(modifier = modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    Icons.Default.ArrowBack,
+                    contentDescription = "Back to orders",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    if (order != null) "#${order.orderNumber} · Items" else "Items",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    order?.recipientName?.takeIf { it.isNotBlank() } ?: "Order items",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (order != null) {
+                Text(
+                    formatPaise(order.grandTotalPaise),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+            }
+        }
+        Divider()
+        when {
+            state.isItemsPageLoading -> LoadingState(message = "Loading items...")
+            state.itemsPageError != null -> Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    state.itemsPageError!!,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                TextButton(onClick = onRetry) { Text("Retry") }
+            }
+            state.itemsPageItems.isEmpty() -> Text(
+                "No items recorded.",
+                modifier = Modifier.padding(24.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            else -> LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(state.itemsPageItems, key = { it.id }) { item ->
+                    Card(shape = RoundedCornerShape(14.dp)) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            ProductThumb(
+                                name = item.name,
+                                imageUrl = item.imagePath,
+                                size = 64
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    item.name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    if (item.removed) {
+                                        "${item.quantityLabel} · removed" +
+                                            (item.removedReason?.let { " ($it)" } ?: "")
+                                    } else {
+                                        item.quantityLabel
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                // Staff need the reason a line costs nothing.
+                                if (item.isFreeItem) {
+                                    Text(
+                                        text = "Free (via coupon: ${order?.couponCode ?: "coupon"})",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.appColors.success
+                                    )
+                                }
+                            }
+                            Text(
+                                when {
+                                    item.removed -> "Removed"
+                                    item.isFreeItem -> "FREE"
+                                    else -> formatPaise(item.lineTotalPaise)
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = if (item.removed) FontWeight.Normal else FontWeight.Bold,
+                                color = if (item.isFreeItem) MaterialTheme.appColors.success
+                                else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

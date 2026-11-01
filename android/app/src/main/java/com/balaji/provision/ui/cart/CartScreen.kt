@@ -43,6 +43,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,6 +63,7 @@ import com.balaji.provision.domain.model.Product
 import com.balaji.provision.domain.model.QuantityType
 import com.balaji.provision.domain.model.QuoteBreakdown
 import com.balaji.provision.domain.model.formatPaise
+import com.balaji.provision.ui.account.AccountViewModel
 import com.balaji.provision.ui.components.BalajiBasketMark
 import com.balaji.provision.ui.components.EmptyState
 import com.balaji.provision.ui.components.FreeDeliveryProgress
@@ -80,14 +82,24 @@ fun CartScreen(
     onNavigateToCheckout: () -> Unit,
     onNavigateToCatalog: () -> Unit = {},
     onBack: () -> Unit = {},
-    homeViewModel: HomeViewModel = hiltViewModel()
+    homeViewModel: HomeViewModel = hiltViewModel(),
+    accountViewModel: AccountViewModel = hiltViewModel()
 ) {
     val cart by viewModel.cart.collectAsState()
     val quote by viewModel.quote.collectAsState()
     val error by viewModel.error.collectAsState()
     val couponInput by viewModel.couponInput.collectAsState()
     val homeState by homeViewModel.state.collectAsState()
+    val accountState by accountViewModel.state.collectAsState()
     val unavailableLines = quote?.lines?.filter { !it.available }.orEmpty()
+
+    // Per-PIN delivery pricing must apply in the cart too. Only checkout used to
+    // pass the PIN, so the cart quoted the store-wide fee and disagreed with the
+    // values the store configured for the customer's PIN code.
+    val deliveryPin = accountState.addresses.firstOrNull { it.isDefault }?.postalCode
+        ?: accountState.addresses.firstOrNull()?.postalCode
+    LaunchedEffect(Unit) { accountViewModel.refresh() }
+    LaunchedEffect(deliveryPin) { viewModel.setDeliveryPin(deliveryPin) }
 
     var showClearDialog by remember { mutableStateOf(false) }
     var weightedProductDialog by remember { mutableStateOf<Pair<Product, Long>?>(null) }
@@ -213,14 +225,17 @@ fun CartScreen(
 
                     quote?.let { q ->
                         item(key = "free_delivery") {
+                            // The delivery line is only "free" when the fee is zero,
+                            // not merely when no free-delivery target is configured.
+                            val deliveryFree = q.deliveryFeePaise <= 0L
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
-                                color = if (q.amountToFreeDelivery <= 0L) {
+                                color = if (deliveryFree) {
                                     MaterialTheme.appColors.successContainer
                                 } else {
                                     MaterialTheme.colorScheme.surface
                                 },
-                                border = if (q.amountToFreeDelivery <= 0L) {
+                                border = if (deliveryFree) {
                                     null
                                 } else {
                                     androidx.compose.foundation.BorderStroke(
@@ -233,6 +248,7 @@ fun CartScreen(
                                 FreeDeliveryProgress(
                                     subtotalPaise = q.itemSubtotalPaise,
                                     amountToFreePaise = q.amountToFreeDelivery,
+                                    deliveryFeePaise = q.deliveryFeePaise,
                                     modifier = Modifier.padding(14.dp)
                                 )
                             }
@@ -251,6 +267,21 @@ fun CartScreen(
                         )
                     }
 
+                    // Free-item coupon: the customer names which gift they want.
+                    quote?.let { q ->
+                        if (q.freeItemOptions.isNotEmpty()) {
+                            item(key = "free_item_picker") {
+                                FreeItemPickerCard(
+                                    options = q.freeItemOptions,
+                                    selectedId = q.freeItemSelectedId,
+                                    couponCode = q.couponCode,
+                                    error = q.freeItemError,
+                                    onSelect = viewModel::selectFreeItem
+                                )
+                            }
+                        }
+                    }
+
                     items(cart.items, key = { it.productId }) { item ->
                         val lineInfo = quote?.lines?.find { it.productId == item.productId }
                         val product = viewModel.findProduct(item.productId)
@@ -266,6 +297,21 @@ fun CartScreen(
                             },
                             onRemove = { viewModel.removeItem(item.productId) }
                         )
+                    }
+
+                    // The coupon gift is server-added, so it is not a cart item.
+                    quote?.let { q ->
+                        q.lines.firstOrNull { it.isFreeItem }?.let { freeLine ->
+                            val gift = q.freeItemOptions.firstOrNull { it.productId == freeLine.productId }
+                            item(key = "free_item_line") {
+                                FreeItemRow(
+                                    line = freeLine,
+                                    couponCode = q.couponCode,
+                                    imagePath = gift?.imagePath,
+                                    regularPricePaise = gift?.regularPricePaise ?: 0L
+                                )
+                            }
+                        }
                     }
 
                     item(key = "add_more") {
@@ -612,6 +658,15 @@ fun OrderSummaryCard(quote: QuoteBreakdown) {
                 }
             )
 
+            // A coupon gift costs nothing, so it is listed rather than discounted.
+            if (quote.lines.any { it.isFreeItem }) {
+                SummaryRow(
+                    label = "Free item" + (quote.couponCode?.let { " ($it)" } ?: ""),
+                    value = "FREE",
+                    valueColor = MaterialTheme.appColors.success
+                )
+            }
+
             if (quote.taxPaise > 0L) {
                 SummaryRow(label = "Tax", value = formatPaise(quote.taxPaise))
             }
@@ -637,6 +692,212 @@ fun OrderSummaryCard(quote: QuoteBreakdown) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+/**
+ * Coupon entry card. When no coupon is applied it shows an input + Apply button.
+ * When a coupon is successfully applied it shows a success chip with a remove button.
+ * Errors from the backend are displayed inline.
+ */
+/**
+ * Gift chooser for a free-item coupon. The server owns the pool, the free quantity
+ * and the price; the customer only names which product they want, and the re-quote
+ * answers with the ₹0 line.
+ */
+@Composable
+private fun FreeItemPickerCard(
+    options: List<QuoteBreakdown.FreeItemOption>,
+    selectedId: String?,
+    couponCode: String?,
+    error: String?,
+    onSelect: (String?) -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.LocalOffer,
+                    contentDescription = null,
+                    tint = MaterialTheme.appColors.success,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Choose your free item",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = if (selectedId == null) {
+                            "Pick one gift" + (couponCode?.let { " for $it" } ?: "")
+                        } else {
+                            "Free item added to your order"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (selectedId == null) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.appColors.success
+                        }
+                    )
+                }
+            }
+
+            options.forEach { option ->
+                val selected = option.productId == selectedId
+                Card(
+                    onClick = { onSelect(if (selected) null else option.productId) },
+                    enabled = option.claimable,
+                    shape = RoundedCornerShape(14.dp),
+                    border = if (selected) {
+                        androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.appColors.success)
+                    } else {
+                        androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.outlineVariant
+                        )
+                    },
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (selected) {
+                            MaterialTheme.appColors.successContainer
+                        } else {
+                            MaterialTheme.colorScheme.surface
+                        }
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        ProductThumb(name = option.name, imageUrl = option.imagePath, size = 44)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = option.name,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (option.claimable) option.displayQty else "Currently unavailable",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (option.claimable) {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                } else {
+                                    MaterialTheme.colorScheme.error
+                                }
+                            )
+                        }
+                        if (option.regularPricePaise > 0L) {
+                            Text(
+                                text = formatPaise(option.regularPricePaise),
+                                style = MaterialTheme.typography.labelSmall,
+                                textDecoration = TextDecoration.LineThrough,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text(
+                            text = "FREE",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.appColors.success
+                        )
+                        if (selected) {
+                            Icon(
+                                Icons.Default.CheckCircle,
+                                contentDescription = "Selected as your free item",
+                                tint = MaterialTheme.appColors.success,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            error?.takeIf { it.isNotBlank() }?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The gift line: regular price struck through, charged nothing, labelled FREE.
+ * The amount comes from the server quote, never from a client-side guess.
+ */
+@Composable
+private fun FreeItemRow(
+    line: QuoteBreakdown.Line,
+    couponCode: String?,
+    imagePath: String?,
+    regularPricePaise: Long
+) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            MaterialTheme.appColors.success.copy(alpha = 0.6f)
+        ),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.appColors.successContainer
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            ProductThumb(name = line.name, imageUrl = imagePath, size = 54)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = line.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = line.displayQty + (couponCode?.let { " · via $it" } ?: ""),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                if (regularPricePaise > 0L) {
+                    Text(
+                        text = formatPaise(regularPricePaise),
+                        style = MaterialTheme.typography.labelSmall,
+                        textDecoration = TextDecoration.LineThrough,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Text(
+                    text = "FREE",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.appColors.success
+                )
+            }
         }
     }
 }

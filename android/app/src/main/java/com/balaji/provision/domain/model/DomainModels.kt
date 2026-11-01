@@ -40,8 +40,24 @@ data class QuoteBreakdown(
     val amountToFreeDelivery: Long = 0,
     val couponCode: String? = null,
     val couponApplied: Boolean = false,
-    val couponError: String? = null
+    val couponError: String? = null,
+    /** Gifts the customer may pick one of, when a free-item coupon is applied. */
+    val freeItemOptions: List<FreeItemOption> = emptyList(),
+    val freeItemSelectedId: String? = null,
+    val freeItemSelectionRequired: Boolean = false,
+    val freeItemError: String? = null
 ) {
+
+    @Immutable
+    @Serializable
+    data class FreeItemOption(
+        val productId: String,
+        val name: String,
+        val imagePath: String? = null,
+        val displayQty: String = "",
+        val regularPricePaise: Long = 0,
+        val claimable: Boolean = true
+    )
 
     @Immutable
     @Serializable
@@ -53,7 +69,8 @@ data class QuoteBreakdown(
         val unitPricePaise: Long,
         val lineTotalPaise: Long,
         val available: Boolean,
-        val error: String?
+        val error: String?,
+        val isFreeItem: Boolean = false
     )
 }
 

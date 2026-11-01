@@ -105,6 +105,11 @@ class CartViewModel @Inject constructor(
         cartRepository.removeCoupon()
     }
 
+    /** Pick (or clear) the gift offered by an applied free-item coupon. */
+    fun selectFreeItem(productId: String?) {
+        cartRepository.selectFreeItem(productId)
+    }
+
     fun findProduct(productId: String): Product? = catalogRepository.findProductById(productId)
 
     /**

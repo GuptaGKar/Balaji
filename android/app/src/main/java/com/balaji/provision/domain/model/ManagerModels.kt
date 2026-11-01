@@ -15,7 +15,8 @@ data class ManagerOrder(
     val customerNote: String?,
     val itemSubtotalPaise: Long,
     val deliveryFeePaise: Long,
-    val taxPaise: Long
+    val taxPaise: Long,
+    val couponCode: String? = null
 ) {
     val statusLabel: String
         get() = status.replace('_', ' ').replaceFirstChar { it.uppercase() }
@@ -66,7 +67,9 @@ data class ManagerOrderLine(
     val unitPricePaise: Long,
     val lineTotalPaise: Long,
     val removed: Boolean,
-    val removedReason: String?
+    val removedReason: String?,
+    val imagePath: String? = null,
+    val isFreeItem: Boolean = false
 )
 
 data class LowStockProduct(

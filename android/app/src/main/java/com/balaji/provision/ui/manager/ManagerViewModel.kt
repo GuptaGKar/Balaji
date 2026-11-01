@@ -38,10 +38,17 @@ data class ManagerUiState(
     val isStoreToggleInProgress: Boolean = false,
     val updatingPriceProductId: String? = null,
     val message: String? = null,
-    val actionError: String? = null
+    val actionError: String? = null,
+    val itemsPageOrderId: String? = null,
+    val itemsPageItems: List<ManagerOrderLine> = emptyList(),
+    val isItemsPageLoading: Boolean = false,
+    val itemsPageError: String? = null
 ) {
     val selectedOrder: ManagerOrder?
         get() = orders.firstOrNull { it.id == selectedOrderId }
+
+    val itemsPageOrder: ManagerOrder?
+        get() = orders.firstOrNull { it.id == itemsPageOrderId }
 
     val activeOrderCount: Int
         get() = orders.count { it.status !in setOf("delivered", "cancelled", "rejected", "delivery_failed") }
@@ -184,6 +191,45 @@ class ManagerViewModel @Inject constructor(
 
     fun reloadOrderItems() {
         _state.value.selectedOrderId?.let(::openOrder)
+    }
+
+    /** Opens the full-screen "See items" page for an order and loads its lines. */
+    fun openItemsPage(orderId: String) {
+        _state.update {
+            it.copy(
+                itemsPageOrderId = orderId,
+                itemsPageItems = emptyList(),
+                isItemsPageLoading = true,
+                itemsPageError = null
+            )
+        }
+        viewModelScope.launch {
+            when (val result = repository.loadOrderItems(orderId)) {
+                is ManagerResult.Success -> _state.update {
+                    if (it.itemsPageOrderId != orderId) it else it.copy(
+                        itemsPageItems = result.value,
+                        isItemsPageLoading = false
+                    )
+                }
+                is ManagerResult.Failure -> _state.update {
+                    if (it.itemsPageOrderId != orderId) it else it.copy(
+                        isItemsPageLoading = false,
+                        itemsPageError = result.message
+                    )
+                }
+            }
+        }
+    }
+
+    fun closeItemsPage() {
+        _state.update {
+            it.copy(
+                itemsPageOrderId = null,
+                itemsPageItems = emptyList(),
+                isItemsPageLoading = false,
+                itemsPageError = null
+            )
+        }
     }
 
     fun removeOrderItem(item: ManagerOrderLine, reason: String) {

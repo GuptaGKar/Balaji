@@ -8,6 +8,7 @@ import {
   Tag,
   Plus,
   Trash2,
+  Gift,
   CheckCircle,
   XCircle,
   AlertCircle,
@@ -42,12 +43,14 @@ type Coupon = {
   id: string;
   code: string;
   description: string;
-  discount_type: "percent_off" | "rupees_off" | "free_delivery";
+  discount_type: "percent_off" | "rupees_off" | "free_delivery" | "free_item";
   discount_value: number;
   applies_to: "all" | "categories" | "products";
   category_id: string | null;
   category_ids?: string[] | null;
   product_ids?: string[] | null;
+  free_item_product_ids?: string[] | null;
+  free_item_qty?: number;
   min_order_paise: number;
   max_discount_paise: number | null;
   starts_at: string;
@@ -74,10 +77,14 @@ export default function CouponsPage() {
   const [description, setDescription] = useState("");
   // Comma-separated PIN codes. Empty means the coupon works for every PIN.
   const [pinCodesText, setPinCodesText] = useState("");
-  const [discountType, setDiscountType] = useState<"percent_off" | "rupees_off" | "free_delivery">(
-    "percent_off",
-  );
+  const [discountType, setDiscountType] =
+    useState<"percent_off" | "rupees_off" | "free_delivery" | "free_item">("percent_off");
   const [discountValue, setDiscountValue] = useState("");
+  // Free-item coupon: the gift pool the customer chooses one item from, and how
+  // many base units of it are given away.
+  const [freeItemProductIds, setFreeItemProductIds] = useState<string[]>([]);
+  const [freeItemQty, setFreeItemQty] = useState("1");
+  const [freeItemSearchQuery, setFreeItemSearchQuery] = useState("");
   const [appliesTo, setAppliesTo] = useState<"all" | "categories" | "products">("all");
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
@@ -179,6 +186,11 @@ export default function CouponsPage() {
       val = Math.round(num * 100);
     }
 
+    if (discountType === "free_item" && freeItemProductIds.length === 0) {
+      toast.error("Select at least one product the customer can choose as their free item.");
+      return;
+    }
+
     if (appliesTo === "categories" && selectedCategoryIds.length === 0) {
       toast.error("Please select at least one category for this coupon.");
       return;
@@ -190,6 +202,7 @@ export default function CouponsPage() {
     }
 
     const minOrderPaise = minOrderRupees ? Math.round(parseFloat(minOrderRupees) * 100) : 0;
+    const freeQty = Math.max(parseInt(freeItemQty || "1", 10) || 1, 1);
     const maxDiscountPaise = maxDiscountRupees
       ? Math.round(parseFloat(maxDiscountRupees) * 100)
       : null;
@@ -211,6 +224,8 @@ export default function CouponsPage() {
               : null,
           category_ids: appliesTo === "categories" ? selectedCategoryIds : [],
           product_ids: appliesTo === "products" ? selectedProductIds : [],
+          free_item_product_ids: discountType === "free_item" ? freeItemProductIds : [],
+          free_item_qty: discountType === "free_item" ? freeQty : 1,
           pin_codes: pinCodesText
             .split(",")
             .map((entry) => entry.trim())
@@ -238,6 +253,9 @@ export default function CouponsPage() {
       setAppliesTo("all");
       setSelectedCategoryIds([]);
       setSelectedProductIds([]);
+      setFreeItemProductIds([]);
+      setFreeItemQty("1");
+      setFreeItemSearchQuery("");
       setMinOrderRupees("");
       setMaxDiscountRupees("");
       setUsageLimit("");
@@ -276,6 +294,18 @@ export default function CouponsPage() {
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
     );
   };
+
+  const toggleFreeItemSelection = (id: string) => {
+    setFreeItemProductIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+    );
+  };
+
+  const filteredFreeItemProducts = products.filter(
+    (p) =>
+      p.name.toLowerCase().includes(freeItemSearchQuery.toLowerCase()) ||
+      p.sku.toLowerCase().includes(freeItemSearchQuery.toLowerCase()),
+  );
 
   const renderCouponScope = (coupon: Coupon) => {
     const scope = coupon.applies_to || (coupon.category_id ? "categories" : "all");
@@ -450,6 +480,13 @@ export default function CouponsPage() {
                             Free Delivery
                           </span>
                         )}
+                        {coupon.discount_type === "free_item" && (
+                          <span className="inline-flex items-center gap-1 font-semibold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full text-xs border border-rose-200">
+                            <Gift className="h-3 w-3" /> Free item ·{" "}
+                            {(coupon.free_item_product_ids || []).length} option
+                            {(coupon.free_item_product_ids || []).length === 1 ? "" : "s"}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-4">{renderCouponScope(coupon)}</td>
                       <td className="px-4 py-4 text-xs space-y-1">
@@ -579,11 +616,12 @@ export default function CouponsPage() {
                     <option value="percent_off">Percentage Off (%)</option>
                     <option value="rupees_off">Rupees Off (₹)</option>
                     <option value="free_delivery">Free Delivery</option>
+                    <option value="free_item">Free Item (customer picks one)</option>
                   </select>
                 </div>
               </div>
 
-              {discountType !== "free_delivery" && (
+              {discountType !== "free_delivery" && discountType !== "free_item" && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     {discountType === "percent_off"
@@ -623,6 +661,8 @@ export default function CouponsPage() {
               </div>
 
               {/* Scope Selector: All / Categories / Products */}
+              {discountType !== "free_item" && (
+                <>
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                   Applies To *
@@ -669,6 +709,108 @@ export default function CouponsPage() {
                   </button>
                 </div>
               </div>
+                </>
+              )}
+
+              {/* Free-item coupon: the gift pool the customer chooses one item from */}
+              {discountType === "free_item" && (
+                <div className="space-y-3 rounded-xl border border-rose-200 bg-rose-50/40 p-3.5">
+                  <div>
+                    <span className="text-xs font-bold text-rose-900 flex items-center gap-1.5">
+                      <Gift className="h-3.5 w-3.5" /> Free item options ({freeItemProductIds.length}{" "}
+                      selected)
+                    </span>
+                    <p className="text-[11px] text-rose-700/80 mt-0.5">
+                      The customer claims exactly ONE of these once their cart reaches the milestone
+                      below. Items that are inactive or out of stock are hidden from the chooser.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-rose-900 mb-1">
+                      Free quantity (per gift)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={freeItemQty}
+                      onChange={(e) => setFreeItemQty(e.target.value)}
+                      className="w-full rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-sm focus:border-rose-500 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                    />
+                    <p className="text-[11px] text-rose-700/80 mt-1">
+                      Packs for packed items, grams for loose/weighted items (e.g. 500 = 500 g).
+                    </p>
+                  </div>
+
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search products by name or SKU..."
+                      value={freeItemSearchQuery}
+                      onChange={(e) => setFreeItemSearchQuery(e.target.value)}
+                      className="w-full rounded-lg border border-rose-200 bg-white pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                    />
+                  </div>
+
+                  {freeItemProductIds.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {freeItemProductIds.map((id) => (
+                        <span
+                          key={id}
+                          className="inline-flex items-center gap-1 rounded-md bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-900"
+                        >
+                          <span className="max-w-[140px] truncate">
+                            {productMap.get(id)?.name || "Product"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => toggleFreeItemSelection(id)}
+                            className="text-rose-700 hover:text-rose-950 ml-0.5"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="max-h-44 overflow-y-auto divide-y divide-rose-100 rounded-lg border border-rose-200 bg-white">
+                    {filteredFreeItemProducts.length === 0 ? (
+                      <p className="p-3 text-xs text-slate-400 text-center">No products found.</p>
+                    ) : (
+                      filteredFreeItemProducts.map((prod) => {
+                        const isSelected = freeItemProductIds.includes(prod.id);
+                        return (
+                          <label
+                            key={prod.id}
+                            className={cn(
+                              "flex items-center justify-between px-3 py-2 text-xs cursor-pointer transition",
+                              isSelected
+                                ? "bg-rose-50/70 font-semibold text-rose-950"
+                                : "hover:bg-slate-50 text-slate-700",
+                            )}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleFreeItemSelection(prod.id)}
+                                className="rounded border-rose-300 text-rose-600 focus:ring-rose-500"
+                              />
+                              <span className="truncate">{prod.name}</span>
+                            </div>
+                            <span className="text-[11px] font-mono text-slate-500 shrink-0">
+                              {formatRupees(prod.price_paise)}
+                            </span>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Specific Categories Multi-Selection */}
               {appliesTo === "categories" && (
@@ -862,7 +1004,9 @@ export default function CouponsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Min Order Value (₹)
+                    {discountType === "free_item"
+                      ? "Cart milestone to unlock gift (₹) *"
+                      : "Min Order Value (₹)"}
                   </label>
                   <input
                     type="number"

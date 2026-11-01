@@ -3,7 +3,10 @@ package com.balaji.provision.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.balaji.provision.BuildConfig
+import com.balaji.provision.data.network.DeliveryFeeRequest
 import com.balaji.provision.data.network.SupabaseApi
+import com.balaji.provision.data.repository.AccountRepository
+import com.balaji.provision.data.repository.AccountResult
 import com.balaji.provision.domain.model.formatPaise
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,7 +39,8 @@ data class HomeUiState(
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val api: SupabaseApi
+    private val api: SupabaseApi,
+    private val accountRepository: AccountRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeUiState())
@@ -62,6 +66,14 @@ class HomeViewModel @Inject constructor(
                 }
 
                 val weeklyHours = settings.weekly_hours
+                // The customer's own PIN rule wins, so the home strip cannot disagree
+                // with the fee the cart and checkout actually charge.
+                val deliveryLine = perPinDeliveryText()
+                    ?: deliveryText(
+                        feePaise = settings.delivery_fee_paise,
+                        thresholdPaise = settings.delivery_charge_threshold_paise,
+                        freeThresholdPaise = settings.free_delivery_threshold_paise
+                    )
                 _state.value = HomeUiState(
                     isLoading = false,
                     storeOpen = settings.store_open,
@@ -69,11 +81,7 @@ class HomeViewModel @Inject constructor(
                     estimatedWindow = settings.estimated_window_text,
                     hours = parseHours(weeklyHours),
                     banners = parseBanners(weeklyHours),
-                    deliveryText = deliveryText(
-                        feePaise = settings.delivery_fee_paise,
-                        thresholdPaise = settings.delivery_charge_threshold_paise,
-                        freeThresholdPaise = settings.free_delivery_threshold_paise
-                    ),
+                    deliveryText = deliveryLine,
                     onlinePaymentEnabled = settings.online_payment_enabled
                 )
             } catch (e: Exception) {
@@ -123,6 +131,36 @@ class HomeViewModel @Inject constructor(
                 subtitle = (obj["subtitle"] as? JsonPrimitive)?.contentOrNull().orEmpty(),
                 imageUrl = imageUrl
             )
+        }
+    }
+
+    /**
+     * Delivery wording for the signed-in customer's default PIN, or null when they
+     * have no saved address, are signed out, or the lookup fails — in which case the
+     * store-wide rule is the honest fallback.
+     */
+    private suspend fun perPinDeliveryText(): String? {
+        val addresses = (accountRepository.loadAddresses() as? AccountResult.Success)?.value
+            ?: return null
+        val pin = (addresses.firstOrNull { it.isDefault } ?: addresses.firstOrNull())
+            ?.postalCode?.takeIf { it.isNotBlank() }
+            ?: return null
+        return try {
+            val anonKey = BuildConfig.SUPABASE_ANON_KEY
+            val fee = api.computeDeliveryFeeForPin(
+                apiKey = anonKey,
+                auth = "Bearer $anonKey",
+                body = DeliveryFeeRequest(p_eligible_subtotal = 0L, p_pin_code = pin)
+            ).body()?.firstOrNull() ?: return null
+            when {
+                fee.fee_paise <= 0L -> "Free delivery"
+                fee.amount_to_free_delivery > 0L ->
+                    "${formatPaise(fee.fee_paise)} delivery; free at or above " +
+                        formatPaise(fee.amount_to_free_delivery)
+                else -> "${formatPaise(fee.fee_paise)} delivery"
+            }
+        } catch (e: Exception) {
+            null
         }
     }
 

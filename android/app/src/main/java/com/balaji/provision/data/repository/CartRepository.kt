@@ -166,7 +166,8 @@ class CartRepositoryImpl @Inject constructor(
             val request = QuoteCartRequest(
                 p_items = items.map { CartItemRequest(it.productId, it.qtyBase) },
                 p_coupon_code = coupon,
-                p_pin_code = deliveryPin
+                p_pin_code = deliveryPin,
+                p_free_item_id = pendingFreeItemId?.takeIf { coupon != null }
             )
             val anonKey = BuildConfig.SUPABASE_ANON_KEY
             val response = api.quoteCart(apiKey = anonKey, auth = "Bearer $anonKey", body = request)
@@ -264,7 +265,8 @@ class CartRepositoryImpl @Inject constructor(
             address = address,
             payment_method = "cod",
             customer_note = customerNote,
-            coupon_code = pendingCouponCode?.takeIf { it.isNotBlank() }
+            coupon_code = pendingCouponCode?.takeIf { it.isNotBlank() },
+            free_item_product_id = pendingFreeItemId?.takeIf { !pendingCouponCode.isNullOrBlank() }
         )
 
         // Reuse the key for retries of the exact same order so a lost response
@@ -325,13 +327,26 @@ class CartRepositoryImpl @Inject constructor(
             ?: "The request could not be completed. Please try again."
     }
 
+    /** Gift picked from a free-item coupon's pool. Cleared whenever the coupon changes. */
+    private var pendingFreeItemId: String? = null
+
     override fun applyCoupon(code: String) {
         pendingCouponCode = code.trim().uppercase()
+        // A new coupon brings a new pool, so any earlier gift choice is void.
+        pendingFreeItemId = null
         scheduleQuoteRefresh(debounceMillis = 0L)
     }
 
     override fun removeCoupon() {
         pendingCouponCode = null
+        pendingFreeItemId = null
+        scheduleQuoteRefresh(debounceMillis = 0L)
+    }
+
+    override fun selectFreeItem(productId: String?) {
+        val clean = productId?.trim()?.takeIf { it.isNotBlank() }
+        if (clean == pendingFreeItemId) return
+        pendingFreeItemId = clean
         scheduleQuoteRefresh(debounceMillis = 0L)
     }
 
@@ -355,7 +370,8 @@ class CartRepositoryImpl @Inject constructor(
                     unitPricePaise = l.unit_price_paise,
                     lineTotalPaise = l.line_total_paise,
                     available = l.available,
-                    error = l.error
+                    error = l.error,
+                    isFreeItem = l.is_free_item
                 )
             },
             itemSubtotalPaise = response.item_subtotal_paise,
@@ -368,7 +384,20 @@ class CartRepositoryImpl @Inject constructor(
             amountToFreeDelivery = response.amount_to_free_delivery,
             couponCode = response.coupon_code,
             couponApplied = response.coupon_applied,
-            couponError = response.coupon_error
+            couponError = response.coupon_error,
+            freeItemOptions = response.free_item_options.map {
+                QuoteBreakdown.FreeItemOption(
+                    productId = it.product_id,
+                    name = it.name,
+                    imagePath = it.image_path,
+                    displayQty = it.display_qty,
+                    regularPricePaise = it.regular_price_paise,
+                    claimable = it.claimable
+                )
+            },
+            freeItemSelectedId = response.free_item_selected_id,
+            freeItemSelectionRequired = response.free_item_selection_required,
+            freeItemError = response.free_item_error
         )
     }
 }
@@ -391,6 +420,8 @@ interface CartRepository {
     fun refreshQuote() {}
     fun applyCoupon(code: String) {}
     fun removeCoupon() {}
+    /** Pick (or clear, with null) the gift offered by a free-item coupon. */
+    fun selectFreeItem(productId: String?) {}
     /** Selected delivery PIN; the quote uses its per-PIN fee when the store has one. */
     fun setDeliveryPin(code: String?) {}
     suspend fun getCart(): Cart

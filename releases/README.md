@@ -10,10 +10,37 @@ be installed on one phone:
 For the complete Play submission checklist, signing details, Data Safety
 worksheet and remaining blockers, read [`docs/PLAY_STORE_RELEASE.md`](../docs/PLAY_STORE_RELEASE.md).
 
-## Current release — 1.7 (versionCode 8)
+## Current release — 1.11 (versionCode 12)
 
 Target SDK 36 (Android 16), min SDK 24, R8 minified and signed with the Balaji
-upload key. 1.7 is the first build that ships the in-app APK updater, so it must
+upload key (certificate SHA-256 `8A:6B:C8:2D:…:85:F7:D6:4D`). Both AABs and APKs
+were built on this checkout and verified with `apksigner`/`sha256sum`.
+
+| File | App | Purpose |
+|---|---|---|
+| [`balaji-provision-1.11-release.aab`](balaji-provision-1.11-release.aab) | Customer | Google Play upload bundle |
+| [`balaji-staff-1.11-release.aab`](balaji-staff-1.11-release.aab) | Staff | Google Play upload bundle |
+| [`balaji-provision-1.11-release.apk`](balaji-provision-1.11-release.apk) | Customer | Signed APK for device QA/sideload and in-app update upload |
+| [`balaji-staff-1.11-release.apk`](balaji-staff-1.11-release.apk) | Staff | Signed APK for device QA/sideload and in-app update upload |
+
+SHA-256:
+
+```
+a7604fc74dee3c0e89989f931d7daf2092642a81dd3b464351b4f17bc485af7b  balaji-provision-1.11-release.apk
+19df380e7f81f2180266b1ab511e099dad3a892eb02051c7586db33fc2e8c217  balaji-staff-1.11-release.apk
+82f23e7a154dce123a394f2c2f484d8265c972adf864ac99634f7e1c1236b7f0  balaji-provision-1.11-release.aab
+b57c2ee1eb2dda4a53922e63b6b75936c7fecd8d4f3f9843582a69aec033225e  balaji-staff-1.11-release.aab
+699bf6f7299852d06967eb7a2c578a9e6557f5b0646f4c9c682b8f815618d6dc  mapping-customer-1.11.txt.gz
+d5d11650351e12556ee04c0ccdf6af88de185d56716492a1ec86c2c577605601  mapping-staff-1.11.txt.gz
+```
+
+R8 mappings: `mapping-customer-1.11.txt.gz` and `mapping-staff-1.11.txt.gz`, each
+with a `.sha256` file. **These artifacts have not been uploaded to Play or
+launched on a device.**
+
+## Previous release — 1.7 (versionCode 8)
+
+1.7 is the first build that ships the in-app APK updater, so it must
 be installed once by download/sideload before automatic updates can reach a
 device.
 

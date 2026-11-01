@@ -112,7 +112,8 @@ class OrdersViewModel @Inject constructor(
                                     quantityType = item.quantity_type_snapshot,
                                     unitLabel = item.unit_label_snapshot,
                                     removed = !item.removed_at.isNullOrBlank(),
-                                    removedReason = item.removed_reason
+                                    removedReason = item.removed_reason,
+                                    imagePath = item.products?.image_path
                                 )
                             }
                         )
@@ -238,5 +239,6 @@ data class OrderItemView(
     val quantityType: String?,
     val unitLabel: String?,
     val removed: Boolean,
-    val removedReason: String?
+    val removedReason: String?,
+    val imagePath: String? = null
 )

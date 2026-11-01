@@ -116,7 +116,7 @@ class ManagerRepositoryImpl @Inject constructor(
             status = null,
             select = "id,public_order_number,status,grand_total_paise,created_at,customer_id," +
                 "payment_method,payment_status,cod_collected_paise,address_snapshot," +
-                "customer_note,item_subtotal_paise,delivery_fee_paise,tax_paise",
+                "customer_note,item_subtotal_paise,delivery_fee_paise,tax_paise,coupon_code",
             order = "created_at.desc",
             limit = 200
         )
@@ -144,7 +144,8 @@ class ManagerRepositoryImpl @Inject constructor(
                 customerNote = order.customer_note,
                 itemSubtotalPaise = order.item_subtotal_paise,
                 deliveryFeePaise = order.delivery_fee_paise,
-                taxPaise = order.tax_paise
+                taxPaise = order.tax_paise,
+                couponCode = order.coupon_code
             )
         })
     }
@@ -155,7 +156,7 @@ class ManagerRepositoryImpl @Inject constructor(
             auth = "Bearer $token",
             orderId = "eq.$orderId",
             select = "id,sku_snapshot,name_snapshot,quantity_type_snapshot,unit_label_snapshot," +
-                "qty_base,unit_price_paise,line_total_paise,removed_at,removed_reason",
+                "qty_base,unit_price_paise,line_total_paise,removed_at,removed_reason,is_free_item,products(image_path)",
             order = null
         )
         if (!response.isSuccessful) return@call response.failure("Could not load order items.")
@@ -367,7 +368,9 @@ private fun ManagerOrderItemResponse.toDomain(): ManagerOrderLine = ManagerOrder
     unitPricePaise = unit_price_paise,
     lineTotalPaise = line_total_paise,
     removed = !removed_at.isNullOrBlank(),
-    removedReason = removed_reason
+    removedReason = removed_reason,
+    imagePath = products?.image_path,
+    isFreeItem = is_free_item
 )
 
 private fun LowStockProductResponse.toDomain(): LowStockProduct = LowStockProduct(
