@@ -65,6 +65,38 @@ class AddressDraftTest {
     }
 
     @Test
+    fun `draft rejects the null island a device reports with no fix`() {
+        // (0,0) passes a range test, so it needs its own rule: it is never a doorstep.
+        val draft = validDraft().copy(lat = 0.0, lng = 0.0)
+
+        assertEquals(
+            "That location is not usable. Pick a spot on the map.",
+            draft.validate()
+        )
+    }
+
+    @Test
+    fun `draft rejects non-finite coordinates`() {
+        // NaN and Infinity compare false against every range bound, so without an
+        // explicit test they would be stored as a plausible address.
+        assertEquals(
+            "Invalid location coordinates.",
+            validDraft().copy(lat = Double.NaN, lng = 77.5946).validate()
+        )
+        assertEquals(
+            "Invalid location coordinates.",
+            validDraft().copy(lat = 12.9716, lng = Double.POSITIVE_INFINITY).validate()
+        )
+    }
+
+    @Test
+    fun `draft still allows a real coordinate close to zero`() {
+        // The (0,0) rule must not reject the equator or the Greenwich meridian itself.
+        assertNull(validDraft().copy(lat = 0.0, lng = 77.5946).validate())
+        assertNull(validDraft().copy(lat = 12.9716, lng = 0.0).validate())
+    }
+
+    @Test
     fun `saved address builds a complete display address`() {
         val address = SavedAddress(
             id = "address-1",

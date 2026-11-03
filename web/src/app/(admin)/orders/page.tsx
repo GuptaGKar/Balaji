@@ -58,13 +58,11 @@ type Order = {
 type OrderReview = { rating: number; comment: string | null };
 
 function orderImageUrl(path: string): string {
-  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/+$/, "");
-  return `${base}/storage/v1/object/public/order-images/${path}`;
+  return `/api/order-media?${new URLSearchParams({ bucket: "order-images", path })}`;
 }
 
 function proofUrl(path: string): string {
-  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/+$/, "");
-  return `${base}/storage/v1/object/public/order-proofs/${path}`;
+  return `/api/order-media?${new URLSearchParams({ bucket: "order-proofs", path })}`;
 }
 
 type ProofStage = "dispatch" | "delivery";

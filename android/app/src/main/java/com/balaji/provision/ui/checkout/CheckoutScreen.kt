@@ -150,8 +150,15 @@ fun CheckoutScreen(
     }
 
     // Per-PIN pricing: the fee and any PIN-restricted coupon follow the chosen address.
-    LaunchedEffect(selectedAddress?.postalCode) {
+    // The coordinates are keyed too, because re-pinning an address inside a different
+    // delivery area changes the fee without changing its PIN.
+    LaunchedEffect(
+        selectedAddress?.postalCode,
+        selectedAddress?.lat,
+        selectedAddress?.lng
+    ) {
         cartViewModel.setDeliveryPin(selectedAddress?.postalCode)
+        cartViewModel.setDeliveryLocation(selectedAddress?.lat, selectedAddress?.lng)
     }
 
     LaunchedEffect(placement) {

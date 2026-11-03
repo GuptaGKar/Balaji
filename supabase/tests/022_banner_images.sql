@@ -12,8 +12,8 @@ SELECT ok(
   'banner-images bucket is public-read');
 
 SELECT ok(
-  (SELECT file_size_limit FROM storage.buckets WHERE id = 'banner-images') = 2097152,
-  'banner-images bucket enforces the 2 MB limit');
+  (SELECT file_size_limit FROM storage.buckets WHERE id = 'banner-images') = 10485760,
+  'banner-images bucket enforces the 10 MB limit');
 
 SELECT * FROM finish();
 ROLLBACK;

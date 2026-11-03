@@ -98,3 +98,16 @@
 
 # Preserve line numbers and source file names for crash analysis
 -keepattributes SourceFile, LineNumberTable
+
+# MapLibre GL (delivery pin picker)
+# The Java/Kotlin layer is called from the C++ renderer through JNI by name, so it must
+# survive minification. Getting this wrong only shows up in a shrunk build - the map
+# renders blank or crashes at style load - so it is kept here rather than trusting the
+# AAR's consumer rules alone.
+-dontwarn org.maplibre.**
+-keep class org.maplibre.android.** { *; }
+-keep class org.maplibre.geojson.** { *; }
+-keepclassmembers class org.maplibre.android.** {
+    native <methods>;
+    <fields>;
+}

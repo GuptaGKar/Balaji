@@ -1,36 +1,12 @@
--- pgTAP: RLS policy tests (IMPLEMENTATION_PLAN.md §5.2, §12)
--- Tests run as different roles: anon, customer_a, customer_b, rider_a, rider_b, staff, manager
--- Each test file sets up fixtures and verifies isolation.
-
+-- Anonymous catalogue visibility and private-data filtering under the actual SQL role.
 BEGIN;
 SELECT plan(4);
-
--- 1. anon can read catalog_products view
-SELECT lives_ok(
-  $sql$SELECT 1 FROM catalog_products LIMIT 1$sql$,
-  'anon can read catalog_products view'
-);
-
--- 2. anon CANNOT read products table directly
-SELECT throws_ok(
-  $sql$SELECT 1 FROM products LIMIT 1$sql$,
-  null, null,
-  'anon cannot read products table directly'
-);
-
--- 3. anon CANNOT read orders table
-SELECT throws_ok(
-  $sql$SELECT 1 FROM orders LIMIT 1$sql$,
-  null, null,
-  'anon cannot read orders table'
-);
-
--- 4. anon CANNOT read profiles table
-SELECT throws_ok(
-  $sql$SELECT 1 FROM profiles LIMIT 1$sql$,
-  null, null,
-  'anon cannot read profiles table'
-);
-
+INSERT INTO public.products(sku,name,quantity_type,price_paise,price_basis_qty,unit_label,step_qty,min_qty,stock_qty,active)
+VALUES('ANON-ACTIVE','Visible fixture','PACKED',100,1,'pack',1,1,1,true),('ANON-HIDDEN','Hidden fixture','PACKED',100,1,'pack',1,1,1,false);
+SET LOCAL ROLE anon;
+SELECT is((SELECT count(*) FROM public.products WHERE sku='ANON-ACTIVE'),1::bigint,'anon can browse a published product');
+SELECT is((SELECT count(*) FROM public.products WHERE sku='ANON-HIDDEN'),0::bigint,'anon cannot browse an inactive product');
+SELECT is((SELECT count(*) FROM public.orders),0::bigint,'anon sees no private orders');
+SELECT is((SELECT count(*) FROM public.profiles),0::bigint,'anon sees no private profiles');
 SELECT * FROM finish();
 ROLLBACK;

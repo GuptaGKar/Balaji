@@ -201,7 +201,8 @@ balaji-store/
   `delivery_fee_paise` (F1), `delivery_charge_threshold_paise` (T1, seed 25000), `free_delivery_threshold_paise` (T2, nullable), `mid_tier_fee_paise` (F2, nullable),
   `max_order_paise` nullable, `cancellation_policy_text`, `tax_mode enum('none','inclusive','exclusive')` default `none`, `tax_rate_bps` default 0, `online_payment_enabled bool default false`, `pos_price_override_enabled bool default false`.
   CHECKs: `T2 is null or T2 >= T1`; all fees ≥ 0.
-- `service_areas(id, kind enum('pincode','neighbourhood'), value text, active bool, created_at)`; unique `(kind, lower(value))`. Boundary/polygon support deferred (D-AREA open).
+- `service_areas(id, kind enum('pincode','neighbourhood'), value text, active bool, created_at)`; unique `(kind, lower(value))`. **D-AREA decided 2026-11-02:** a service area may additionally carry `name`, `priority` and an optional PostGIS `boundary` polygon (migration `20261102000009`). The boundary only selects which configured delivery price applies; the PIN-code row remains the sole deliverability gate (see `docs/DECISIONS.md`, "M1 delivery zones").
+- **Delivery-area arc (2026-11-03/04):** `check_delivery_availability(p_pin_code, p_lat, p_lng, p_eligible_subtotal)` answers the pre-order banner; `save_delivery_zone` / `get_delivery_zone_coverage` are manager-only authoring (`20261103000001`, `20261103000002`); `search_area_suggestions(p_query, p_limit)` serves the address-form autocomplete from active areas plus the caller's own addresses, and exposes no amounts (`20261103000003`). Autocomplete is our own data only - no third-party geocoder, and the client that is not a signed-in customer never receives address rows.
 
 **Catalogue**
 - `categories(id, name, slug unique, sort_order, active)`.

@@ -33,10 +33,10 @@ data class GeocodedPlace(
 @Singleton
 class LocationRepository @Inject constructor(
     @ApplicationContext private val context: Context
-) {
+) : LocationFixSource {
     private val client by lazy { LocationServices.getFusedLocationProviderClient(context) }
 
-    fun hasPermission(): Boolean {
+    override fun hasPermission(): Boolean {
         val fine = ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.ACCESS_FINE_LOCATION
@@ -49,7 +49,7 @@ class LocationRepository @Inject constructor(
     }
 
     @SuppressLint("MissingPermission")
-    suspend fun currentLocation(): Result<GeoPoint> {
+    override suspend fun currentLocation(): Result<GeoPoint> {
         if (!hasPermission()) {
             return Result.failure(SecurityException("Location permission is required."))
         }

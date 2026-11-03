@@ -2,7 +2,7 @@
 -- Fixtures: a synthetic customer profile owns the test orders.
 
 BEGIN;
-SELECT plan(9);
+SELECT plan(11);
 
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
 VALUES ('00000000-0000-0000-0000-000000000000',
@@ -11,7 +11,8 @@ VALUES ('00000000-0000-0000-0000-000000000000',
         'order-test@balaji-test.invalid', 'synthetic-placeholder', now(), now(), now());
 
 INSERT INTO profiles (id, role, display_name)
-VALUES ('bbbbbbbb-0000-0000-0000-000000000001', 'customer', 'Order Test');
+VALUES ('bbbbbbbb-0000-0000-0000-000000000001', 'customer', 'Order Test')
+ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, display_name = EXCLUDED.display_name;
 
 -- 1. Order numbers are unique.
 SELECT lives_ok(

@@ -34,8 +34,7 @@ const STATUS_STYLES: Record<RequestStatus, string> = {
 };
 
 function photoUrl(path: string): string {
-  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/+$/, "");
-  return `${base}/storage/v1/object/public/order-images/${path}`;
+  return `/api/order-media?${new URLSearchParams({ bucket: "order-images", path })}`;
 }
 
 export default function ProductRequestsPage() {

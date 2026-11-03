@@ -174,21 +174,21 @@ SELECT is(
            jsonb_build_array(jsonb_build_object('product_id','11111111-aaaa-4aaa-8aaa-aaaaaaaaaa01','qty_base',2)),
            'FREEGIFT', NULL, '11111111-aaaa-4aaa-8aaa-aaaaaaaaaa02'))->'lines')::jsonb) l
     WHERE (l->>'is_free_item')::boolean),
-  0,
+  0::bigint,
   'FI-11: the gift line totals 0 paise');
 
 SELECT is(
   ((SELECT public.quote_cart(
       jsonb_build_array(jsonb_build_object('product_id','11111111-aaaa-4aaa-8aaa-aaaaaaaaaa01','qty_base',2)),
       'FREEGIFT', NULL, '11111111-aaaa-4aaa-8aaa-aaaaaaaaaa02'))->>'item_subtotal_paise')::bigint,
-  20000,
+  20000::bigint,
   'FI-12: the gift is excluded from the item subtotal');
 
 SELECT is(
   ((SELECT public.quote_cart(
       jsonb_build_array(jsonb_build_object('product_id','11111111-aaaa-4aaa-8aaa-aaaaaaaaaa01','qty_base',2)),
       'FREEGIFT', NULL, '11111111-aaaa-4aaa-8aaa-aaaaaaaaaa02'))->>'grand_total_paise')::bigint,
-  23000,
+  23000::bigint,
   'FI-13: grand total is subtotal + delivery only (₹200 + ₹30)');
 
 SELECT is(
@@ -285,7 +285,7 @@ SELECT is(
 -- 23 ─ totals charged to the customer ignore the gift
 SELECT is(
   (SELECT grand_total_paise FROM public.orders WHERE idempotency_key = 'FI-ORDER-1'),
-  23000,
+  23000::bigint,
   'FI-23: the order total is ₹200 of goods plus ₹30 delivery');
 
 -- 24 ─ the gift still leaves the shelf

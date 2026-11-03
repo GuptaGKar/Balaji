@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase";
 import { serviceAreaSchema, type ServiceArea, serviceAreaKindEnum } from "@/lib/schemas";
 import { useForm } from "react-hook-form";
@@ -8,6 +9,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { cn } from "@/lib/utils";
 import { Plus, Edit, Trash2, Loader2, Save, X, MapPin, Building2 } from "lucide-react";
 import { Toaster, toast } from "sonner";
+
+const DeliveryZonesPanel = dynamic(() => import("./DeliveryZonesPanel"), {
+  ssr: false,
+  loading: () => (
+    <div className="bg-white rounded-xl border border-gray-200 p-6 text-sm text-gray-500">
+      Loading the delivery-area map…
+    </div>
+  ),
+});
 
 type ServiceAreaWithId = ServiceArea & {
   id: string;
@@ -261,6 +271,9 @@ export default function ServiceAreasPage() {
         )}
       </div>
 
+      {/* MapLibre touches window at import time, so the map panel is loaded client-side. */}
+      <DeliveryZonesPanel />
+
       <Toaster position="top-right" />
     </div>
   );
@@ -362,8 +375,8 @@ function ServiceAreaForm({
             />
           </div>
           <p className="md:col-span-3 text-xs text-gray-500">
-            Blank fields use the store-wide delivery settings. No minimum order is ever enforced — a
-            cart below the charge threshold is still accepted and pays this fee.
+            Blank fields use the store-wide delivery settings. A cart below the charge threshold is
+            still accepted and pays this fee.
           </p>
         </div>
         <div className="md:col-span-3 flex justify-end gap-3 pt-4 border-t border-indigo-200">

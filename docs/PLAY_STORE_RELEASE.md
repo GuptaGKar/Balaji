@@ -5,6 +5,34 @@ This is the release checklist for `com.balaji.provision` (customer) and
 the external steps that must be completed before upload. It is not evidence that
 either app has been published or that the backend is production-ready.
 
+## Customer Play distribution (M12, 2026-11-02)
+
+The default customer and staff builds continue to use the direct-APK updater.
+The customer Play build is opt-in and uses the same customer application ID:
+
+```bash
+cd android
+bash gradlew -Pbalaji.play=true :app:assembleCustomerRelease :app:bundleCustomerRelease
+```
+
+These outputs go under `app/build/play/outputs/`. The Play customer source set
+excludes the direct updater and removes `REQUEST_INSTALL_PACKAGES`; Google Play
+manages update distribution. This addresses the [Google Play restricted installation permission policy](https://support.google.com/googleplay/android-developer/answer/12085295?hl=en). Staff builds retain the existing direct updater,
+including when this property is set. The property also works with the local QA
+flag, which writes to `app/build/play-audit/` and retains the isolated backend
+and QA identity safeguards. Artifact-level debug checks are in
+`scripts/check_android_update_distribution.py`; CI runs them for both channels.
+
+Do not substitute the default customer AAB for the Play AAB: it retains the
+updater. The existing installed direct APK and a future Play-signed APK must have
+compatible signing certificates and version codes for a data-preserving update.
+Play App Signing enrollment, upload-key association, highest version code,
+Console import and release runtime behavior require separate verification. No
+Play upload or production deployment is implied by the build command.
+
+The older sections below describe historical candidates and their build commands;
+they do not establish readiness or describe the Play-specific source set.
+
 ## Current release candidate — 1.7 (8)
 
 1.7 is built, signed and verified locally; it has **not** been uploaded to Play or

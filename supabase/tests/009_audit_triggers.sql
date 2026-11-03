@@ -1,60 +1,30 @@
--- pgTAP: audit trigger append-only tests
--- Verifies audit_logs cannot be updated/deleted, triggers fire on tracked tables.
-
+-- Append-only audit behavior under a real client manager, with populated targets.
 BEGIN;
 SELECT plan(7);
-
--- 1. audit_logs INSERT works (via trigger on store_settings)
-UPDATE store_settings SET delivery_fee_paise = 5000;
-SELECT lives_ok(
-  $sql$SELECT 1 FROM audit_logs WHERE entity_type = 'store_settings' AND action = 'UPDATE'$sql$,
-  'audit trigger fires on store_settings UPDATE'
-);
-
--- 2. audit_logs UPDATE is rejected
-SELECT throws_ok(
-  $sql$UPDATE audit_logs SET action = 'TAMPERED' WHERE entity_type = 'store_settings'$sql$,
-  null, null,
-  'audit_logs UPDATE rejected'
-);
-
--- 3. audit_logs DELETE is rejected
-SELECT throws_ok(
-  $sql$DELETE FROM audit_logs WHERE entity_type = 'store_settings'$sql$,
-  null, null,
-  'audit_logs DELETE rejected'
-);
-
--- 4. products price_paise UPDATE triggers audit
-UPDATE products SET price_paise = 9999 WHERE sku = 'TOOR-DAL-1KG';
-SELECT lives_ok(
-  $sql$SELECT 1 FROM audit_logs WHERE entity_type = 'products' AND action = 'UPDATE'$sql$,
-  'audit trigger fires on products price_paise UPDATE'
-);
-
--- 5. service_areas INSERT triggers audit
-INSERT INTO service_areas (kind, value) VALUES ('pincode', '888888');
-SELECT lives_ok(
-  $sql$SELECT 1 FROM audit_logs WHERE entity_type = 'service_areas' AND action = 'INSERT'$sql$,
-  'audit trigger fires on service_areas INSERT'
-);
-
--- 6. profiles role UPDATE triggers audit
-UPDATE profiles SET role = 'staff' WHERE id = 'eeeeeeee-0000-0000-0000-000000000001';
-SELECT lives_ok(
-  $sql$SELECT 1 FROM audit_logs WHERE entity_type = 'profiles' AND action = 'UPDATE'$sql$,
-  'audit trigger fires on profiles role UPDATE'
-);
-
--- 7. order_assignments INSERT triggers audit
-INSERT INTO order_assignments (order_id, delivery_user_id, assigned_by)
-SELECT id, 'dddddddd-0000-0000-0000-000000000001', 'eeeeeeee-0000-0000-0000-000000000002'
-FROM orders WHERE public_order_number = 'STAFF-ORDER-1'
-ON CONFLICT DO NOTHING;
-SELECT lives_ok(
-  $sql$SELECT 1 FROM audit_logs WHERE entity_type = 'order_assignments' AND action = 'INSERT'$sql$,
-  'audit trigger fires on order_assignments INSERT'
-);
-
+\ir helpers/role_fixtures.inc
+SELECT pg_temp.make_profile('00900000-0000-0000-0000-000000000001','manager','Audit Manager');
+SELECT pg_temp.make_profile('00900000-0000-0000-0000-000000000002','delivery','Audit Rider');
+SELECT pg_temp.make_profile('00900000-0000-0000-0000-000000000003','customer','Audit Customer');
+INSERT INTO public.products(sku,name,quantity_type,price_paise,price_basis_qty,unit_label,step_qty,min_qty,stock_qty)
+VALUES('AUDIT-PRODUCT','Audit product','PACKED',100,1,'pack',1,1,10);
+INSERT INTO public.orders(id,public_order_number,customer_id,address_snapshot,status)
+VALUES('00910000-0000-0000-0000-000000000001','AUDIT-ASSIGN','00900000-0000-0000-0000-000000000003','{}','ready_for_dispatch');
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claim.sub='00900000-0000-0000-0000-000000000001';
+UPDATE public.store_settings SET delivery_fee_paise=5100;
+SELECT is((SELECT count(*) FROM public.audit_logs WHERE actor_id=auth.uid() AND action='UPDATE' AND entity_type='store_settings' AND after->>'delivery_fee_paise'='5100'),1::bigint,'manager setting edit writes an actor-attributed audit row');
+UPDATE public.audit_logs SET action='TAMPERED' WHERE actor_id=auth.uid() AND entity_type='store_settings' AND after->>'delivery_fee_paise'='5100';
+SELECT is((SELECT count(*) FROM public.audit_logs WHERE actor_id=auth.uid() AND action='UPDATE' AND entity_type='store_settings' AND after->>'delivery_fee_paise'='5100'),1::bigint,'client UPDATE cannot alter an existing audit row');
+DELETE FROM public.audit_logs WHERE actor_id=auth.uid() AND entity_type='store_settings' AND after->>'delivery_fee_paise'='5100';
+SELECT is((SELECT count(*) FROM public.audit_logs WHERE actor_id=auth.uid() AND action='UPDATE' AND entity_type='store_settings' AND after->>'delivery_fee_paise'='5100'),1::bigint,'client DELETE cannot remove an existing audit row');
+UPDATE public.products SET price_paise=200 WHERE sku='AUDIT-PRODUCT';
+SELECT ok(EXISTS(SELECT 1 FROM public.audit_logs WHERE actor_id=auth.uid() AND entity_type='products' AND after->>'sku'='AUDIT-PRODUCT' AND after->>'price_paise'='200'),'product price change is audited');
+INSERT INTO public.service_areas(kind,value) VALUES('pincode','888889');
+SELECT ok(EXISTS(SELECT 1 FROM public.audit_logs WHERE actor_id=auth.uid() AND entity_type='service_areas' AND after->>'value'='888889'),'service-area change is audited');
+SELECT public.set_rider_active('00900000-0000-0000-0000-000000000002',false);
+SELECT ok(EXISTS(SELECT 1 FROM public.audit_logs WHERE actor_id=auth.uid() AND entity_type='profiles' AND after->>'id'='00900000-0000-0000-0000-000000000002' AND after->>'is_active'='false'),'rider deactivation is audited');
+SELECT public.set_rider_active('00900000-0000-0000-0000-000000000002',true);
+SELECT public.assign_order('00910000-0000-0000-0000-000000000001','00900000-0000-0000-0000-000000000002');
+SELECT ok(EXISTS(SELECT 1 FROM public.audit_logs WHERE actor_id=auth.uid() AND action='ASSIGN_ORDER' AND after->>'order_id'='00910000-0000-0000-0000-000000000001'),'server assignment is audited');
 SELECT * FROM finish();
 ROLLBACK;

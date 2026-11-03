@@ -202,6 +202,47 @@ interface SupabaseApi {
         @Body body: DeliveryFeeRequest
     ): Response<List<DeliveryFeeResponse>>
 
+    /**
+     * Draw-only delivery-area polygons. The `delivery_zone_map` view publishes no fee,
+     * threshold or discount column, so a client can never read a price from it - it only
+     * tells the map what shape to fill.
+     */
+    @GET("rest/v1/delivery_zone_map")
+    suspend fun getDeliveryZoneMap(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Query("select") select: String = "id,label,priority,active,geojson",
+        @Query("order") order: String = "priority.asc",
+        @Query("limit") limit: Int = 200
+    ): Response<List<DeliveryZoneResponse>>
+
+    /**
+     * Pre-order answer for the pin picker: is this PIN serviceable at all, and what
+     * delivery fee would the server apply at this exact spot. Advisory only -
+     * `place_order` recomputes everything from its own inputs, and the PIN gate stays on
+     * the server.
+     */
+    @POST("rest/v1/rpc/check_delivery_availability")
+    suspend fun checkDeliveryAvailability(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Header("Content-Type") contentType: String = "application/json",
+        @Body body: DeliveryAvailabilityRequest
+    ): Response<DeliveryAvailabilityResponse>
+
+    /**
+     * M4 autocomplete, served entirely from this project's own rows: active service areas plus,
+     * for a signed-in customer, their own saved addresses. The server ranks and caps the page;
+     * no keystroke goes to a third party and there is nothing to bill.
+     */
+    @POST("rest/v1/rpc/search_area_suggestions")
+    suspend fun searchAreaSuggestions(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Header("Content-Type") contentType: String = "application/json",
+        @Body body: AreaSuggestionRequest
+    ): Response<List<AreaSuggestionResponse>>
+
     @POST("rest/v1/device_tokens")
     suspend fun upsertDeviceToken(
         @Header("apikey") apiKey: String,
@@ -377,12 +418,21 @@ interface SupabaseApi {
         @Query("select") select: String = "id,order_id,stage,kind,path,created_at"
     ): Response<List<OrderProofResponse>>
 
+    @POST("storage/v1/object/sign/order-proofs/{path}")
+    suspend fun signOrderProof(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Header("Content-Type") contentType: String = "application/json",
+        @Path(value = "path", encoded = true) path: String,
+        @Body body: SignedProofUrlRequest
+    ): Response<SignedProofUrlResponse>
+
     @POST("storage/v1/object/order-proofs/{path}")
     suspend fun uploadOrderProof(
         @Header("apikey") apiKey: String,
         @Header("Authorization") auth: String,
         @Header("Content-Type") contentType: String,
-        @Header("x-upsert") upsert: String = "true",
+        @Header("x-upsert") upsert: String = "false",
         @Path(value = "path", encoded = true) path: String,
         @Body body: okhttp3.RequestBody
     ): Response<Unit>
@@ -454,6 +504,12 @@ data class OrderProofResponse(
     val path: String? = null,
     val created_at: String? = null
 )
+
+@Serializable
+data class SignedProofUrlRequest(val expiresIn: Int)
+
+@Serializable
+data class SignedProofUrlResponse(val signedURL: String? = null)
 
 @Serializable
 data class AttachOrderProofRequest(
@@ -560,7 +616,7 @@ data class ProductResponse(
     val sku: String,
     val name: String,
     val description: String? = null,
-    val category_id: String,
+    val category_id: String? = null,
     val image_path: String? = null,
     val quantity_type: String,
     val price_paise: Long,
@@ -618,13 +674,96 @@ data class DeliveryFeeResponse(
 )
 
 @Serializable
+data class DeliveryZoneResponse(
+    val id: String,
+    val label: String = "",
+    val priority: Int = 100,
+    val active: Boolean = true,
+    /** GeoJSON Polygon of the area outline; null when the row is unusable. */
+    val geojson: JsonObject? = null
+)
+
+@Serializable
+data class DeliveryAvailabilityRequest(
+    val p_pin_code: String,
+    /** Spot the customer is pointing at. Advisory: it can only choose a published price. */
+    val p_lat: Double? = null,
+    val p_lng: Double? = null,
+    /** Cart subtotal in paise, so the reply can mention the free-delivery gap. */
+    val p_eligible_subtotal: Long = 0L
+)
+
+@Serializable
+data class DeliveryAvailabilityResponse(
+    val deliverable: Boolean = false,
+    val pin_code: String? = null,
+    val pin_configured: Boolean = false,
+    val zone_id: String? = null,
+    val zone_label: String? = null,
+    val fee_paise: Long = 0L,
+    val rule_note: String? = null,
+    val below_charge_threshold: Boolean = false,
+    val amount_to_free_delivery: Long = 0L,
+    val gate_is_pin_based: Boolean = true,
+    val message: String? = null,
+    /** Present only when the RPC itself refused, e.g. VALIDATION_FAILED for a blank PIN. */
+    val error: String? = null
+)
+
+@Serializable
+data class AreaSuggestionRequest(
+    val p_query: String,
+    /** The server clamps this to 10 whatever is asked for; 8 is what fits above the keyboard. */
+    val p_limit: Int = 8
+)
+
+/**
+ * One row from `search_area_suggestions`. Property names are the server's snake_case keys
+ * verbatim - a renamed field silently decodes to null, which in this form would mean a chip
+ * that fills nothing.
+ *
+ * There is deliberately no amount on this list: fee and thresholds stay on
+ * `check_delivery_availability`, so a completion can never imply a price the server disagrees
+ * with.
+ */
+@Serializable
+data class AreaSuggestionResponse(
+    /** `area` or `address`. */
+    val type: String? = null,
+    val id: String? = null,
+    val label: String? = null,
+    // ---- area rows ----
+    val kind: String? = null,
+    val value: String? = null,
+    val has_boundary: Boolean? = null,
+    // ---- address rows only; absent for an area ----
+    val recipient_name: String? = null,
+    val phone: String? = null,
+    val address_lines: String? = null,
+    val landmark: String? = null,
+    val area: String? = null,
+    val city: String? = null,
+    val state: String? = null,
+    val postal_code: String? = null,
+    // ---- shared: zone centroid for an area, the saved pin for an address ----
+    val lat: Double? = null,
+    val lng: Double? = null
+)
+
+@Serializable
 data class QuoteCartRequest(
     val p_items: List<CartItemRequest>,
     val p_coupon_code: String? = null,
     /** Delivery PIN code; selects the per-PIN fee/free-delivery thresholds. */
     val p_pin_code: String? = null,
     /** Gift chosen from a free_item coupon's pool; the server validates it. */
-    val p_free_item_id: String? = null
+    val p_free_item_id: String? = null,
+    /**
+     * Drop-point coordinates. They let the quote resolve the same delivery area the
+     * order will, so the cart never shows one fee and the order another.
+     */
+    val p_lat: Double? = null,
+    val p_lng: Double? = null
 )
 
 @Serializable
@@ -999,7 +1138,7 @@ fun ProductResponse.toDomain(): Product = Product(
     sku = sku,
     name = name,
     description = description,
-    categoryId = category_id,
+    categoryId = category_id.orEmpty(),
     imagePath = image_path,
     quantityType = try { QuantityType.valueOf(quantity_type.uppercase()) } catch (e: Exception) { QuantityType.PACKED },
     pricePaise = price_paise,

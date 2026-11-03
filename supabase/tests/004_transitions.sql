@@ -27,21 +27,21 @@ SELECT results_eq(
 --    (ready_for_dispatch -> out_for_delivery, out_for_delivery -> delivered/failed
 --     count together: dispatch, delivered, delivery_failed).
 SELECT results_eq(
-  $sql$SELECT count(*) FROM order_transitions
+  $sql$SELECT count(*)::int FROM order_transitions
        WHERE allowed_roles @> ARRAY['delivery']::user_role[]$sql$,
   $$VALUES (3)$$,
   'delivery role appears in exactly the rider transitions');
 
 -- 4. delivered, rejected and cancelled are terminal (no outgoing rows).
 SELECT results_eq(
-  $sql$SELECT count(*) FROM order_transitions
+  $sql$SELECT count(*)::int FROM order_transitions
        WHERE from_status IN ('delivered', 'rejected', 'cancelled')$sql$,
   $$VALUES (0)$$,
   'delivered, rejected and cancelled are terminal');
 
 -- 5. Every transition row lists at least one allowed role.
 SELECT results_eq(
-  $sql$SELECT count(*) FROM order_transitions
+  $sql$SELECT count(*)::int FROM order_transitions
        WHERE coalesce(array_length(allowed_roles, 1), 0) < 1$sql$,
   $$VALUES (0)$$,
   'every transition allows at least one role');

@@ -8,12 +8,15 @@ import com.balaji.provision.data.network.CreateProductRequestRequest
 import com.balaji.provision.data.network.OrderProofResponse
 import com.balaji.provision.data.network.ProductRequestResponse
 import com.balaji.provision.data.network.SubmitOrderReviewRequest
+import com.balaji.provision.data.network.SignedProofUrlRequest
 import com.balaji.provision.data.network.SupabaseApi
 import com.balaji.provision.data.network.UpdateProductRequestRequest
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CancellationException
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -21,6 +24,7 @@ import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.Response
 import java.io.File
+import java.io.IOException
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -70,6 +74,9 @@ interface RequestsRepository {
 
     /** Stages (dispatch, delivery) that already have a proof for this order. */
     suspend fun loadProofs(orderId: String): RequestOutcome<Map<String, String>>
+
+    /** A fresh, caller-authorized preview link; never use the proof kind as a URI. */
+    suspend fun proofUrl(orderId: String, stage: String): RequestOutcome<String>
 
     suspend fun uploadProof(file: File, mimeType: String): RequestOutcome<String>
 
@@ -283,6 +290,46 @@ class RequestsRepositoryImpl @Inject constructor(
             }
         } catch (e: Exception) {
             RequestOutcome.Failure("Could not load the order proof.")
+        }
+    }
+
+    override suspend fun proofUrl(orderId: String, stage: String): RequestOutcome<String> {
+        if (stage !in setOf("dispatch", "delivery")) {
+            return RequestOutcome.Failure("Choose a dispatch or delivery proof.")
+        }
+        val token = authRepository.authorizedToken()
+            ?: return RequestOutcome.Failure("Sign in to view order proof.")
+        return try {
+            val proof = api.getOrderProofs(
+                apiKey = BuildConfig.SUPABASE_ANON_KEY,
+                auth = "Bearer $token",
+                orderId = "eq.$orderId"
+            )
+            if (!proof.isSuccessful) {
+                return RequestOutcome.Failure("Could not load this proof. Please retry.")
+            }
+            val path = proof.body()?.firstOrNull { it.order_id == orderId && it.stage == stage }
+                ?.path?.takeIf { it.isNotBlank() }
+                ?: return RequestOutcome.Failure("No proof file is available for this order.")
+            val signed = api.signOrderProof(
+                apiKey = BuildConfig.SUPABASE_ANON_KEY,
+                auth = "Bearer $token",
+                path = path,
+                body = SignedProofUrlRequest(expiresIn = 60)
+            )
+            if (!signed.isSuccessful) {
+                return RequestOutcome.Failure("This proof is unavailable. Retry or sign in again.")
+            }
+            val relative = signed.body()?.signedURL
+                ?.takeIf { it.startsWith("/object/sign/order-proofs/") }
+                ?: return RequestOutcome.Failure("The store returned an invalid proof link.")
+            RequestOutcome.Success(BuildConfig.SUPABASE_URL.trimEnd('/') + "/storage/v1" + relative)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (network: IOException) {
+            RequestOutcome.Failure("Could not open the proof. Check your connection and retry.")
+        } catch (unreadable: SerializationException) {
+            RequestOutcome.Failure("The store returned unreadable proof details. Please retry.")
         }
     }
 

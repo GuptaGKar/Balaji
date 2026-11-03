@@ -12,7 +12,8 @@ VALUES ('00000000-0000-0000-0000-000000000000',
 
 INSERT INTO public.profiles (id, role, display_name)
 VALUES ('a1a1a1a1-1111-4111-8111-111111111111', 'staff', 'MRP Staff'),
-       ('b2b2b2b2-2222-4222-8222-222222222222', 'customer', 'MRP Customer');
+       ('b2b2b2b2-2222-4222-8222-222222222222', 'customer', 'MRP Customer')
+ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, display_name = EXCLUDED.display_name;
 
 -- Privileges
 SELECT ok(

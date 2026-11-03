@@ -78,6 +78,14 @@ class CartRepositoryImpl @Inject constructor(
     /** Delivery PIN used by the quote; null until an address is chosen. */
     @Volatile private var deliveryPin: String? = null
 
+    /**
+     * Drop point of the selected address. It lets the quote resolve the same delivery
+     * area the order will, so the cart cannot show one fee and the order another. Kept
+     * apart from [deliveryPin] because the PIN decides deliverability while this only
+     * selects a price.
+     */
+    @Volatile private var deliveryPoint: Pair<Double, Double>? = null
+
     private val _cartFlow = MutableStateFlow<Cart>(Cart.empty())
     override val cartFlow: StateFlow<Cart> = _cartFlow.asStateFlow()
 
@@ -167,7 +175,9 @@ class CartRepositoryImpl @Inject constructor(
                 p_items = items.map { CartItemRequest(it.productId, it.qtyBase) },
                 p_coupon_code = coupon,
                 p_pin_code = deliveryPin,
-                p_free_item_id = pendingFreeItemId?.takeIf { coupon != null }
+                p_free_item_id = pendingFreeItemId?.takeIf { coupon != null },
+                p_lat = deliveryPoint?.first,
+                p_lng = deliveryPoint?.second
             )
             val anonKey = BuildConfig.SUPABASE_ANON_KEY
             val response = api.quoteCart(apiKey = anonKey, auth = "Bearer $anonKey", body = request)
@@ -359,6 +369,15 @@ class CartRepositoryImpl @Inject constructor(
         scheduleQuoteRefresh(debounceMillis = 0L)
     }
 
+    override fun setDeliveryLocation(lat: Double?, lng: Double?) {
+        val point = if (lat != null && lng != null) lat to lng else null
+        if (point == deliveryPoint) return
+        deliveryPoint = point
+        // A saved address can move to a different delivery area while keeping the same
+        // PIN, so the quote has to be recomputed from the new spot.
+        scheduleQuoteRefresh(debounceMillis = 0L)
+    }
+
     private fun mapToQuoteBreakdown(response: QuoteCartResponse): QuoteBreakdown {
         return QuoteBreakdown(
             lines = response.lines.map { l ->
@@ -424,6 +443,12 @@ interface CartRepository {
     fun selectFreeItem(productId: String?) {}
     /** Selected delivery PIN; the quote uses its per-PIN fee when the store has one. */
     fun setDeliveryPin(code: String?) {}
+
+    /**
+     * Drop point of the selected address. Only selects which published delivery area
+     * prices the order; it never decides whether the order is accepted.
+     */
+    fun setDeliveryLocation(lat: Double?, lng: Double?) {}
     suspend fun getCart(): Cart
     suspend fun addItem(item: CartItem): Cart
     suspend fun updateQuantity(productId: String, qtyBase: Long): Cart

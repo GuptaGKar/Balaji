@@ -1,4 +1,5 @@
 import java.util.Properties
+import java.net.URI
 
 plugins {
     id("com.android.application")
@@ -6,7 +7,18 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.dagger.hilt.android")
     id("kotlin-kapt")
-    id("com.google.gms.google-services")
+    id("com.google.gms.google-services") apply false
+}
+
+val localAudit = providers.gradleProperty("balaji.localAudit").orNull?.toBooleanStrict() ?: false
+val playDistribution = providers.gradleProperty("balaji.play").orNull?.toBooleanStrict() ?: false
+if (playDistribution) {
+    layout.buildDirectory.set(layout.projectDirectory.dir(if (localAudit) "build/play-audit" else "build/play"))
+} else if (localAudit) {
+    layout.buildDirectory.set(layout.projectDirectory.dir("build/local-audit"))
+}
+if (!localAudit) {
+    apply(plugin = "com.google.gms.google-services")
 }
 
 android {
@@ -17,18 +29,27 @@ android {
         applicationId = "com.balaji.provision"
         minSdk = 24
         targetSdk = 36
-        versionCode = 12
-        versionName = "1.11"
+        versionCode = 13
+        versionName = "1.12"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
         }
         val supabaseUrl = (project.findProperty("SUPABASE_URL") as String?)
             ?: System.getenv("SUPABASE_URL")
-            ?: "https://czbwwnlnmhhzketyjnzt.supabase.co/"
+            ?: if (localAudit) error("Local audit requires an explicit loopback SUPABASE_URL")
+            else "https://czbwwnlnmhhzketyjnzt.supabase.co/"
         val supabaseAnonKey = (project.findProperty("SUPABASE_ANON_KEY") as String?)
             ?: System.getenv("SUPABASE_ANON_KEY")
-            ?: "sb_publishable_pr_hXgQlfx4W-Z4HETIdBg_VoNIBEpo"
+            ?: if (localAudit) error("Local audit requires an explicit local SUPABASE_ANON_KEY")
+            else "sb_publishable_pr_hXgQlfx4W-Z4HETIdBg_VoNIBEpo"
+        if (localAudit) {
+            val endpoint = URI(supabaseUrl)
+            require(endpoint.scheme == "http" && endpoint.host == "127.0.0.1" &&
+                endpoint.port == 54321 && endpoint.userInfo == null
+            ) { "Local audit backend must be http://127.0.0.1:54321" }
+            require(supabaseAnonKey.isNotBlank()) { "Local audit key must not be blank" }
+        }
         buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseAnonKey\"")
         val staffWebUrl = (project.findProperty("STAFF_WEB_URL") as String?)
@@ -53,15 +74,30 @@ android {
     productFlavors {
         create("customer") {
             dimension = "audience"
-            applicationId = "com.balaji.provision"
-            resValue("string", "app_name", "Balaji Provision Store")
+            applicationId = if (localAudit) "com.balaji.provision.audit" else "com.balaji.provision"
+            resValue("string", "app_name", if (localAudit) "Balaji Customer QA" else "Balaji Provision Store")
             buildConfigField("boolean", "IS_STAFF", "false")
         }
         create("staff") {
             dimension = "audience"
-            applicationId = "com.balaji.provision.staff"
-            resValue("string", "app_name", "Balaji Staff")
+            applicationId = if (localAudit) "com.balaji.provision.staff.audit" else "com.balaji.provision.staff"
+            resValue("string", "app_name", if (localAudit) "Balaji Staff QA" else "Balaji Staff")
             buildConfigField("boolean", "IS_STAFF", "true")
+        }
+    }
+
+    sourceSets.getByName("customer").apply {
+        java.srcDir(if (playDistribution) "src/playUpdates/java" else "src/directUpdates/java")
+        if (playDistribution) manifest.srcFile("src/playUpdates/AndroidManifest.xml")
+    }
+    sourceSets.getByName("staff").java.srcDir("src/directUpdates/java")
+
+    if (localAudit) {
+        listOf("debug", "release").forEach { buildType ->
+            sourceSets.getByName(buildType).apply {
+                manifest.srcFile("src/localAudit/AndroidManifest.xml")
+                res.srcDir("src/localAudit/res")
+            }
         }
     }
 
@@ -101,7 +137,8 @@ android {
             isShrinkResources = minifyRelease
             isDebuggable = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("release")
+            // Local minified QA updates preserve the existing QA app data/session.
+            signingConfig = signingConfigs.getByName(if (localAudit) "debug" else "release")
         }
         debug {
             isMinifyEnabled = false
@@ -167,6 +204,11 @@ dependencies {
 
     // Location
     implementation("com.google.android.gms:play-services-location:21.3.0")
+
+    // Map rendering for the delivery pin picker. MapLibre GL + OpenFreeMap tiles need
+    // no API key and carry no billing dependency, which is why they were chosen over the
+    // Google Maps SDK (docs/DECISIONS.md, "Maps use no-key links for now").
+    implementation("org.maplibre.gl:android-sdk:11.13.5")
     
     // DataStore (cart/session persistence)
     implementation("androidx.datastore:datastore-preferences:1.0.0")

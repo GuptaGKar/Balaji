@@ -95,9 +95,7 @@ import com.balaji.provision.ui.splash.SplashScreen
 import com.balaji.provision.ui.staff.StaffApp
 import com.balaji.provision.ui.theme.BalajiTheme
 import com.balaji.provision.ui.theme.ThemeViewModel
-import com.balaji.provision.data.update.UpdateState
-import com.balaji.provision.ui.update.AppUpdateViewModel
-import com.balaji.provision.ui.update.InAppUpdateDialog
+import com.balaji.provision.ui.update.UpdateSurface
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 
@@ -148,29 +146,10 @@ fun MainAppScreen(
 
     ApplySystemBarAppearance()
 
-    // Update prompts live above the flavour switch so both the customer and the
-    // staff/rider builds receive the releases published for their audience.
-    val updateViewModel: AppUpdateViewModel = hiltViewModel()
+    // Play handles updates for Play-distributed builds; direct builds provide their own prompt.
+    UpdateSurface()
     // Keeps this install registered for push once the session is available (both flavours).
     hiltViewModel<com.balaji.provision.push.PushSyncViewModel>()
-    val updateState by updateViewModel.state.collectAsState()
-
-    InAppUpdateDialog(
-        updateState = updateState,
-        onUpdateClicked = {
-            val current = updateState
-            if (current is UpdateState.UpdateAvailable) {
-                updateViewModel.downloadAndInstall(current.release)
-            }
-        },
-        onInstallClicked = {
-            val current = updateState
-            if (current is UpdateState.ReadyToInstall) {
-                updateViewModel.retryInstall(current.apkFile)
-            }
-        },
-        onDismissClicked = updateViewModel::dismiss
-    )
 
     Box(
         modifier = Modifier

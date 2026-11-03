@@ -28,7 +28,8 @@ export function SafeImage({ src, alt, fallback, ...imageProps }: SafeImageProps)
     !resolvedSrc.startsWith("http://") &&
     !resolvedSrc.startsWith("https://") &&
     !resolvedSrc.startsWith("data:") &&
-    !resolvedSrc.startsWith("blob:")
+    !resolvedSrc.startsWith("blob:") &&
+    !resolvedSrc.startsWith("/api/order-media?")
   ) {
     const supabaseUrl =
       process.env.NEXT_PUBLIC_SUPABASE_URL || "https://czbwwnlnmhhzketyjnzt.supabase.co";

@@ -18,7 +18,8 @@ INSERT INTO public.profiles (id, role, display_name, phone)
 VALUES
   ('e1e1e1e1-1111-4111-8111-111111111111', 'customer', 'Delete Me', '9800000001'),
   ('e2e2e2e2-2222-4222-8222-222222222222', 'customer', 'Keep Me', '9800000002'),
-  ('e3e3e3e3-3333-4333-8333-333333333333', 'manager', 'Delete Manager', '9800000003');
+  ('e3e3e3e3-3333-4333-8333-333333333333', 'manager', 'Delete Manager', '9800000003')
+ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, display_name = EXCLUDED.display_name, phone = EXCLUDED.phone;
 
 INSERT INTO public.addresses (customer_id, label, recipient_name, phone, address_lines, city, state, postal_code, is_default)
 VALUES
@@ -57,7 +58,7 @@ VALUES
   ('DEL-BILL-KEEP', 'ORDER', 'f3f3f3f3-3333-4333-8333-333333333333', 'Keep Me', '9800000002', 5000, 3000, 8000, 'cod', 'paid');
 
 SET LOCAL request.jwt.claims.role = 'authenticated';
-SET LOCAL request.jwt.claims.sub = 'e3e3e3e3-3333-4333-8333-333333333333';
+SET LOCAL request.jwt.claim.sub = 'e3e3e3e3-3333-4333-8333-333333333333';
 
 SELECT results_eq(
   $$SELECT delete_my_account('DELETE')->>'error'$$,
@@ -65,7 +66,7 @@ SELECT results_eq(
   'staff accounts cannot self-delete'
 );
 
-SET LOCAL request.jwt.claims.sub = 'e1e1e1e1-1111-4111-8111-111111111111';
+SET LOCAL request.jwt.claim.sub = 'e1e1e1e1-1111-4111-8111-111111111111';
 
 SELECT results_eq(
   $$SELECT delete_my_account('yes')->>'error'$$,
@@ -80,6 +81,10 @@ SELECT results_eq(
 );
 
 -- Delivered now requires a delivery proof (order-proofs rule).
+-- Stored-object fixtures for the real proof transition gate.
+INSERT INTO storage.objects(bucket_id,name) VALUES
+ ('order-proofs','e3e3e3e3-3333-4333-8333-333333333333/proof/delivery.jpg');
+
 INSERT INTO public.order_proofs (order_id, stage, kind, path)
 VALUES ('f1f1f1f1-1111-4111-8111-111111111111', 'delivery', 'image',
         'e3e3e3e3-3333-4333-8333-333333333333/proof/delivery.jpg')

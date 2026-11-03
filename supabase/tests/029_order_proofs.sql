@@ -36,6 +36,11 @@ SELECT throws_ok(
 );
 
 -- 2. With a dispatch proof the transition succeeds.
+-- Stored-object fixtures for the real proof transition gate.
+INSERT INTO storage.objects(bucket_id,name) VALUES
+ ('order-proofs','bbbbbbbb-0000-0000-0000-000000000001/proof/dispatch.mp4'),
+ ('order-proofs','bbbbbbbb-0000-0000-0000-000000000001/proof/delivery.jpg');
+
 INSERT INTO public.order_proofs (order_id, stage, kind, path, uploaded_by)
 VALUES ('99999999-9999-9999-9999-999999999901', 'dispatch', 'video',
         'bbbbbbbb-0000-0000-0000-000000000001/proof/dispatch.mp4',

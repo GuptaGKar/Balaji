@@ -1,101 +1,27 @@
--- pgTAP: RLS rider isolation tests
--- Verifies riders see only their assigned orders via rider_orders view.
-
+-- Real rider SQL roles and independent fixtures, including both sides of each boundary.
 BEGIN;
 SELECT plan(8);
-
--- Fixtures: two riders, orders assigned to rider_a
-INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
-VALUES ('00000000-0000-0000-0000-000000000000',
-        'dddddddd-0000-0000-0000-000000000001',
-        'authenticated', 'authenticated',
-        'rider-a@test.invalid', 'x', now(), now(), now()),
-       ('00000000-0000-0000-0000-000000000000',
-        'dddddddd-0000-0000-0000-000000000002',
-        'authenticated', 'authenticated',
-        'rider-b@test.invalid', 'x', now(), now(), now());
-
-INSERT INTO profiles (id, role, display_name, login_id, is_active, must_change_password)
-VALUES ('dddddddd-0000-0000-0000-000000000001', 'delivery', 'Rider A', 'RIDER-A-001', true, true),
-       ('dddddddd-0000-0000-0000-000000000002', 'delivery', 'Rider B', 'RIDER-B-001', true, true);
-
-INSERT INTO orders (public_order_number, customer_id, address_snapshot, status, assigned_to)
-VALUES ('RIDER-A-ORDER-1', 'aaaaaaaa-0000-0000-0000-000000000001', '{}'::jsonb, 'out_for_delivery', 'dddddddd-0000-0000-0000-000000000001'),
-       ('RIDER-A-ORDER-2', 'aaaaaaaa-0000-0000-0000-000000000001', '{}'::jsonb, 'ready_for_dispatch', 'dddddddd-0000-0000-0000-000000000001'),
-       ('RIDER-B-ORDER-1', 'aaaaaaaa-0000-0000-0000-000000000001', '{}'::jsonb, 'out_for_delivery', 'dddddddd-0000-0000-0000-000000000002');
-
-INSERT INTO order_assignments (order_id, delivery_user_id, assigned_by)
-SELECT id, 'dddddddd-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000005'
-FROM orders WHERE public_order_number IN ('RIDER-A-ORDER-1', 'RIDER-A-ORDER-2');
-INSERT INTO order_assignments (order_id, delivery_user_id, assigned_by)
-SELECT id, 'dddddddd-0000-0000-0000-000000000002', 'aaaaaaaa-0000-0000-0000-000000000005'
-FROM orders WHERE public_order_number = 'RIDER-B-ORDER-1';
-
--- Test as rider_a
-SET LOCAL request.jwt.claims.sub = 'dddddddd-0000-0000-0000-000000000001';
-SET LOCAL request.jwt.claims.role = 'delivery';
-
--- 1. rider_a sees assigned orders in rider_orders view (2 orders)
-SELECT results_eq(
-  $sql$SELECT count(*) FROM rider_orders$sql$,
-  $$VALUES (2)$$,
-  'rider_a sees 2 assigned orders in rider_orders'
-);
-
--- 2. rider_orders shows only necessary fields
-SELECT lives_ok(
-  $sql$SELECT public_order_number, recipient_name, phone, status, cod_collected_paise FROM rider_orders LIMIT 1$sql$,
-  'rider_orders exposes only necessary fields'
-);
-
--- 3. rider_a CANNOT read orders table directly
-SELECT throws_ok(
-  $sql$SELECT 1 FROM orders LIMIT 1$sql$,
-  null, null,
-  'rider_a cannot read orders table directly'
-);
-
--- 4. rider_a CANNOT read profiles table
-SELECT throws_ok(
-  $sql$SELECT 1 FROM profiles LIMIT 1$sql$,
-  null, null,
-  'rider_a cannot read profiles table'
-);
-
--- Test as rider_b
-RESET request.jwt.claims.sub;
-RESET request.jwt.claims.role;
-SET LOCAL request.jwt.claims.sub = 'dddddddd-0000-0000-0000-000000000002';
-SET LOCAL request.jwt.claims.role = 'delivery';
-
--- 5. rider_b sees only 1 assigned order
-SELECT results_eq(
-  $sql$SELECT count(*) FROM rider_orders$sql$,
-  $$VALUES (1)$$,
-  'rider_b sees only 1 assigned order'
-);
-
--- 6. rider_b CANNOT see rider_a's orders
-SELECT results_eq(
-  $sql$SELECT count(*) FROM rider_orders WHERE public_order_number LIKE 'RIDER-A-%'$sql$,
-  $$VALUES (0)$$,
-  'rider_b cannot see rider_a orders'
-);
-
--- 7. rider_b CANNOT read order_assignments for other riders
-SELECT throws_ok(
-  $sql$SELECT 1 FROM order_assignments WHERE delivery_user_id = 'dddddddd-0000-0000-0000-000000000001'$sql$,
-  null, null,
-  'rider_b cannot read other rider assignments'
-);
-
--- 8. rider_b CAN read own order_assignments
-SELECT lives_ok(
-  $sql$SELECT 1 FROM order_assignments WHERE delivery_user_id = 'dddddddd-0000-0000-0000-000000000002'$sql$,
-  'rider_b reads own order_assignments'
-);
-
-RESET request.jwt.claims.sub;
-RESET request.jwt.claims.role;
+\ir helpers/role_fixtures.inc
+SELECT pg_temp.make_profile('00700000-0000-0000-0000-000000000001','delivery','Rider A');
+SELECT pg_temp.make_profile('00700000-0000-0000-0000-000000000002','delivery','Rider B');
+SELECT pg_temp.make_profile('00700000-0000-0000-0000-000000000003','customer','Customer');
+SELECT pg_temp.make_profile('00700000-0000-0000-0000-000000000004','manager','Manager');
+INSERT INTO public.orders(id,public_order_number,customer_id,address_snapshot,status,assigned_to) VALUES
+ ('00710000-0000-0000-0000-000000000001','RIDER-A-ORDER','00700000-0000-0000-0000-000000000003','{}','ready_for_dispatch','00700000-0000-0000-0000-000000000001'),
+ ('00710000-0000-0000-0000-000000000002','RIDER-B-ORDER','00700000-0000-0000-0000-000000000003','{}','ready_for_dispatch','00700000-0000-0000-0000-000000000002');
+INSERT INTO public.order_assignments(order_id,delivery_user_id,assigned_by) VALUES
+ ('00710000-0000-0000-0000-000000000001','00700000-0000-0000-0000-000000000001','00700000-0000-0000-0000-000000000004'),
+ ('00710000-0000-0000-0000-000000000002','00700000-0000-0000-0000-000000000002','00700000-0000-0000-0000-000000000004');
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claim.sub='00700000-0000-0000-0000-000000000001';
+SELECT results_eq($q$SELECT id FROM public.rider_orders$q$,$q$VALUES ('00710000-0000-0000-0000-000000000001'::uuid)$q$,'rider A view exposes only assigned order');
+SELECT results_eq($q$SELECT id FROM public.orders$q$,$q$VALUES ('00710000-0000-0000-0000-000000000001'::uuid)$q$,'base orders table also isolates rider A');
+SELECT is((SELECT count(*) FROM public.profiles WHERE id=auth.uid()),1::bigint,'rider can read own role profile');
+SELECT is((SELECT count(*) FROM public.profiles WHERE id='00700000-0000-0000-0000-000000000003'),0::bigint,'rider cannot read customer profile directly');
+SET LOCAL request.jwt.claim.sub='00700000-0000-0000-0000-000000000002';
+SELECT results_eq($q$SELECT id FROM public.rider_orders$q$,$q$VALUES ('00710000-0000-0000-0000-000000000002'::uuid)$q$,'rider B view exposes only assigned order');
+SELECT is((SELECT count(*) FROM public.orders WHERE id='00710000-0000-0000-0000-000000000001'),0::bigint,'rider B cannot read rider A order');
+SELECT is((SELECT count(*) FROM public.order_assignments WHERE delivery_user_id=auth.uid()),1::bigint,'rider B sees own assignment');
+SELECT is((SELECT count(*) FROM public.order_assignments WHERE delivery_user_id='00700000-0000-0000-0000-000000000001'),0::bigint,'rider B cannot read rider A assignment');
 SELECT * FROM finish();
 ROLLBACK;

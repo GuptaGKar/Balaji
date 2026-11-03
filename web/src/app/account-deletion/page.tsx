@@ -14,8 +14,8 @@ export default function AccountDeletionPage() {
       </p>
       <h1 className="mt-2 text-3xl font-bold tracking-tight">Delete your account</h1>
       <p className="mt-3 text-sm leading-7 text-slate-600">
-        You can erase your Balaji Provision Store customer account and its personal data. Choose
-        either route below.
+        You can request deletion of your Balaji Provision Store customer account and its personal
+        data. Choose either route below.
       </p>
 
       <div className="mt-8 space-y-6 text-sm leading-7">
@@ -53,6 +53,10 @@ export default function AccountDeletionPage() {
             in an anonymised form for accounting, tax and legal records; item names, quantities and
             totals remain without your personal details. We do not keep your phone number or address
             for marketing after deletion.
+          </p>
+          <p className="mt-2">
+            Product requests, review comments, order photos and delivery proof may remain after
+            in-app deletion. Contact the store about any remaining data.
           </p>
         </section>
 

@@ -18,6 +18,7 @@ build/
 
 # Supabase CLI local state
 supabase/.temp/
+supabase/.branches/
 
 # Android
 android/.gradle/
@@ -44,3 +45,22 @@ session-*.md
 *.jpeg
 *.jpg
 
+
+# Reverse-engineering / device-audit scratch (large, regenerable, not source)
+.tmp_rea_vishal/
+.tmp_vendor/
+.tmp_qwen_zeplu/
+
+# Third-party APKs kept only as audit inputs
+/Vishal Megamart.apk
+/Zeplu.apk
+plugin.zip
+
+# Investigation evidence drops (big binaries; publish deliberately if ever wanted)
+QWEN REA/
+
+# Third-party app investigation output (not Balaji source)
+DOCS/
+
+# TypeScript incremental build cache (generated; was dirtying every typecheck)
+web/tsconfig.tsbuildinfo

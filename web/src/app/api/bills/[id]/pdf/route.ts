@@ -5,7 +5,10 @@ import type { BillData } from "@/lib/billing";
 
 export const runtime = "nodejs";
 
-export async function GET(_request: Request, { params }: { params: { id: string } }) {
+// Next 15 passes dynamic route params as a Promise; the old synchronous shape fails
+// the build's type check.
+export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+  const { id } = await context.params;
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
@@ -15,7 +18,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
     return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   }
 
-  const { data, error } = await supabase.rpc("get_bill", { p_bill_id: params.id });
+  const { data, error } = await supabase.rpc("get_bill", { p_bill_id: id });
   const payload = data as (BillData & { error?: string; message?: string }) | null;
 
   if (error || !payload || payload.error) {

@@ -39,7 +39,7 @@ INSERT INTO products (
 ON CONFLICT (sku) DO UPDATE SET stock_qty = 10, active = true, available = true;
 
 -- 2. Customer can place an order
-SET LOCAL request.jwt.claims.sub = 'eeeeeeee-0000-0000-0000-000000000001';
+SET LOCAL request.jwt.claim.sub = 'eeeeeeee-0000-0000-0000-000000000001';
 SET LOCAL request.jwt.claims.role = 'authenticated';
 SELECT lives_ok(
   $sql$
@@ -88,7 +88,7 @@ SELECT results_eq(
 );
 
 -- 4. Another customer cannot cancel it
-SET LOCAL request.jwt.claims.sub = 'aaaaaaaa-0000-0000-0000-000000000002';
+SET LOCAL request.jwt.claim.sub = 'aaaaaaaa-0000-0000-0000-000000000002';
 SELECT results_eq(
   $$SELECT cancel_my_order(
       (SELECT id FROM orders WHERE idempotency_key = 'CANCEL-TEST-IDEMP-1'),
@@ -99,7 +99,7 @@ SELECT results_eq(
 );
 
 -- 5. Accepted orders cannot be cancelled by the customer
-SET LOCAL request.jwt.claims.sub = 'eeeeeeee-0000-0000-0000-000000000001';
+SET LOCAL request.jwt.claim.sub = 'eeeeeeee-0000-0000-0000-000000000001';
 SELECT place_order(
   jsonb_build_object(
     'items', jsonb_build_array(jsonb_build_object(
@@ -115,14 +115,14 @@ SELECT place_order(
   'CANCEL-TEST-IDEMP-2'
 );
 
-SET LOCAL request.jwt.claims.sub = 'aaaaaaaa-0000-0000-0000-000000000006';
+SET LOCAL request.jwt.claim.sub = 'aaaaaaaa-0000-0000-0000-000000000006';
 SET LOCAL request.jwt.claims.role = 'authenticated';
 SELECT transition_order(
   (SELECT id FROM orders WHERE idempotency_key = 'CANCEL-TEST-IDEMP-2'),
   'accepted', 'Accepted for test'
 );
 
-SET LOCAL request.jwt.claims.sub = 'eeeeeeee-0000-0000-0000-000000000001';
+SET LOCAL request.jwt.claim.sub = 'eeeeeeee-0000-0000-0000-000000000001';
 SELECT results_eq(
   $$SELECT cancel_my_order(
       (SELECT id FROM orders WHERE idempotency_key = 'CANCEL-TEST-IDEMP-2'),
@@ -133,20 +133,19 @@ SELECT results_eq(
 );
 
 -- 6. Staff direct order status updates are blocked; RPC still works
-SET LOCAL request.jwt.claims.sub = 'aaaaaaaa-0000-0000-0000-000000000005';
-SELECT results_eq(
-  $$WITH updated AS (
-      UPDATE orders SET status = 'cancelled'
-      WHERE idempotency_key = 'CANCEL-TEST-IDEMP-2'
-      RETURNING 1
-    )
-    SELECT count(*)::int FROM updated$$,
-  $$VALUES (0)$$,
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claim.sub = 'aaaaaaaa-0000-0000-0000-000000000005';
+SELECT throws_ok(
+  $$UPDATE orders SET status = 'cancelled'
+      WHERE idempotency_key = 'CANCEL-TEST-IDEMP-2'$$,
+  '42501', NULL,
   'staff cannot bypass transition_order with a direct UPDATE'
 );
 
+RESET ROLE;
+
 -- 7. Removing the final active item cancels the order and zeroes the bill
-SET LOCAL request.jwt.claims.sub = 'aaaaaaaa-0000-0000-0000-000000000006';
+SET LOCAL request.jwt.claim.sub = 'aaaaaaaa-0000-0000-0000-000000000006';
 SET LOCAL request.jwt.claims.role = 'authenticated';
 SELECT results_eq(
   $$SELECT remove_order_item(
@@ -168,6 +167,7 @@ SELECT results_eq(
 );
 
 -- 8. Idempotency key cannot be reused with a different payload
+SET LOCAL request.jwt.claim.sub = 'eeeeeeee-0000-0000-0000-000000000001';
 SELECT results_eq(
   $$SELECT place_order(
       jsonb_build_object(

@@ -77,8 +77,9 @@ export default function CouponsPage() {
   const [description, setDescription] = useState("");
   // Comma-separated PIN codes. Empty means the coupon works for every PIN.
   const [pinCodesText, setPinCodesText] = useState("");
-  const [discountType, setDiscountType] =
-    useState<"percent_off" | "rupees_off" | "free_delivery" | "free_item">("percent_off");
+  const [discountType, setDiscountType] = useState<
+    "percent_off" | "rupees_off" | "free_delivery" | "free_item"
+  >("percent_off");
   const [discountValue, setDiscountValue] = useState("");
   // Free-item coupon: the gift pool the customer chooses one item from, and how
   // many base units of it are given away.
@@ -663,52 +664,52 @@ export default function CouponsPage() {
               {/* Scope Selector: All / Categories / Products */}
               {discountType !== "free_item" && (
                 <>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Applies To *
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setAppliesTo("all")}
-                    className={cn(
-                      "flex flex-col items-center justify-center p-3 rounded-xl border text-xs font-semibold transition gap-1.5",
-                      appliesTo === "all"
-                        ? "border-emerald-600 bg-emerald-50 text-emerald-800 shadow-xs"
-                        : "border-slate-200 bg-slate-50/70 text-slate-600 hover:bg-slate-100",
-                    )}
-                  >
-                    <Globe className="h-4 w-4" />
-                    Entire Store
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAppliesTo("categories")}
-                    className={cn(
-                      "flex flex-col items-center justify-center p-3 rounded-xl border text-xs font-semibold transition gap-1.5",
-                      appliesTo === "categories"
-                        ? "border-purple-600 bg-purple-50 text-purple-800 shadow-xs"
-                        : "border-slate-200 bg-slate-50/70 text-slate-600 hover:bg-slate-100",
-                    )}
-                  >
-                    <FolderTree className="h-4 w-4" />
-                    Categories
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAppliesTo("products")}
-                    className={cn(
-                      "flex flex-col items-center justify-center p-3 rounded-xl border text-xs font-semibold transition gap-1.5",
-                      appliesTo === "products"
-                        ? "border-amber-600 bg-amber-50 text-amber-800 shadow-xs"
-                        : "border-slate-200 bg-slate-50/70 text-slate-600 hover:bg-slate-100",
-                    )}
-                  >
-                    <Package className="h-4 w-4" />
-                    Products
-                  </button>
-                </div>
-              </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Applies To *
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAppliesTo("all")}
+                        className={cn(
+                          "flex flex-col items-center justify-center p-3 rounded-xl border text-xs font-semibold transition gap-1.5",
+                          appliesTo === "all"
+                            ? "border-emerald-600 bg-emerald-50 text-emerald-800 shadow-xs"
+                            : "border-slate-200 bg-slate-50/70 text-slate-600 hover:bg-slate-100",
+                        )}
+                      >
+                        <Globe className="h-4 w-4" />
+                        Entire Store
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAppliesTo("categories")}
+                        className={cn(
+                          "flex flex-col items-center justify-center p-3 rounded-xl border text-xs font-semibold transition gap-1.5",
+                          appliesTo === "categories"
+                            ? "border-purple-600 bg-purple-50 text-purple-800 shadow-xs"
+                            : "border-slate-200 bg-slate-50/70 text-slate-600 hover:bg-slate-100",
+                        )}
+                      >
+                        <FolderTree className="h-4 w-4" />
+                        Categories
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAppliesTo("products")}
+                        className={cn(
+                          "flex flex-col items-center justify-center p-3 rounded-xl border text-xs font-semibold transition gap-1.5",
+                          appliesTo === "products"
+                            ? "border-amber-600 bg-amber-50 text-amber-800 shadow-xs"
+                            : "border-slate-200 bg-slate-50/70 text-slate-600 hover:bg-slate-100",
+                        )}
+                      >
+                        <Package className="h-4 w-4" />
+                        Products
+                      </button>
+                    </div>
+                  </div>
                 </>
               )}
 
@@ -717,8 +718,8 @@ export default function CouponsPage() {
                 <div className="space-y-3 rounded-xl border border-rose-200 bg-rose-50/40 p-3.5">
                   <div>
                     <span className="text-xs font-bold text-rose-900 flex items-center gap-1.5">
-                      <Gift className="h-3.5 w-3.5" /> Free item options ({freeItemProductIds.length}{" "}
-                      selected)
+                      <Gift className="h-3.5 w-3.5" /> Free item options (
+                      {freeItemProductIds.length} selected)
                     </span>
                     <p className="text-[11px] text-rose-700/80 mt-0.5">
                       The customer claims exactly ONE of these once their cart reaches the milestone

@@ -1,103 +1,36 @@
--- pgTAP: RLS staff/manager access tests
--- Staff/manager see all orders; only manager writes settings.
-
+-- Staff operational reads and manager controls under actual client roles.
 BEGIN;
 SELECT plan(10);
-
--- Fixtures: staff and manager
-INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
-VALUES ('00000000-0000-0000-0000-000000000000',
-        'eeeeeeee-0000-0000-0000-000000000001',
-        'authenticated', 'authenticated',
-        'staff@test.invalid', 'x', now(), now(), now()),
-       ('00000000-0000-0000-0000-000000000000',
-        'eeeeeeee-0000-0000-0000-000000000002',
-        'authenticated', 'authenticated',
-        'manager@test.invalid', 'x', now(), now(), now());
-
-INSERT INTO profiles (id, role, display_name)
-VALUES ('eeeeeeee-0000-0000-0000-000000000001', 'staff', 'Staff'),
-       ('eeeeeeee-0000-0000-0000-000000000002', 'manager', 'Manager');
-
--- Test as staff
-SET LOCAL request.jwt.claims.sub = 'eeeeeeee-0000-0000-0000-000000000001';
-SET LOCAL request.jwt.claims.role = 'staff';
-
--- 1. staff reads all orders
-INSERT INTO orders (public_order_number, customer_id, address_snapshot)
-VALUES ('STAFF-ORDER-1', 'aaaaaaaa-0000-0000-0000-000000000001', '{}'::jsonb);
-SELECT lives_ok(
-  $sql$SELECT 1 FROM orders WHERE public_order_number = 'STAFF-ORDER-1'$sql$,
-  'staff reads all orders'
-);
-
--- 2. staff reads all profiles
-SELECT lives_ok(
-  $sql$SELECT 1 FROM profiles WHERE id = 'aaaaaaaa-0000-0000-0000-000000000001'$sql$,
-  'staff reads all profiles'
-);
-
--- 3. staff CANNOT update profiles (manager only)
-SELECT throws_ok(
-  $sql$UPDATE profiles SET display_name = 'x' WHERE id = 'aaaaaaaa-0000-0000-0000-000000000001'$sql$,
-  null, null,
-  'staff cannot update profiles'
-);
-
--- 4. staff CANNOT write store_settings
-SELECT throws_ok(
-  $sql$UPDATE store_settings SET delivery_fee_paise = 1000$sql$,
-  null, null,
-  'staff cannot write store_settings'
-);
-
--- 5. staff CAN read service_areas
-SELECT lives_ok(
-  $sql$SELECT 1 FROM service_areas LIMIT 1$sql$,
-  'staff reads service_areas'
-);
-
--- Test as manager
-RESET request.jwt.claims.sub;
-RESET request.jwt.claims.role;
-SET LOCAL request.jwt.claims.sub = 'eeeeeeee-0000-0000-0000-000000000002';
-SET LOCAL request.jwt.claims.role = 'manager';
-
--- 6. manager reads all orders
-SELECT lives_ok(
-  $sql$SELECT 1 FROM orders WHERE public_order_number = 'STAFF-ORDER-1'$sql$,
-  'manager reads all orders'
-);
-
--- 7. manager writes store_settings
-SELECT lives_ok(
-  $sql$UPDATE store_settings SET delivery_fee_paise = 2000$sql$,
-  'manager writes store_settings'
-);
-
--- 8. manager reads audit_logs
-SELECT lives_ok(
-  $sql$SELECT 1 FROM audit_logs LIMIT 1$sql$,
-  'manager reads audit_logs'
-);
-
--- 9. manager CANNOT read payment_events (internal only)
-SELECT throws_ok(
-  $sql$SELECT 1 FROM payment_events LIMIT 1$sql$,
-  null, null,
-  'manager cannot read payment_events'
-);
-
--- 10. manager CAN write order_assignments
-SELECT lives_ok(
-  $sql$INSERT INTO order_assignments (order_id, delivery_user_id, assigned_by)
-    SELECT id, 'dddddddd-0000-0000-0000-000000000001', 'eeeeeeee-0000-0000-0000-000000000002'
-    FROM orders WHERE public_order_number = 'STAFF-ORDER-1'
-    ON CONFLICT DO NOTHING$sql$,
-  'manager writes order_assignments'
-);
-
-RESET request.jwt.claims.sub;
-RESET request.jwt.claims.role;
+\ir helpers/role_fixtures.inc
+SELECT pg_temp.make_profile('00800000-0000-0000-0000-000000000001','staff','Staff');
+SELECT pg_temp.make_profile('00800000-0000-0000-0000-000000000002','manager','Manager');
+SELECT pg_temp.make_profile('00800000-0000-0000-0000-000000000003','customer','Unchanged Customer');
+SELECT pg_temp.make_profile('00800000-0000-0000-0000-000000000004','delivery','Rider');
+INSERT INTO public.orders(id,public_order_number,customer_id,address_snapshot,status) VALUES
+ ('00810000-0000-0000-0000-000000000001','STAFF-ORDER','00800000-0000-0000-0000-000000000003','{}','ready_for_dispatch');
+INSERT INTO public.service_areas(kind,value) VALUES('pincode','888887');
+INSERT INTO public.payment_events(provider,provider_event_id,payload_hash) VALUES('local-test','RLS-PAYMENT-EVENT','synthetic');
+UPDATE public.store_settings SET delivery_fee_paise=3000;
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claim.sub='00800000-0000-0000-0000-000000000001';
+SELECT is((SELECT count(*) FROM public.orders WHERE id='00810000-0000-0000-0000-000000000001'),1::bigint,'staff sees operational order');
+SELECT is((SELECT count(*) FROM public.profiles WHERE id='00800000-0000-0000-0000-000000000003'),1::bigint,'staff sees customer profile');
+UPDATE public.profiles SET display_name='TAMPERED' WHERE id='00800000-0000-0000-0000-000000000003';
+RESET ROLE;
+SELECT is((SELECT display_name FROM public.profiles WHERE id='00800000-0000-0000-0000-000000000003'),'Unchanged Customer','staff profile edit affects no row');
+SET LOCAL ROLE authenticated;
+UPDATE public.store_settings SET delivery_fee_paise=1000;
+RESET ROLE;
+SELECT is((SELECT delivery_fee_paise FROM public.store_settings),3000::bigint,'staff configuration edit affects no row');
+SET LOCAL ROLE authenticated;
+SELECT is((SELECT count(*) FROM public.service_areas WHERE value='888887'),1::bigint,'staff sees active service area');
+SET LOCAL request.jwt.claim.sub='00800000-0000-0000-0000-000000000002';
+SELECT is((SELECT count(*) FROM public.orders WHERE id='00810000-0000-0000-0000-000000000001'),1::bigint,'manager sees operational order');
+UPDATE public.store_settings SET delivery_fee_paise=2000;
+SELECT is((SELECT delivery_fee_paise FROM public.store_settings),2000::bigint,'manager configuration edit succeeds');
+SELECT ok(EXISTS(SELECT 1 FROM public.audit_logs WHERE actor_id=auth.uid() AND entity_type='store_settings' AND after->>'delivery_fee_paise'='2000'),'manager sees the audit record for their edit');
+SELECT is((SELECT count(*) FROM public.payment_events WHERE provider_event_id='RLS-PAYMENT-EVENT'),0::bigint,'manager cannot read internal payment event');
+SELECT public.assign_order('00810000-0000-0000-0000-000000000001','00800000-0000-0000-0000-000000000004');
+SELECT is((SELECT count(*) FROM public.order_assignments WHERE order_id='00810000-0000-0000-0000-000000000001' AND delivery_user_id='00800000-0000-0000-0000-000000000004' AND unassigned_at IS NULL),1::bigint,'manager assigns an active rider through the server RPC');
 SELECT * FROM finish();
 ROLLBACK;

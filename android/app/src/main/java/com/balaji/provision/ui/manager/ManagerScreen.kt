@@ -347,6 +347,12 @@ fun ManagerScreen(
             },
             proofs = proofState.proofs,
             uploadingStage = proofState.uploadingStage,
+            openingProofStage = proofState.openingStage,
+            onViewProof = { stage ->
+                state.selectedOrderId?.let { orderId ->
+                    proofViewModel.openProof(orderId, stage) { url -> openProofPreview(context, url) }
+                }
+            },
             onUploadProof = { stage ->
                 proofStage = stage
                 proofMenuStage = stage
@@ -942,8 +948,10 @@ private fun ManagerOrderSheet(
     onRemoveItem: (ManagerOrderLine) -> Unit,
     onAction: (ManagerOrderAction) -> Unit,
     onAssignRider: () -> Unit,
+    onViewProof: (String) -> Unit,
     proofs: Map<String, String> = emptyMap(),
     uploadingStage: String? = null,
+    openingProofStage: String? = null,
     onUploadProof: (String) -> Unit = {}
 ) {
     val order = state.selectedOrder ?: return
@@ -976,6 +984,8 @@ private fun ManagerOrderSheet(
             ProofSection(
                 proofs = proofs,
                 uploadingStage = uploadingStage,
+                openingStage = openingProofStage,
+                onView = onViewProof,
                 onUpload = onUploadProof
             )
 
@@ -1698,6 +1708,16 @@ private fun openInBrowser(context: Context, url: String) {
     }
 }
 
+private fun openProofPreview(context: Context, url: String) {
+    try {
+        context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
+    } catch (missingViewer: ActivityNotFoundException) {
+        Toast.makeText(context, "No app is available to view this proof.", Toast.LENGTH_LONG).show()
+    } catch (denied: SecurityException) {
+        Toast.makeText(context, "Your device could not open this proof.", Toast.LENGTH_LONG).show()
+    }
+}
+
 /**
  * Dispatch and delivery proof. Photos and videos both count; the transition itself is
  * blocked by the database until the matching proof exists.
@@ -1706,6 +1726,8 @@ private fun openInBrowser(context: Context, url: String) {
 private fun ProofSection(
     proofs: Map<String, String>,
     uploadingStage: String?,
+    openingStage: String?,
+    onView: (String) -> Unit,
     onUpload: (String) -> Unit
 ) {
     Card(
@@ -1721,18 +1743,18 @@ private fun ProofSection(
                 detail = proofs["dispatch"]?.let { "Uploaded - tap View to open" }
                     ?: "Required before Out for delivery",
                 present = proofs.containsKey("dispatch"),
-                busy = uploadingStage == "dispatch",
+                busy = uploadingStage == "dispatch" || openingStage == "dispatch",
                 onUpload = { onUpload("dispatch") },
-                url = proofs["dispatch"]
+                onView = { onView("dispatch") }
             )
             ProofRow(
                 label = "Delivery",
                 detail = proofs["delivery"]?.let { "Uploaded - tap View to open" }
                     ?: "Required before Delivered",
                 present = proofs.containsKey("delivery"),
-                busy = uploadingStage == "delivery",
+                busy = uploadingStage == "delivery" || openingStage == "delivery",
                 onUpload = { onUpload("delivery") },
-                url = proofs["delivery"]
+                onView = { onView("delivery") }
             )
         }
     }
@@ -1745,9 +1767,8 @@ private fun ProofRow(
     present: Boolean,
     busy: Boolean,
     onUpload: () -> Unit,
-    url: String? = null
+    onView: () -> Unit
 ) {
-    val context = LocalContext.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1766,19 +1787,8 @@ private fun ProofRow(
             CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (url != null) {
-                    // Hand the media to the device's viewer/gallery so photos and videos
-                    // actually open instead of showing a bare URL.
-                    TextButton(onClick = {
-                        runCatching {
-                            context.startActivity(
-                                android.content.Intent(
-                                    android.content.Intent.ACTION_VIEW,
-                                    Uri.parse(url)
-                                )
-                            )
-                        }
-                    }) { Text("View") }
+                if (present) {
+                    TextButton(onClick = onView) { Text("View") }
                 }
                 OutlinedButton(onClick = onUpload) {
                     Text(if (present) "Replace" else "Upload")

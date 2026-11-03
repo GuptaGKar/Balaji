@@ -19,7 +19,8 @@ VALUES ('00000000-0000-0000-0000-000000000000',
 
 INSERT INTO public.profiles (id, role, display_name)
 VALUES ('e5e5e5e5-5555-4555-8555-555555555555', 'manager', 'Variant Manager'),
-       ('f6f6f6f6-6666-4666-8666-666666666666', 'staff', 'Variant Staff');
+       ('f6f6f6f6-6666-4666-8666-666666666666', 'staff', 'Variant Staff')
+ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, display_name = EXCLUDED.display_name;
 
 -- Column privileges exist for the role that the admin app uses.
 SELECT ok(

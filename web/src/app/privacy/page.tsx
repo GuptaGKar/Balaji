@@ -41,6 +41,7 @@ export default function PrivacyPage() {
               an address. You can type an address without granting location access.
             </li>
             <li>Order details: items, quantities, prices, delivery status, notes and bills.</li>
+            <li>Photos and videos uploaded with orders or for dispatch and delivery proof.</li>
             <li>
               Payment method and status for cash-on-delivery orders. We do not receive card numbers.
             </li>
@@ -51,8 +52,8 @@ export default function PrivacyPage() {
             </li>
           </ul>
           <p className="mt-2">
-            We do not use advertising SDKs, sell personal data, or collect contacts, SMS, photos or
-            files for this version of the app.
+            We do not use advertising SDKs, sell personal data, or collect contacts or SMS for this
+            version of the app.
           </p>
         </section>
 
@@ -88,6 +89,10 @@ export default function PrivacyPage() {
               account deletion page
             </Link>{" "}
             for the web request route.
+          </p>
+          <p className="mt-2">
+            Product requests, review comments, order photos and delivery proof may remain after
+            in-app deletion. Contact the store about any remaining data.
           </p>
         </section>
 

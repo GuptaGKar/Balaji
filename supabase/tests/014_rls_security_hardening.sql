@@ -16,7 +16,7 @@ INSERT INTO public.profiles (id, role, display_name) VALUES
   ('11111111-1111-1111-1111-111111111111', 'customer', 'Customer 1'),
   ('22222222-2222-2222-2222-222222222222', 'customer', 'Customer 2'),
   ('33333333-3333-3333-3333-333333333333', 'manager', 'Manager 1')
-ON CONFLICT DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, display_name = EXCLUDED.display_name;
 
 INSERT INTO public.orders (id, public_order_number, customer_id, address_snapshot, grand_total_paise) VALUES
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'ORD-CUST1', '11111111-1111-1111-1111-111111111111', '{}'::jsonb, 1000),
@@ -26,7 +26,7 @@ ON CONFLICT DO NOTHING;
 -- Test 1: Anonymous sees 0 orders
 SET LOCAL ROLE anon;
 SELECT results_eq(
-  $sql$SELECT count(*)::integer FROM public.orders$sql$,
+  $sql$SELECT count(*)::integer FROM public.orders WHERE public_order_number IN ('ORD-CUST1','ORD-CUST2')$sql$,
   ARRAY[0],
   'Anonymous role sees 0 orders'
 );
@@ -59,7 +59,7 @@ SELECT throws_ok(
 SET LOCAL request.jwt.claims = '{"sub": "33333333-3333-3333-3333-333333333333", "role": "authenticated"}';
 SET LOCAL ROLE authenticated;
 SELECT results_eq(
-  $sql$SELECT count(*)::integer FROM public.orders$sql$,
+  $sql$SELECT count(*)::integer FROM public.orders WHERE public_order_number IN ('ORD-CUST1','ORD-CUST2')$sql$,
   ARRAY[2],
   'Manager sees all orders'
 );

@@ -1,7 +1,7 @@
 -- pgTAP test: place_order writes inventory movements and status events, and its
 -- idempotency replay is scoped to the signed-in customer.
 BEGIN;
-SELECT plan(10);
+SELECT plan(11);
 
 -- Fixtures: two customers and a product.
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
@@ -173,7 +173,7 @@ SELECT is(
        'coupon_code', 'FIXFREEDEL'
      ),
      'FIX-ORDER-KEY-2'
-   )->>'grand_total_paise')::bigint,
+   )#>>'{breakdown,grand_total_paise}')::bigint,
   20000::bigint,
   'free-delivery coupon removes the fee but does not discount the items');
 

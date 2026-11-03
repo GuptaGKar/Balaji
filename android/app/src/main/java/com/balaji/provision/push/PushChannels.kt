@@ -1,11 +1,15 @@
 package com.balaji.provision.push
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import com.balaji.provision.BuildConfig
 
 /**
@@ -43,6 +47,11 @@ object PushChannels {
     fun audienceChannel(): String = if (BuildConfig.IS_STAFF) ORDERS else ORDER_STATUS
 
     fun show(context: Context, title: String?, body: String?, data: Map<String, String>) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) return
+
         val channel = data["channel"]?.takeIf { it == ORDERS || it == ORDER_STATUS }
             ?: audienceChannel()
 
@@ -65,8 +74,12 @@ object PushChannels {
             .setGroup(channel)
             .build()
 
-        runCatching {
+        try {
             NotificationManagerCompat.from(context).notify(notificationId, notification)
+        } catch (_: SecurityException) {
+            // Permission can be revoked between the check and the system call.
+            // Never log the notification payload or recipient information.
+            Log.w("PushChannels", "Notification permission was revoked before posting")
         }
     }
 }

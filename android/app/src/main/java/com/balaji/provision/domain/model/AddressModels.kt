@@ -72,8 +72,14 @@ data class AddressDraft(
         state.isBlank() -> "Enter the state."
         !postalCode.trim().matches(Regex("^\\d{6}$")) -> "Enter a valid 6-digit PIN code."
         (lat == null) != (lng == null) -> "Location needs both latitude and longitude."
+        // A NaN or Infinity coordinate passes a range test by accident, so it is
+        // rejected on its own terms first.
+        lat != null && lng != null && (!lat.isFinite() || !lng.isFinite()) ->
+            "Invalid location coordinates."
         lat != null && (lat < -90 || lat > 90 || lng!! < -180 || lng!! > 180) ->
             "Invalid location coordinates."
+        // (0,0) is the value a device reports when it has never had a fix, not a place.
+        lat == 0.0 && lng == 0.0 -> "That location is not usable. Pick a spot on the map."
         else -> null
     }
 

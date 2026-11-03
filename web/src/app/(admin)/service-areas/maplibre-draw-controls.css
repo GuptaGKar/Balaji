@@ -1,0 +1,27 @@
+/* mapbox-gl-draw builds its toolbar with the `mapboxgl-` class prefix, while the stylesheet
+   shipped by maplibre-gl only ever targets `maplibregl-` classes. The two matter here:
+
+     .maplibregl-ctrl-top-left { pointer-events: none; ... }   <- the corner container
+     .maplibregl-ctrl          { pointer-events: auto;  ... }   <- what makes a control clickable
+
+   MapLibre creates the corner container (maplibre prefix), so it is click-transparent, and then
+   relies on `.maplibregl-ctrl` to opt each control back in. The plugin's group is
+   `mapboxgl-ctrl mapboxgl-ctrl-group`, so that opt-in never matches and the plugin's own CSS
+   declares no pointer-events anywhere. Measured result: document.elementFromPoint() at the
+   centre of the polygon button returns the canvas, not the button - the tools paint (their icons
+   come from the plugin's stylesheet) but every click falls through to the map, so the polygon
+   mode can never be entered and no area can be drawn.
+
+   Re-establish, for the plugin's classes only, what maplibre-gl.css does for its own controls. */
+.maplibregl-map .mapboxgl-ctrl {
+  pointer-events: auto;
+}
+
+.maplibregl-map .mapboxgl-ctrl-group {
+  background: #fff;
+  border-radius: 4px;
+}
+
+.maplibregl-map .mapboxgl-ctrl-group:not(:empty) {
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
+}

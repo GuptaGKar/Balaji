@@ -1,6 +1,6 @@
 -- pgTAP test: Free delivery zero-fee (no discount) and quote_cart without coupon code
 BEGIN;
-SELECT plan(7);
+SELECT plan(8);
 
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
 VALUES ('00000000-0000-0000-0000-000000000000',
@@ -12,7 +12,8 @@ VALUES ('00000000-0000-0000-0000-000000000000',
 
 INSERT INTO public.profiles (id, role, display_name)
 VALUES ('f1f1f1f1-1111-4111-8111-111111111111', 'manager', 'Updates Manager'),
-       ('f2f2f2f2-2222-4222-8222-222222222222', 'customer', 'Updates Customer');
+       ('f2f2f2f2-2222-4222-8222-222222222222', 'customer', 'Updates Customer')
+ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, display_name = EXCLUDED.display_name;
 
 -- Create test product
 INSERT INTO public.products (

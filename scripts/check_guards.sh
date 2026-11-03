@@ -32,7 +32,11 @@ scan() {
 
 for p in "${SCAN_PATHS[@]}"; do
   # 1. Minimum-order concept. Coupon spend copy is exempt (see header).
-  min_order_hits=$(scan "$p" -iE "minimum[ _-]?order" | grep -vi "coupon" || true)
+  # SQL-only comment lines document policy but cannot enforce a checkout rule.
+  # Keep checking SQL code with trailing comments and all client source lines.
+  min_order_hits=$(scan "$p" -iE "minimum[ _-]?order" \
+    | grep -vE '\.sql:[0-9]+:[[:space:]]*--' \
+    | grep -vi "coupon" || true)
   if [ -n "$min_order_hits" ]; then
     echo "$min_order_hits"
     echo "::error::minimum-order concept found in $p — the plan forbids any minimum order"

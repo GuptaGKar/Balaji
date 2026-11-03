@@ -1,114 +1,33 @@
--- pgTAP: RLS customer isolation tests
--- Verifies customer_a sees only own data, not customer_b's.
-
+-- Customer fixtures exist on both sides; queries run as authenticated, never table owner.
 BEGIN;
 SELECT plan(12);
-
--- Fixtures: two customers with orders
-INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
-VALUES ('00000000-0000-0000-0000-000000000000',
-        'cccccccc-0000-0000-0000-000000000001',
-        'authenticated', 'authenticated',
-        'cust-a@test.invalid', 'x', now(), now(), now()),
-       ('00000000-0000-0000-0000-000000000000',
-        'cccccccc-0000-0000-0000-000000000002',
-        'authenticated', 'authenticated',
-        'cust-b@test.invalid', 'x', now(), now(), now());
-
-INSERT INTO profiles (id, role, display_name)
-VALUES ('cccccccc-0000-0000-0000-000000000001', 'customer', 'Customer A'),
-       ('cccccccc-0000-0000-0000-000000000002', 'customer', 'Customer B');
-
-INSERT INTO orders (public_order_number, customer_id, address_snapshot)
-VALUES ('CUST-A-ORDER-1', 'cccccccc-0000-0000-0000-000000000001', '{}'::jsonb),
-       ('CUST-B-ORDER-1', 'cccccccc-0000-0000-0000-000000000002', '{}'::jsonb);
-
--- Test as customer_a
-SET LOCAL request.jwt.claims.sub = 'cccccccc-0000-0000-0000-000000000001';
-
--- 1. customer_a reads own profile
-SELECT lives_ok(
-  $sql$SELECT 1 FROM profiles WHERE id = 'cccccccc-0000-0000-0000-000000000001'$sql$,
-  'customer_a reads own profile'
-);
-
--- 2. customer_a CANNOT read customer_b profile
-SELECT throws_ok(
-  $sql$SELECT 1 FROM profiles WHERE id = 'cccccccc-0000-0000-0000-000000000002'$sql$,
-  null, null,
-  'customer_a cannot read customer_b profile'
-);
-
--- 3. customer_a reads own order
-SELECT lives_ok(
-  $sql$SELECT 1 FROM orders WHERE public_order_number = 'CUST-A-ORDER-1'$sql$,
-  'customer_a reads own order'
-);
-
--- 4. customer_a CANNOT read customer_b order
-SELECT throws_ok(
-  $sql$SELECT 1 FROM orders WHERE public_order_number = 'CUST-B-ORDER-1'$sql$,
-  null, null,
-  'customer_a cannot read customer_b order'
-);
-
--- 5. customer_a reads own order_items
-SELECT lives_ok(
-  $sql$SELECT 1 FROM order_items WHERE order_id = (SELECT id FROM orders WHERE public_order_number = 'CUST-A-ORDER-1')$sql$,
-  'customer_a reads own order_items'
-);
-
--- 6. customer_a CANNOT read customer_b order_items
-SELECT throws_ok(
-  $sql$SELECT 1 FROM order_items WHERE order_id = (SELECT id FROM orders WHERE public_order_number = 'CUST-B-ORDER-1')$sql$,
-  null, null,
-  'customer_a cannot read customer_b order_items'
-);
-
--- 7. customer_a reads own addresses
-INSERT INTO addresses (customer_id, recipient_name, phone, address_lines, postal_code)
-VALUES ('cccccccc-0000-0000-0000-000000000001', 'A', '1', 'a', '123');
-SELECT lives_ok(
-  $sql$SELECT 1 FROM addresses WHERE customer_id = 'cccccccc-0000-0000-0000-000000000001'$sql$,
-  'customer_a reads own addresses'
-);
-
--- 8. customer_a CANNOT read customer_b addresses
-INSERT INTO addresses (customer_id, recipient_name, phone, address_lines, postal_code)
-VALUES ('cccccccc-0000-0000-0000-000000000002', 'B', '2', 'b', '123');
-SELECT throws_ok(
-  $sql$SELECT 1 FROM addresses WHERE customer_id = 'cccccccc-0000-0000-0000-000000000002'$sql$,
-  null, null,
-  'customer_a cannot read customer_b addresses'
-);
-
--- 9. customer_a CANNOT read audit_logs
-SELECT throws_ok(
-  $sql$SELECT 1 FROM audit_logs LIMIT 1$sql$,
-  null, null,
-  'customer_a cannot read audit_logs'
-);
-
--- 10. customer_a CANNOT read store_settings (only manager)
-SELECT throws_ok(
-  $sql$SELECT 1 FROM store_settings LIMIT 1$sql$,
-  null, null,
-  'customer_a cannot read store_settings'
-);
-
--- 11. customer_a CANNOT INSERT into orders directly (only via RPC)
-SELECT throws_ok(
-  $sql$INSERT INTO orders (public_order_number, customer_id, address_snapshot) VALUES ('TEST', 'cccccccc-0000-0000-0000-000000000001', '{}'::jsonb)$sql$,
-  null, null,
-  'customer_a cannot directly INSERT orders'
-);
-
--- 12. customer_a CAN read catalog_products view
-SELECT lives_ok(
-  $sql$SELECT 1 FROM catalog_products LIMIT 1$sql$,
-  'customer_a reads catalog_products view'
-);
-
-RESET request.jwt.claims.sub;
+\ir helpers/role_fixtures.inc
+SELECT pg_temp.make_profile('00600000-0000-0000-0000-000000000001','customer','Customer A');
+SELECT pg_temp.make_profile('00600000-0000-0000-0000-000000000002','customer','Customer B');
+INSERT INTO public.orders(id,public_order_number,customer_id,address_snapshot) VALUES
+ ('00610000-0000-0000-0000-000000000001','CUST-A-ORDER','00600000-0000-0000-0000-000000000001','{}'),
+ ('00610000-0000-0000-0000-000000000002','CUST-B-ORDER','00600000-0000-0000-0000-000000000002','{}');
+INSERT INTO public.order_items(order_id,sku_snapshot,name_snapshot,quantity_type_snapshot,unit_label_snapshot,price_basis_qty_snapshot,qty_base,unit_price_paise,line_total_paise) VALUES
+ ('00610000-0000-0000-0000-000000000001','A','Item A','PACKED','pack',1,1,100,100),
+ ('00610000-0000-0000-0000-000000000002','B','Item B','PACKED','pack',1,1,100,100);
+INSERT INTO public.addresses(customer_id,recipient_name,phone,address_lines,postal_code) VALUES
+ ('00600000-0000-0000-0000-000000000001','A','9000000001','Synthetic A','122001'),
+ ('00600000-0000-0000-0000-000000000002','B','9000000002','Synthetic B','122001');
+INSERT INTO public.products(sku,name,quantity_type,price_paise,price_basis_qty,unit_label,step_qty,min_qty,stock_qty)
+VALUES('RLS-CUSTOMER-PRODUCT','Public fixture','PACKED',100,1,'pack',1,1,1);
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claim.sub='00600000-0000-0000-0000-000000000001';
+SELECT is((SELECT count(*) FROM public.profiles WHERE id=auth.uid()),1::bigint,'customer reads own existing profile');
+SELECT is((SELECT count(*) FROM public.profiles WHERE id='00600000-0000-0000-0000-000000000002'),0::bigint,'other customer profile is filtered');
+SELECT is((SELECT count(*) FROM public.orders WHERE id='00610000-0000-0000-0000-000000000001'),1::bigint,'customer reads own existing order');
+SELECT is((SELECT count(*) FROM public.orders WHERE id='00610000-0000-0000-0000-000000000002'),0::bigint,'other customer order is filtered');
+SELECT is((SELECT count(*) FROM public.order_items WHERE order_id='00610000-0000-0000-0000-000000000001'),1::bigint,'customer reads own existing item');
+SELECT is((SELECT count(*) FROM public.order_items WHERE order_id='00610000-0000-0000-0000-000000000002'),0::bigint,'other customer item is filtered');
+SELECT is((SELECT count(*) FROM public.addresses WHERE customer_id=auth.uid()),1::bigint,'customer reads own existing address');
+SELECT is((SELECT count(*) FROM public.addresses WHERE customer_id='00600000-0000-0000-0000-000000000002'),0::bigint,'other customer address is filtered');
+SELECT is((SELECT count(*) FROM public.audit_logs),0::bigint,'customer cannot read audit records');
+SELECT is((SELECT count(*) FROM public.store_settings),1::bigint,'customer can read public store configuration');
+SELECT throws_ok($q$INSERT INTO public.orders(public_order_number,customer_id,address_snapshot) VALUES('DIRECT-CUSTOMER',auth.uid(),'{}')$q$,'42501',NULL,'customer cannot bypass transactional checkout');
+SELECT is((SELECT count(*) FROM public.products WHERE sku='RLS-CUSTOMER-PRODUCT'),1::bigint,'customer can browse a published product');
 SELECT * FROM finish();
 ROLLBACK;

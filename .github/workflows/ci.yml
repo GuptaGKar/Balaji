@@ -15,6 +15,7 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm --prefix web ci
+      - run: npm --prefix web run test
       - run: npm --prefix web run lint
       - run: npm --prefix web run type-check
       - run: npm --prefix web run format:check
@@ -24,6 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: python3 -m unittest discover -s scripts/tests -v
       - run: bash scripts/check_guards.sh
 
   db-tests:
@@ -33,10 +35,10 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: latest
-      # Applies every migration to a clean database and runs every supabase/tests
-      # pgTAP suite. A failing migration or assertion fails the build.
+      # Start an isolated database before pgTAP; test db does not start one.
+      - run: supabase db start
+      # Runs every supabase/tests pgTAP suite against the local database.
       - run: supabase test db
-        working-directory: supabase
 
   android:
     runs-on: ubuntu-latest
@@ -55,6 +57,17 @@ jobs:
             :app:testCustomerDebugUnitTest :app:testStaffDebugUnitTest \
             :app:lintCustomerDebug :app:lintStaffDebug \
             :app:assembleCustomerDebug :app:assembleStaffDebug
+      - name: Check direct distribution APKs
+        run: |
+          python3 scripts/check_android_update_distribution.py android/app/build/outputs/apk/customer/debug/app-customer-debug.apk --mode direct --aapt2 "$ANDROID_HOME/build-tools/36.0.0/aapt2"
+          python3 scripts/check_android_update_distribution.py android/app/build/outputs/apk/staff/debug/app-staff-debug.apk --mode direct --aapt2 "$ANDROID_HOME/build-tools/36.0.0/aapt2"
+      - name: Build Play customer and check distribution isolation
+        working-directory: android
+        run: ./gradlew --no-daemon -Pbalaji.play=true :app:assembleCustomerDebug :app:assembleStaffDebug
+      - name: Check Play customer and direct staff APKs
+        run: |
+          python3 scripts/check_android_update_distribution.py android/app/build/play/outputs/apk/customer/debug/app-customer-debug.apk --mode play --aapt2 "$ANDROID_HOME/build-tools/36.0.0/aapt2"
+          python3 scripts/check_android_update_distribution.py android/app/build/play/outputs/apk/staff/debug/app-staff-debug.apk --mode direct --aapt2 "$ANDROID_HOME/build-tools/36.0.0/aapt2"
       - name: Upload lint reports
         if: always()
         uses: actions/upload-artifact@v4

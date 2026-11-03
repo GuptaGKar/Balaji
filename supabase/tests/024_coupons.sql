@@ -1,6 +1,6 @@
 -- pgTAP test: Coupon creation, permissions, validation and quote_cart calculation
 BEGIN;
-SELECT plan(7);
+SELECT plan(8);
 
 INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
 VALUES ('00000000-0000-0000-0000-000000000000',
@@ -11,8 +11,12 @@ VALUES ('00000000-0000-0000-0000-000000000000',
         'authenticated', 'authenticated', 'coupon-customer@test.invalid', 'x', now(), now(), now());
 
 INSERT INTO public.profiles (id, role, display_name)
-VALUES ('c1c1c1c1-1111-4111-8111-111111111111', 'staff', 'Coupon Staff'),
-       ('c2c2c2c2-2222-4222-8222-222222222222', 'customer', 'Coupon Customer');
+VALUES ('c1c1c1c1-1111-4111-8111-111111111111', 'manager', 'Coupon Manager'),
+       ('c2c2c2c2-2222-4222-8222-222222222222', 'customer', 'Coupon Customer')
+ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, display_name = EXCLUDED.display_name;
+
+INSERT INTO auth.users(id,email) VALUES ('c3c3c3c3-1111-4111-8111-111111111111','coupon-denied-staff@test.invalid');
+UPDATE public.profiles SET role='staff' WHERE id='c3c3c3c3-1111-4111-8111-111111111111';
 
 -- Privileges
 SELECT ok(
@@ -27,7 +31,7 @@ INSERT INTO public.products (
   'PACKED', 50000, 1, 'pack', 1, 1, 100, true, true
 );
 
--- Staff can insert coupon
+-- Manager can insert coupon
 SET LOCAL request.jwt.claims = '{"sub": "c1c1c1c1-1111-4111-8111-111111111111", "role": "authenticated"}';
 SET LOCAL ROLE authenticated;
 
@@ -39,7 +43,7 @@ SELECT lives_ok(
     'SAVE10', '10% off up to 100 Rs', 'percent_off', 10, 20000, 10000
   );
   $sql$,
-  'staff can create coupons'
+  'manager can create coupons'
 );
 
 SELECT lives_ok(
@@ -50,8 +54,12 @@ SELECT lives_ok(
     'FLAT50', 'Flat Rs 50 off', 'rupees_off', 5000, 25000
   );
   $sql$,
-  'staff can create flat rupees off coupons'
+  'manager can create flat rupees off coupons'
 );
+
+-- Staff are also blocked by the later manager-only coupon policy.
+SET LOCAL request.jwt.claims = '{"sub":"c3c3c3c3-1111-4111-8111-111111111111","role":"authenticated"}';
+SELECT throws_ok($q$INSERT INTO public.coupons(code,discount_type,discount_value) VALUES('STAFF-DENIED','percent_off',1)$q$,'42501',NULL,'staff cannot create coupons');
 
 -- Customer is blocked from creating coupons
 SET LOCAL request.jwt.claims = '{"sub": "c2c2c2c2-2222-4222-8222-222222222222", "role": "authenticated"}';

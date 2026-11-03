@@ -35,6 +35,7 @@ class OrderProofViewModel @Inject constructor(
         val proofs: Map<String, String> = emptyMap(),
         val loading: Boolean = false,
         val uploadingStage: String? = null,
+        val openingStage: String? = null,
         val message: String? = null
     )
 
@@ -54,6 +55,21 @@ class OrderProofViewModel @Inject constructor(
                     loading = false,
                     message = result.message
                 )
+            }
+        }
+    }
+
+    fun openProof(orderId: String, stage: String, onReady: (String) -> Unit) {
+        if (_state.value.openingStage != null) return
+        _state.value = _state.value.copy(openingStage = stage, message = null)
+        viewModelScope.launch {
+            try {
+                when (val result = repository.proofUrl(orderId, stage)) {
+                    is RequestOutcome.Success -> onReady(result.value)
+                    is RequestOutcome.Failure -> _state.value = _state.value.copy(message = result.message)
+                }
+            } finally {
+                _state.value = _state.value.copy(openingStage = null)
             }
         }
     }

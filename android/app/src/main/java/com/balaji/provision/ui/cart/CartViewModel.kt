@@ -152,6 +152,11 @@ class CartViewModel @Inject constructor(
         cartRepository.setDeliveryPin(code)
     }
 
+    /** Drop point of the address chosen at checkout, so the quote can resolve its area. */
+    fun setDeliveryLocation(lat: Double?, lng: Double?) {
+        cartRepository.setDeliveryLocation(lat, lng)
+    }
+
     fun acknowledgeOrderPlacement() {
         if (_orderPlacement.value !is OrderPlacementState.Placing) {
             _orderPlacement.value = OrderPlacementState.Idle

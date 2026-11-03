@@ -21,8 +21,15 @@ async function getCallerRole(): Promise<string | null> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return null;
-  const { data } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  return data?.role ?? null;
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("role, is_active, must_change_password")
+    .eq("id", user.id)
+    .single();
+  // API routes bypass the page middleware's profile gate. Recheck before using
+  // the Admin client: an existing JWT can outlive a profile deactivation.
+  if (error || !data?.is_active || data.must_change_password) return null;
+  return data.role;
 }
 
 /**

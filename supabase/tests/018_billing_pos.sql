@@ -26,7 +26,8 @@ INSERT INTO public.profiles (id, role, display_name)
 VALUES ('a1a1a1a1-1111-4111-8111-111111111111', 'manager', 'Billing Manager'),
        ('b2b2b2b2-2222-4222-8222-222222222222', 'staff', 'Billing Staff'),
        ('c3c3c3c3-3333-4333-8333-333333333333', 'customer', 'Bill Customer A'),
-       ('d4d4d4d4-4444-4444-8444-444444444444', 'customer', 'Bill Customer B');
+       ('d4d4d4d4-4444-4444-8444-444444444444', 'customer', 'Bill Customer B')
+ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, display_name = EXCLUDED.display_name;
 
 INSERT INTO public.products (
   sku, name, quantity_type, price_paise, price_basis_qty, unit_label,
@@ -76,7 +77,7 @@ INSERT INTO public.order_items (
 -- ---------------------------------------------------------------------------
 -- Staff: POS search + quote
 -- ---------------------------------------------------------------------------
-SET LOCAL request.jwt.claims.sub = 'b2b2b2b2-2222-4222-8222-222222222222';
+SET LOCAL request.jwt.claim.sub = 'b2b2b2b2-2222-4222-8222-222222222222';
 
 SELECT lives_ok(
   $sql$SELECT 1 FROM pos_search_products('POS Test') WHERE sku = 'POS-TEST-PACK'$sql$,
@@ -139,8 +140,8 @@ SELECT results_eq(
 );
 
 -- Customer cannot search or quote
-RESET request.jwt.claims.sub;
-SET LOCAL request.jwt.claims.sub = 'c3c3c3c3-3333-4333-8333-333333333333';
+RESET request.jwt.claim.sub;
+SET LOCAL request.jwt.claim.sub = 'c3c3c3c3-3333-4333-8333-333333333333';
 SELECT throws_ok(
   $sql$SELECT * FROM pos_search_products('POS Test')$sql$,
   null, null,
@@ -156,7 +157,7 @@ SELECT results_eq(
 -- ---------------------------------------------------------------------------
 -- Staff: complete an idempotent POS sale
 -- ---------------------------------------------------------------------------
-SET LOCAL request.jwt.claims.sub = 'b2b2b2b2-2222-4222-8222-222222222222';
+SET LOCAL request.jwt.claim.sub = 'b2b2b2b2-2222-4222-8222-222222222222';
 
 SELECT results_eq(
   $sql$SELECT pos_complete_sale(
@@ -249,7 +250,7 @@ SELECT results_eq(
   $sql$SELECT pos_complete_sale(
          jsonb_build_array(jsonb_build_object(
            'product_id', (SELECT id FROM products WHERE sku = 'POS-TEST-WEIGHT'),
-           'qty_base', 999999
+           'qty_base', 10000
          )),
          'cod', null, null, 'POS-KEY-2'
        )->>'error'$sql$,
@@ -271,8 +272,8 @@ SELECT results_eq(
   'failed POS sale creates no movement'
 );
 
-RESET request.jwt.claims.sub;
-SET LOCAL request.jwt.claims.sub = 'c3c3c3c3-3333-4333-8333-333333333333';
+RESET request.jwt.claim.sub;
+SET LOCAL request.jwt.claim.sub = 'c3c3c3c3-3333-4333-8333-333333333333';
 SELECT results_eq(
   $sql$SELECT pos_complete_sale(
          jsonb_build_array(jsonb_build_object(
@@ -288,7 +289,7 @@ SELECT results_eq(
 -- ---------------------------------------------------------------------------
 -- Order bills use immutable snapshots
 -- ---------------------------------------------------------------------------
-SET LOCAL request.jwt.claims.sub = 'b2b2b2b2-2222-4222-8222-222222222222';
+SET LOCAL request.jwt.claim.sub = 'b2b2b2b2-2222-4222-8222-222222222222';
 
 SELECT results_eq(
   $sql$SELECT issue_bill_for_order('0a0a0a0a-0000-4000-8000-000000000001')->'bill'->>'grand_total_paise'$sql$,
@@ -332,22 +333,22 @@ SELECT results_eq(
 -- ---------------------------------------------------------------------------
 -- Authorised bill access
 -- ---------------------------------------------------------------------------
-RESET request.jwt.claims.sub;
-SET LOCAL request.jwt.claims.sub = 'c3c3c3c3-3333-4333-8333-333333333333';
+RESET request.jwt.claim.sub;
+SET LOCAL request.jwt.claim.sub = 'c3c3c3c3-3333-4333-8333-333333333333';
 SELECT lives_ok(
   $sql$SELECT get_bill((SELECT id FROM bills WHERE order_id = '0a0a0a0a-0000-4000-8000-000000000001'))$sql$,
   'customer can read their own order bill'
 );
 
-RESET request.jwt.claims.sub;
-SET LOCAL request.jwt.claims.sub = 'd4d4d4d4-4444-4444-8444-444444444444';
+RESET request.jwt.claim.sub;
+SET LOCAL request.jwt.claim.sub = 'd4d4d4d4-4444-4444-8444-444444444444';
 SELECT results_eq(
   $sql$SELECT get_bill((SELECT id FROM bills WHERE order_id = '0a0a0a0a-0000-4000-8000-000000000001'))->>'error'$sql$,
   ARRAY['FORBIDDEN'],
   'another customer cannot read the bill'
 );
 
-RESET request.jwt.claims.sub;
+RESET request.jwt.claim.sub;
 SELECT results_eq(
   $sql$SELECT get_bill((SELECT id FROM bills WHERE order_id = '0a0a0a0a-0000-4000-8000-000000000001'))->>'error'$sql$,
   ARRAY['UNAUTHENTICATED'],
@@ -357,7 +358,7 @@ SELECT results_eq(
 -- ---------------------------------------------------------------------------
 -- Voiding: manager only, reason required, stock restored exactly once
 -- ---------------------------------------------------------------------------
-SET LOCAL request.jwt.claims.sub = 'b2b2b2b2-2222-4222-8222-222222222222';
+SET LOCAL request.jwt.claim.sub = 'b2b2b2b2-2222-4222-8222-222222222222';
 SELECT results_eq(
   $sql$SELECT void_bill(
          (SELECT b.id FROM bills b
@@ -368,7 +369,7 @@ SELECT results_eq(
   'staff cannot void a bill'
 );
 
-SET LOCAL request.jwt.claims.sub = 'a1a1a1a1-1111-4111-8111-111111111111';
+SET LOCAL request.jwt.claim.sub = 'a1a1a1a1-1111-4111-8111-111111111111';
 SELECT results_eq(
   $sql$SELECT void_bill(
          (SELECT b.id FROM bills b

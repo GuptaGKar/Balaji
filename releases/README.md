@@ -10,18 +10,65 @@ be installed on one phone:
 For the complete Play submission checklist, signing details, Data Safety
 worksheet and remaining blockers, read [`docs/PLAY_STORE_RELEASE.md`](../docs/PLAY_STORE_RELEASE.md).
 
-## Current release — 1.11 (versionCode 12)
+## Current release — 1.12 (versionCode 13)
+
+Target SDK 36 (Android 16), min SDK 24, R8 minified, signed with the Balaji
+upload key (certificate SHA-256 `8A:6B:C8:2D:…:85:F7:D6:4D`).
+
+| File                                                                     | App      | Purpose                                                    |
+| ------------------------------------------------------------------------ | -------- | ---------------------------------------------------------- |
+| [`balaji-provision-1.12-release.aab`](balaji-provision-1.12-release.aab) | Customer | Google Play upload bundle                                  |
+| [`balaji-staff-1.12-release.aab`](balaji-staff-1.12-release.aab)         | Staff    | Google Play upload bundle                                  |
+| [`balaji-provision-1.12-release.apk`](balaji-provision-1.12-release.apk) | Customer | Signed APK for device QA/sideload and in-app update upload |
+| [`balaji-staff-1.12-release.apk`](balaji-staff-1.12-release.apk)         | Staff    | Signed APK for device QA/sideload and in-app update upload |
+
+SHA-256:
+
+```
+1a3bfa8660fa0bb02e0182ab9c8e00e881007982a548ad0cd698ef20ecc22719  balaji-provision-1.12-release.apk
+1978fbb7f4449e40d3d07e58cf613580134efcafc2ef86edb0e30d5e4cdaade4  balaji-staff-1.12-release.apk
+968565185fcf680b1c1cff543547235e46aac1564b8fa033fc95cd74f84c7d98  balaji-provision-1.12-release.aab
+26a327d7fbf910dddf4b2371dd9e9c337c8a98f733c1b52bb50480947650ad16  balaji-staff-1.12-release.aab
+5a98cfe6e9956a3d94eb9106bd3d37551e0954fd5063c7af194c45e2e3fe0c90  mapping-customer-1.12.txt.gz
+6b56b84869b037ad345912bba3d38472db70cee83a3c9fc6e738a5b3455523ec  mapping-staff-1.12.txt.gz
+```
+
+### What's new in 1.12
+
+- **Free-item coupons.** A coupon can carry a pool of gift products plus a cart
+  milestone; once the milestone is met the customer chooses one gift, priced at
+  ₹0 server-side. Requires migration
+  `20261101000001_free_item_coupons.sql` (applied to the linked project).
+- **Per-PIN delivery in the cart and on Home.** Only checkout passed the PIN
+  before, so the cart quoted the store-wide fee and disagreed with the values set
+  on the web. Verified on a Galaxy A34 (Android 16): cart now shows the PIN's
+  ₹10.00 fee and "Free delivery above ₹200.00" instead of ₹30.00 / ₹250.00.
+- **Free-delivery progress fixed.** It no longer reads "Free delivery unlocked"
+  while a fee is being charged when the store has no free-delivery tier.
+- **Staff order items** show product images and a "See items" page; free lines
+  are labelled "Free (via coupon: CODE)". Stock rows show product images.
+
+### Verification status for 1.12
+
+Both flavours compile, unit tests pass (`testCustomerDebugUnitTest`,
+`testStaffDebugUnitTest`), and the customer build was launched on a Galaxy A34
+with the delivery fix confirmed on screen. The staff artefact on the phone was a
+few bytes older than the copy retained here (same version, key and source);
+re-install the retained APK before relying on it as the exact uploaded binary.
+**Neither build has been uploaded to Play.**
+
+## Previous release — 1.11 (versionCode 12)
 
 Target SDK 36 (Android 16), min SDK 24, R8 minified and signed with the Balaji
 upload key (certificate SHA-256 `8A:6B:C8:2D:…:85:F7:D6:4D`). Both AABs and APKs
 were built on this checkout and verified with `apksigner`/`sha256sum`.
 
-| File | App | Purpose |
-|---|---|---|
-| [`balaji-provision-1.11-release.aab`](balaji-provision-1.11-release.aab) | Customer | Google Play upload bundle |
-| [`balaji-staff-1.11-release.aab`](balaji-staff-1.11-release.aab) | Staff | Google Play upload bundle |
+| File                                                                     | App      | Purpose                                                    |
+| ------------------------------------------------------------------------ | -------- | ---------------------------------------------------------- |
+| [`balaji-provision-1.11-release.aab`](balaji-provision-1.11-release.aab) | Customer | Google Play upload bundle                                  |
+| [`balaji-staff-1.11-release.aab`](balaji-staff-1.11-release.aab)         | Staff    | Google Play upload bundle                                  |
 | [`balaji-provision-1.11-release.apk`](balaji-provision-1.11-release.apk) | Customer | Signed APK for device QA/sideload and in-app update upload |
-| [`balaji-staff-1.11-release.apk`](balaji-staff-1.11-release.apk) | Staff | Signed APK for device QA/sideload and in-app update upload |
+| [`balaji-staff-1.11-release.apk`](balaji-staff-1.11-release.apk)         | Staff    | Signed APK for device QA/sideload and in-app update upload |
 
 SHA-256:
 
@@ -44,12 +91,12 @@ launched on a device.**
 be installed once by download/sideload before automatic updates can reach a
 device.
 
-| File | App | Purpose |
-|---|---|---|
-| [`balaji-provision-1.7-release.aab`](balaji-provision-1.7-release.aab) | Customer | Google Play upload bundle |
-| [`balaji-staff-1.7-release.aab`](balaji-staff-1.7-release.aab) | Staff | Google Play upload bundle |
+| File                                                                   | App      | Purpose                                                    |
+| ---------------------------------------------------------------------- | -------- | ---------------------------------------------------------- |
+| [`balaji-provision-1.7-release.aab`](balaji-provision-1.7-release.aab) | Customer | Google Play upload bundle                                  |
+| [`balaji-staff-1.7-release.aab`](balaji-staff-1.7-release.aab)         | Staff    | Google Play upload bundle                                  |
 | [`balaji-provision-1.7-release.apk`](balaji-provision-1.7-release.apk) | Customer | Signed APK for device QA/sideload and in-app update upload |
-| [`balaji-staff-1.7-release.apk`](balaji-staff-1.7-release.apk) | Staff | Signed APK for device QA/sideload and in-app update upload |
+| [`balaji-staff-1.7-release.apk`](balaji-staff-1.7-release.apk)         | Staff    | Signed APK for device QA/sideload and in-app update upload |
 
 SHA-256:
 
@@ -97,12 +144,12 @@ comes from minification; ship the minified build once that is settled.
 Target SDK 36 (Android 16), min SDK 24, R8 minified and signed with the Balaji
 upload key.
 
-| File | App | Purpose |
-|---|---|---|
-| [`balaji-provision-1.6-release.aab`](balaji-provision-1.6-release.aab) | Customer | Google Play upload bundle |
-| [`balaji-staff-1.6-release.aab`](balaji-staff-1.6-release.aab) | Staff | Google Play upload bundle |
+| File                                                                   | App      | Purpose                           |
+| ---------------------------------------------------------------------- | -------- | --------------------------------- |
+| [`balaji-provision-1.6-release.aab`](balaji-provision-1.6-release.aab) | Customer | Google Play upload bundle         |
+| [`balaji-staff-1.6-release.aab`](balaji-staff-1.6-release.aab)         | Staff    | Google Play upload bundle         |
 | [`balaji-provision-1.6-release.apk`](balaji-provision-1.6-release.apk) | Customer | Signed APK for device QA/sideload |
-| [`balaji-staff-1.6-release.apk`](balaji-staff-1.6-release.apk) | Staff | Signed APK for device QA/sideload |
+| [`balaji-staff-1.6-release.apk`](balaji-staff-1.6-release.apk)         | Staff    | Signed APK for device QA/sideload |
 
 SHA-256:
 
