@@ -39,14 +39,22 @@ Postgres functions and RLS; clients only display results.
   `20261105000003_storefront_write_privileges.sql` (BUG-011: Supabase had left all
   four storefront write RPCs executable by `anon`) was applied the same day, after
   pgTAP 049 passed against it in a rolled-back dry run.
+  `20261105000004_storefront_editor_read.sql` (BUG-018: a hidden section vanished
+  from the dashboard forever) was also applied, with pgTAP 050 green first.
+  `storefront_sections` is empty again — the sections composed during the dashboard
+  pass were deleted through `delete_storefront_section`, and the cascade left
+  `storefront_section_items` at zero too. pgTAP 045–050 (134 assertions) all pass
+  against the live schema.
 - **Device:** a physical Samsung Galaxy A34 (Android 16 / SDK 36) is connected and
   used for every on-device check. On 2026-11-05 it carried the nav-pill pass: the
   pill's geometry, the bottom clearance on every tab, the basket bar stacked above
   it and the fallback Home layout against the migrated database all measured
   correct; the pill is hard to read in the **light** theme (BUG-012).
-- **Web:** production build, lint, type-check and a local `next start` are verified;
-  the dashboard’s authenticated pages have not been exercised because no manager
-  web login has been supplied.
+- **Web:** production build, lint, type-check and a local `next start` are verified.
+  A manager login was supplied on 2026-11-05 and the **Storefront** page was driven
+  end to end against live data — compose, publish, reorder, hide, re-show, delete —
+  which found seven defects (BUG-014–BUG-020), all fixed and verified. The other
+  dashboard pages are still verified only by build and route protection.
 
 ## 3. What changed in this work stream
 
@@ -112,17 +120,17 @@ Postgres functions and RLS; clients only display results.
 on the new surfaces, through one helper per platform (`web/src/lib/money.ts`,
 `ui/components/PriceFormat.kt`).
 
-**What has and has not been seen running.** The two migrations are applied and pgTAP
-045–048 pass against them — 100 assertions, `num_failed() = 0` — but that first execution
-found five defects in SQL written earlier in this work stream (see `QA_LOG.md` and
-`docs/DECISIONS.md`), and probing the applied RPCs from outside found a sixth (BUG-011, now
-fixed and applied). The Galaxy A34 has run the new build: the pill geometry, the bottom
-clearance on Home / Categories / Orders / Basket, the basket bar stacked above the pill, the
-absence of the pill on product details and account, and the fallback Home against the migrated
-database all measured correct. What has *not* been seen: a **composed** section on any screen
-(`storefront_sections` is empty — composing is the owner's content call), the Storefront page
-opened by a manager (no web manager login), the pill on a tablet, and the pill in the light theme
-where it fails (BUG-012).
+**What has and has not been seen running.** All four storefront migrations are applied and
+pgTAP 045–050 pass against them — 134 assertions, `num_failed() = 0` — but that first execution
+found five defects in SQL written earlier in this work stream, a sixth on the privilege surface
+(BUG-011) and seven more in the dashboard (BUG-014–BUG-020). The Galaxy A34 ran the new build and
+measured the pill correctly: geometry, bottom clearance on every tab, the basket bar stacked above
+it, and its absence on product details and account. The dashboard was driven by a real manager
+session, so composition, ordering, hiding, the concurrency guard and the cascade are proven down
+to the database and the anon payload. What has *still* never been seen: **a composed section on a
+phone screen** — the device dropped off wireless ADB during the pass, and re-pairing needs a code
+from the handset. Also unproven: the pill in the light theme works (BUG-012 says it does not), the
+pill on a tablet, and every other dashboard page. What was executed is in `QA_LOG.md`.
 
 ## 4. Scope
 
@@ -156,12 +164,12 @@ approval), loyalty points and WhatsApp (both need owner policy).
 
 | Problem | Impact | Next step |
 |---|---|---|
+| **A composed section has still never been seen on a phone** | The dashboard writes it, the API returns it and the resolver is unit-tested, but the rendered result is unproven — the one place a customer would notice a mistake | Re-pair the A34 (wireless debugging → pair device → give me the six-digit code), then compose one Home section and run the same scripted pass over the composed state |
 | **The pill is illegible in the light theme** (BUG-012) | Product names behind the 30 %-opaque pill read through the tab labels, so the navigation looks broken on a light device | Owner decision: keep 0.30 as instructed, or raise `NAV_PILL_ALPHA` in `ui/components/NavPill.kt`. One constant either way |
-| **No composed section has ever been seen** | The headline feature — a dashboard-composed Home and Categories — is proven at the SQL and unit level and unproven on a screen | A manager composes two Home sections and one Categories section in the dashboard; then one device pass over the same routes |
 | **Storefront write RPCs were executable by `anon`** | Fixed and applied: anon now gets `42501` before the function body on all four writes, while the `get_storefront` read and the manager path both still work (re-probed over REST) | Nothing outstanding; pgTAP 049 keeps it pinned |
 | **CI has never been green** | Every run in the repository's history failed, including `db-tests`, so "check CI" is not the safety net anyone thinks it is. `guards` is the only job that passes | Read the runner log for `db-tests` (needs a GitHub token; the logs API is 403 unauthenticated) and fix the oldest failing suite. The `android` job fails at `setup-android@v3`, before any Gradle runs |
 | **pgTAP never executed** (001–044; no Docker/Postgres here) | The rest of the backend is only proven through device flows; regressions in RLS/pricing would be caught late | Pushing will not help until the `db-tests` job itself is fixed (see above). Either repair CI or run the same suites with `scripts/verify_migration_live.py`, which applies a migration and a suite to the live database inside one transaction and rolls it back - the way 045–048 were finally executed. |
-| **No manager web login** | Dashboard pages (catalogue, coupons, requests, settings) are verified only by build + route protection | Provide an email/password for the web app |
+| **No manager web login** | Dashboard pages (catalogue, coupons, requests, settings, reports, staff, billing) are verified only by build + route protection | A manager login was used for the Storefront page on 2026-11-05; the same account can cover the rest when those pages are in scope |
 | **Rider path unproven** | `rider_update_status` and the rider-side delivery proof have not been exercised end-to-end | Assign order to `KART`, switch the staff app session, upload proof, deliver |
 | **Cancel/stock restore unproven** | Double-cancel and stock restoration rely on the original `cancel_my_order` | Place a small order and cancel while `pending_review` |
 | **Version/artifacts drift** | `releases/` contains 1.7 builds that predate all of the above | Bump to 1.8 (9) and regenerate |

@@ -37,6 +37,13 @@ Result labels: **PASS** (executed, observed), **FAIL** (executed, broke),
 | BUG-011 | S2 | DB | All five new storefront RPCs were executable by `anon`. Supabase creates functions with EXECUTE already granted to PUBLIC and anon, so `GRANT ... TO authenticated` in `20261105000001/2` narrowed nobody. Measured live: `has_function_privilege('anon','save_storefront_section(...)','EXECUTE') = true` for all four writes. Not exploitable — `save_/reorder_/delete_` open with a `current_role()` guard and `set_product_categories` died at `42501 permission denied for table products`, both verified to write nothing — but the intended caller was authenticated-only | FIXED IN `20261105000003` (revokes EXECUTE from PUBLIC and anon, re-grants authenticated + service_role, keeps `get_storefront` open to anon). Verified by pgTAP 049, 22 assertions, `num_failed() = 0` in a rolled-back live dry run. **Applied to the live project 2026-11-05; anon now gets HTTP 401 / `42501 permission denied for function save_storefront_section`, and the anon `get_storefront` read still returns 200 `[]`** |
 | BUG-012 | S3 | Customer Android | The nav pill at the owner-specified 30 % opacity is hard to read in the **light** theme: product names behind it ("9AM Green Chilli - Sauce 180g", "Aashirvaad Atta 5kg") show straight through the tab labels. Dark theme is fine. Screenshot `v2-home-light.png` | OPEN — needs the owner's call: keep 0.30 and accept it, or raise `NAV_PILL_ALPHA` (one constant). Not changed unilaterally because 0.30 was an explicit instruction |
 | BUG-013 | S3 | Customer Android | On a discounted card inside a Home rail the "ADD" pill wraps to two lines ("A" over "D") — the button is narrower than its label at the card's 148 dp width | OPEN — pre-existing, visible in `v2-home-basket.png`; not touched by this work stream and not fixed here |
+| BUG-014 | S2 | Web dashboard | A reorder could never be saved: the reducer renumbered sections on move/drag but marked nothing `dirty`, and Publish was gated on `dirtyCount > 0`. The button stayed disabled after a reorder, so the order was never sent, and leaving the page warned about nothing | FIXED-VERIFIED — `orderDirty` in `SectionState`, gated into Publish and the `beforeunload` guard. Verified on live data: moving "Browse Aisles" above "Daily Essentials" and publishing swapped `sort_order` in the database, and the anon payload came back in the new order. 2 new node tests |
+| BUG-015 | S2 | Web dashboard | The Storefront preview hid the wrong products. `inStock` was derived from `available` alone and the products query never fetched `stock_qty`/`min_qty`, while the app hides an item unless `available AND stockQty >= minQty`. On live data the two disagree for **36 products**: a manager composing 7 items would see 6 in the preview while the app showed 3 | FIXED-VERIFIED — the query fetches `stock_qty, min_qty` and the mapping mirrors the app's predicate. Verified: the same 7-item section now marks 4 as HIDDEN, matching the server-side row-for-row check |
+| BUG-016 | S3 | Web dashboard | `ItemPicker` toggled from a closure (`setDraft([...draft, id])`), so several selections landing in one React batch each computed from the same stale array and only the last stuck — 5 clicks produced 2 selections, and the 30-item cap read a stale length | FIXED-VERIFIED — functional updates for `toggle` and `move`. Re-run in the browser: 4 clicks in one batch now produce 4 selections (was 1) |
+| BUG-017 | S2 | Web dashboard | Section type was fixed to the page (`page === "home" ? "products" : "categories"`), so a product rail on Categories could not be composed at all — even though `CategoriesScreen` renders one with its own product tap target and the plan asks for it. That app code was unreachable | FIXED-VERIFIED — a segmented type control per card, with a `setType` action that clears the chosen items and says why. Composed a products section on the Categories page and confirmed `section_type='products'` with 2 product ids and 0 category ids |
+| BUG-018 | S1 | Web dashboard | Deactivating a section removed it from the dashboard permanently. The editor loaded through `get_storefront`, which filters `active = true` because it is the customer read, so a hidden section could not be listed, renamed, re-shown or deleted from the UI — only by writing SQL | FIXED-VERIFIED — `20261105000004` adds `list_storefront_sections(text)` (editor read, inactive included, ids only, INVOKER so RLS bounds it) and the page uses it. Verified on live data: after hiding "Daily Essentials" it reappeared labelled "Hidden" with a working "Make … visible" control, and re-activating persisted `active = true` |
+| BUG-019 | S3 | Web dashboard | Every control inside a section card was anonymous — "Delete section", "Move section up", "Section heading" — on a page that can hold 20 near-identical cards, so a screen-reader user could not tell which section any action applied to | FIXED-VERIFIED — labels now carry the heading. Read back from the live DOM: `Delete Browse Aisles`, `Move Daily Essentials up`, `Heading for the Browse Aisles section` |
+| BUG-020 | S4 | Web dashboard | In the item picker, category rows render a price of "—" because `formatRupeesWhole(null)` is used for every item type. Categories have no price at all, so the dash is noise | OPEN — cosmetic, observed while composing a categories section; not fixed |
 
 ## Executed checks
 
@@ -138,6 +145,48 @@ hierarchy, not estimated; screenshots are in `.tmp_device_qa/shots/` (untracked)
 | Checkout screen pill absence | NOT RUN | reaching it means proceeding far enough to risk placing a real order on the owner's store. The route predicate that excludes product details (verified) excludes checkout identically |
 | Tablet layout (480 dp width cap) | NOT RUN | only the A34 was attached |
 | Basket left as found | PASS | the one line added for the `MiniCartBar` check was removed via its own "Remove … from cart" control; the basket reads "Your basket is empty" again. The owner's Dark-mode setting was toggled for the light-theme check and toggled back (verified `checked=true`) |
+
+---
+
+## Executed checks — dashboard pass as a real manager (2026-11-05)
+
+Signed in to the local dashboard (`next dev`, `http://127.0.0.1:3000`) with the manager account
+the owner supplied and drove the Storefront page in a browser. Every result below is a database
+read-back or a DOM read-back taken after the action, not a screenshot impression. The password is
+recorded nowhere.
+
+| Check | Result | Measured |
+|---|---|---|
+| Manager login, role gate, sidebar entry for Storefront | PASS | landed on `/` as "Manager"; "Storefront" present in the nav; 186 products / 68 low stock / 1 active order rendered from live data |
+| Storefront page empty state before composing | PASS | "No sections yet, the app shows the default layout", Publish disabled |
+| Add section → heading required | PASS | "A heading is required." shown inline; Publish refused while any section was untitled, naming the offending card |
+| Item picker: search, whole-rupee prices, selected-order panel | PASS | `₹48` not `₹48.00`; "Selected order - this is the order customers see" with per-row up/down/remove |
+| Publish a products section | PASS | `storefront_sections` 1 row `home/products/sort_order 1/active`, 7 `storefront_section_items`, all with `product_id` and no `category_id` |
+| Customer read after publish | PASS | anon `POST /rpc/get_storefront {home}` → 200, one section, `item_ids` length 7, keys exactly `id, title, subtitle, section_type, updated_at, item_ids` — no price or stock in the payload |
+| Preview agrees with the app's hiding rule | FAIL → BUG-015, then PASS | preview marked 1 of 7 hidden; the server predicate says 4 of 7 are unbuyable (36 products live with `stock_qty <= 0 AND available = true`). After the fix the same section marks 4 |
+| Reorder two sections and publish | FAIL → BUG-014, then PASS | before: Publish stayed `disabled: true` after a move and made **zero** network calls, so the order was never sent. After: `sort_order` swapped in the database and the anon payload returned the new order |
+| Optimistic concurrency (`p_expected_updated_at`) | PASS | edited in the editor, changed the row behind it with SQL, clicked Publish → "Someone else changed this page since you opened it. Nothing was overwritten…" with a Reload affordance, and the winner's subtitle survived unchanged in the database |
+| Deactivate a section | FAIL → BUG-018, then PASS | before: the section vanished from the editor completely (1 card instead of 2) with no way back. After `20261105000004`: it reappeared as "Hidden" with `aria-pressed=false`, and the customer read still excluded it |
+| Re-activate it | PASS | `active = true` in the database after publishing |
+| Delete a section from the UI | PASS | native confirm dialog; the stray empty section was removed and the card disappeared (this is the flow that stalled the automation until the owner clicked it) |
+| Cascade on delete | PASS | deleting all three sections left `storefront_sections` 0 **and** `storefront_section_items` 0 |
+| Compose a products section on the Categories page | FAIL → BUG-017, then PASS | before: no type control existed. After: `page=categories, section_type=products` with 2 product ids and 0 category ids, so the type-match trigger holds |
+| `setType` clears items | PASS | node test: 3 items → 0 with a notice naming the count; same-type switch is a no-op |
+| Accessibility labels per card | FAIL → BUG-019, then PASS | read back from the live DOM: `Heading for the Browse Aisles section`, `Make the Daily Essentials section visible`, `Move Browse Aisles up`, `Delete Browse Aisles` |
+| `beforeunload` guard on unsaved edits | PASS | reloading with a pending edit raised a native leave-page dialog (which stalled CDP until handled — a tooling cost worth knowing) |
+| Editor read privilege | PASS | anon `POST /rpc/list_storefront_sections` → HTTP 401 `42501 permission denied for function`; `has_function_privilege('anon', …)` false, `authenticated` true. Caught by S50-10/S50-11 on the first run before the revoke was added |
+| All six storefront suites against the final schema | PASS | 045–050: 30+23+27+20+22+12 = **134 assertions, `num_failed() = 0`** each, run against the live project inside rolled-back transactions |
+| Web gates after the fixes | PASS | `npm --prefix web test` 48/48 (5 new); `format:check` clean; `lint` unchanged (2 pre-existing hook warnings); `type-check` unchanged at the 11 pre-existing react-hook-form errors |
+| Production left in a clean state | PASS | owner chose "remove my test sections"; all three deleted via `delete_storefront_section` as the real manager. `storefront_sections` 0, `storefront_section_items` 0, both anon reads `[]`, editor shows the empty state again |
+
+### Not run in the dashboard pass
+
+| Check | Why |
+|---|---|
+| Composed sections rendered in the Android app | The A34 dropped off wireless ADB mid-session (the debugging port rotated; re-pairing needs a code from the phone). The composed state was therefore verified at the payload and database level only, never on a screen |
+| Two managers editing concurrently in two real browser tabs | The guard was proven by changing the row with SQL instead, which is the same server-side condition; a second logged-in browser session was not set up |
+| Other dashboard pages (coupons, inventory, reports, staff, billing) | Only Storefront was in scope for this pass; those pages remain verified by build and route protection alone |
+| Drag-and-drop reorder | Only the arrow buttons were exercised. The `reorder` action they share is tested, but the HTML5 drag handler itself was not driven |
 
 ---
 

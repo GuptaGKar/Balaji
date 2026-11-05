@@ -1203,3 +1203,70 @@ own "Remove … from cart" control (the destructive "Clear cart" icon was never 
 Dark-mode switch toggled for the light-theme check was toggled back and re-read as `checked=true`.
 The account screenshot and the device-side hierarchy dumps contained the customer's name and phone
 number, so both were deleted rather than kept in an untracked folder.
+
+## Dashboard pass as a real manager: seven defects, and the two-read split (2026-11-05)
+
+The owner supplied a manager login, so the Storefront page was driven in a browser against the live
+project: compose, publish, reorder, hide, show, delete. Seven defects came out of it (BUG-014 to
+BUG-020 in `QA_LOG.md`), and this section records the decisions behind the fixes.
+
+**The dashboard now has its own read.** `get_storefront(p_page)` filters `active = true` because
+it is the customer contract, and the editor had been loading through it - which meant pressing
+"Visible" deleted a section from the manager's view permanently, with no way back except SQL. The
+fix is a second function rather than a flag on the first:
+
+| Function | Audience | Rows |
+|---|---|---|
+| `get_storefront(text)` | customer app | active only |
+| `list_storefront_sections(text)` | dashboard editor | every row the caller may see at all |
+
+A flag argument would have put a second behaviour behind one name, and any caller that passed it
+by accident would hand a shopper the hidden inventory. Two names make the mistake visible in a
+review. Both are `SECURITY INVOKER` and both return ids only, so RLS still decides what "every
+row" means: a manager gets inactive rows through the manager policy, and anyone else gets exactly
+the active rows the read policy already allowed - the same answer `get_storefront` gave, so the
+new function widens nothing. Suite 050 asserts that equality directly (S50-08) rather than
+trusting the reasoning.
+
+**The revoke trap, caught by the test written for it.** `20261105000004` first shipped with only
+`GRANT EXECUTE ... TO authenticated, service_role` - the same shape as the bug in
+`20261105000001/2`. S50-10 and S50-11 failed on the first run, because Supabase creates functions
+with EXECUTE already granted to PUBLIC and anon. This is now the standing rule for every function
+added here: **a GRANT to a role is not a restriction; the restriction is the REVOKE from PUBLIC
+and anon.**
+
+**Reordering became a publishable change.** The reducer renumbered on move and drag but marked no
+section dirty, and Publish was gated on `dirtyCount > 0`, so a reorder could never be saved and
+navigating away warned about nothing. `SectionState` now carries `orderDirty`. It is deliberately
+not folded into the per-section `dirty` flag: order is a property of the page, and marking every
+section dirty to work around that would bump `updated_at` and `updated_by` on rows nobody edited,
+which then trips the conflict guard against a second manager for no reason. Every other action
+preserves `orderDirty`, because losing a pending reorder while renaming a heading is the same bug
+in a new coat - there is a node test for exactly that sequence.
+
+**The preview must use the app's rule, not a near-relative of it.** The web derived "in stock"
+from the `available` column alone; the app requires `available AND stockQty >= minQty`. On this
+store 36 products have `stock_qty <= 0` with `available = true` and nothing reconciles them, so
+the two disagreed: a manager composing seven items saw six in the preview and the customer saw
+three. `available` is an independent manager flag, not a stock mirror - that is the fact the rule
+has to be written against. The fix fetches `stock_qty, min_qty` and mirrors the app's predicate,
+so the preview's "HIDDEN IN APP" count is now the number the app will actually render.
+
+**Section type is chosen, not inferred from the page.** It had been
+`page === "home" ? "products" : "categories"`, which made a product rail on the Categories page
+impossible to compose while `CategoriesScreen` contained the code to render one, including its own
+product tap target - unreachable app code. Changing the type clears the section's items and says
+so in a notice, because the item columns are mutually exclusive and the database trigger refuses a
+mismatch: keeping the chosen items would produce a section that could never be saved.
+
+**What was refused rather than worked around.** Native `confirm()` and `beforeunload` dialogs stall
+the CDP session completely - every tool call times out until a human clicks. I asked the owner to
+click the one delete that mattered instead of removing the confirmations to make the automation
+comfortable; a destructive delete in a manager dashboard should ask. And the test sections were
+removed from production afterwards, through `delete_storefront_section` as the real manager, rather
+than left in place as a convenient demo of a feature the owner has not chosen to switch on.
+
+**Still unproven after this pass:** the composed state on a phone screen - the A34 dropped off
+wireless ADB mid-session and re-pairing needs a code from the device. Composition is now verified
+through the payload and the database, and the app's rendering of a composed section has still
+never been seen. BUG-012 (the light-theme pill) also remains the owner's call.
