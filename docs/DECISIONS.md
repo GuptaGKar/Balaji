@@ -1166,3 +1166,40 @@ and 186 memberships. The second and third layers held. The first layer was simpl
 and 047 insert up to 21 sections on one page to prove the caps, so they only hold while
 `storefront_sections` is close to empty. Once the owner composes sections, they must run on a
 fresh database - which in turn means repairing the `db-tests` CI job first.
+
+## Device pass on the Galaxy A34, and what it changed (2026-11-05)
+
+Release-signed customer build (versionCode 13, same certificate) installed with `-r` so the
+session and data survived. Numbers came from the uiautomator hierarchy, not from looking at the
+screen.
+
+**Everything Task 17 promised measured out.** The pill is `(45,2028)-(1035,2208)` - 64.0 dp tall,
+16.0 dp inset on each side, centred, 46.9 dp above the window bottom. Scrolled to the end of each
+list, the last row sits above the pill rather than under it: Home by 56 px, Orders by 116 px, the
+basket's "Proceed to Checkout" by 108 px, and `MiniCartBar` stacks 106 px above the pill instead of
+behind it. Product details and account show no pill, as the route rule intends.
+
+**The pass found two things no test could.** First, `formatRupeesWhole` had been created, unit-
+tested and never called - a grep across `app/src/main` returned only its own definition, so the
+plan's whole-rupee rails existed only as a passing test of an unused function. Wired in, with a
+`wholeRupees: Boolean = false` on the shared card and rail so only the manager-composed sections
+use it: the automatic rails keep `formatPaise`, which means an un-composed store is unchanged and
+no screen that leads to money rounds anything. Second, **the pill is hard to read in the light
+theme** (BUG-012): product names behind the 30 %-opaque surface read through the tab labels. Dark
+theme is fine.
+
+**`NAV_PILL_ALPHA` was not raised, deliberately.** 0.30 was an explicit instruction, and the fix
+is one constant. The screenshot and the measurement are logged; the call is the owner's.
+
+**Two checks were refused rather than faked.** Checkout was not opened, because reaching it on a
+live store means proceeding far enough to risk placing a real order; the route predicate that
+excludes product details (verified absent) excludes checkout identically. And no section was
+composed into the production `storefront_sections` for testing - composing is content, which is
+the owner's to write. So the composed rails, the "More categories" tail and the whole-rupee price
+remain unverified on a screen, and that is stated instead of assumed away.
+
+**State left as found.** The one basket line added to test `MiniCartBar` was removed through its
+own "Remove … from cart" control (the destructive "Clear cart" icon was never tapped), and the
+Dark-mode switch toggled for the light-theme check was toggled back and re-read as `checked=true`.
+The account screenshot and the device-side hierarchy dumps contained the customer's name and phone
+number, so both were deleted rather than kept in an untracked folder.

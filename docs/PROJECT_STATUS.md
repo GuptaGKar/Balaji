@@ -37,10 +37,13 @@ Postgres functions and RLS; clients only display results.
   rolled-back transaction; the earlier suites (001–044) have still never been run
   in this environment — no Docker socket and no local Postgres.
   `20261105000003_storefront_write_privileges.sql` (BUG-011: Supabase had left all
-  four storefront write RPCs executable by `anon`) is written, dry-run green with
-  pgTAP 049, and **not applied** — it needs owner approval.
+  four storefront write RPCs executable by `anon`) was applied the same day, after
+  pgTAP 049 passed against it in a rolled-back dry run.
 - **Device:** a physical Samsung Galaxy A34 (Android 16 / SDK 36) is connected and
-  used for every on-device check.
+  used for every on-device check. On 2026-11-05 it carried the nav-pill pass: the
+  pill's geometry, the bottom clearance on every tab, the basket bar stacked above
+  it and the fallback Home layout against the migrated database all measured
+  correct; the pill is hard to read in the **light** theme (BUG-012).
 - **Web:** production build, lint, type-check and a local `next start` are verified;
   the dashboard’s authenticated pages have not been exercised because no manager
   web login has been supplied.
@@ -112,9 +115,14 @@ on the new surfaces, through one helper per platform (`web/src/lib/money.ts`,
 **What has and has not been seen running.** The two migrations are applied and pgTAP
 045–048 pass against them — 100 assertions, `num_failed() = 0` — but that first execution
 found five defects in SQL written earlier in this work stream (see `QA_LOG.md` and
-`docs/DECISIONS.md`). What has *not* been seen: the Storefront page opened by a manager (no
-web manager login), a composed section on any screen (`storefront_sections` has zero rows), and
-the nav pill on a device (none attached). What was executed is recorded in `QA_LOG.md`.
+`docs/DECISIONS.md`), and probing the applied RPCs from outside found a sixth (BUG-011, now
+fixed and applied). The Galaxy A34 has run the new build: the pill geometry, the bottom
+clearance on Home / Categories / Orders / Basket, the basket bar stacked above the pill, the
+absence of the pill on product details and account, and the fallback Home against the migrated
+database all measured correct. What has *not* been seen: a **composed** section on any screen
+(`storefront_sections` is empty — composing is the owner's content call), the Storefront page
+opened by a manager (no web manager login), the pill on a tablet, and the pill in the light theme
+where it fails (BUG-012).
 
 ## 4. Scope
 
@@ -148,9 +156,10 @@ approval), loyalty points and WhatsApp (both need owner policy).
 
 | Problem | Impact | Next step |
 |---|---|---|
-| **Storefront write RPCs are executable by `anon` on the live project** | Not exploitable — the role guard and the table privileges both refuse the call and were verified to write nothing — but the first layer of the boundary is missing (BUG-011) | Approve applying `20261105000003_storefront_write_privileges.sql`; pgTAP 049 already proves the fix and that managers and anon reads keep working |
+| **The pill is illegible in the light theme** (BUG-012) | Product names behind the 30 %-opaque pill read through the tab labels, so the navigation looks broken on a light device | Owner decision: keep 0.30 as instructed, or raise `NAV_PILL_ALPHA` in `ui/components/NavPill.kt`. One constant either way |
+| **No composed section has ever been seen** | The headline feature — a dashboard-composed Home and Categories — is proven at the SQL and unit level and unproven on a screen | A manager composes two Home sections and one Categories section in the dashboard; then one device pass over the same routes |
+| **Storefront write RPCs were executable by `anon`** | Fixed and applied: anon now gets `42501` before the function body on all four writes, while the `get_storefront` read and the manager path both still work (re-probed over REST) | Nothing outstanding; pgTAP 049 keeps it pinned |
 | **CI has never been green** | Every run in the repository's history failed, including `db-tests`, so "check CI" is not the safety net anyone thinks it is. `guards` is the only job that passes | Read the runner log for `db-tests` (needs a GitHub token; the logs API is 403 unauthenticated) and fix the oldest failing suite. The `android` job fails at `setup-android@v3`, before any Gradle runs |
-| **Storefront feature is un-exercised end to end** | The schema and RPCs pass pgTAP, but no manager has composed a section and no device has rendered one, so the customer-visible behaviour is still unproven | A manager web login and a device, then one composed Home section and one Categories section |
 | **pgTAP never executed** (001–044; no Docker/Postgres here) | The rest of the backend is only proven through device flows; regressions in RLS/pricing would be caught late | Pushing will not help until the `db-tests` job itself is fixed (see above). Either repair CI or run the same suites with `scripts/verify_migration_live.py`, which applies a migration and a suite to the live database inside one transaction and rolls it back - the way 045–048 were finally executed. |
 | **No manager web login** | Dashboard pages (catalogue, coupons, requests, settings) are verified only by build + route protection | Provide an email/password for the web app |
 | **Rider path unproven** | `rider_update_status` and the rider-side delivery proof have not been exercised end-to-end | Assign order to `KART`, switch the staff app session, upload proof, deliver |
