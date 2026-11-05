@@ -18,6 +18,24 @@ export function formatRupees(paise: number): string {
   return `₹${paiseToRupees(paise)}`;
 }
 
+/**
+ * Whole rupees, for the storefront surfaces only: the dashboard item picker, the section
+ * preview, and the Home/Categories rails. The business thinks in rupees, so a composed rail
+ * reading "₹60.00" is noise.
+ *
+ * Rounding is half up to match the per-line money rule, and the arithmetic stays in integers
+ * so no floating-point drift can appear in a price. An absent price renders as an em dash
+ * rather than inventing ₹0, because a missing price and a free product are different facts.
+ *
+ * Existing screens keep formatRupees / paiseToRupeesCompact with their decimals; nothing here
+ * changes what a bill, quote or total shows.
+ */
+export function formatRupeesWhole(paise: number | null | undefined): string {
+  if (paise === null || paise === undefined) return "—";
+  const wholeRupees = Math.floor((paise + 50) / 100);
+  return `₹${wholeRupees.toLocaleString("en-IN")}`;
+}
+
 export function parseRupees(input: string): number | null {
   const cleaned = input.replace(/[₹,\s]/g, "");
   const match = cleaned.match(/^(\d+)(\.\d{1,2})?$/);
