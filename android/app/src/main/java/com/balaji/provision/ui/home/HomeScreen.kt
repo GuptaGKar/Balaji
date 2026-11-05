@@ -496,7 +496,10 @@ private fun ComposedSectionBlock(
                 onAdd = onAdd,
                 onIncrease = onIncrease,
                 onDecrease = onDecrease,
-                onWeight = onWeight
+                onWeight = onWeight,
+                // A manager-composed rail is one of the new surfaces the brief asked to read
+                // "₹60" instead of "₹60.00". The automatic rails above keep the exact amount.
+                wholeRupees = true
             )
 
             is ResolvedCategoryGrid -> {
@@ -607,7 +610,8 @@ internal fun ProductRail(
     onAdd: (Product) -> Unit,
     onIncrease: (Product, Long) -> Unit,
     onDecrease: (Product, Long) -> Unit,
-    onWeight: (Product) -> Unit
+    onWeight: (Product) -> Unit,
+    wholeRupees: Boolean = false
 ) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
@@ -624,7 +628,8 @@ internal fun ProductRail(
                 onAdd = { onAdd(product) },
                 onIncrease = { cartItem?.let { onIncrease(product, it.qtyBase) } },
                 onDecrease = { cartItem?.let { onDecrease(product, it.qtyBase) } },
-                onWeight = { onWeight(product) }
+                onWeight = { onWeight(product) },
+                wholeRupees = wholeRupees
             )
         }
     }

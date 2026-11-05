@@ -451,8 +451,14 @@ fun HorizontalProductCard(
     onIncrease: () -> Unit,
     onDecrease: () -> Unit,
     modifier: Modifier = Modifier,
-    onWeight: (() -> Unit)? = null
+    onWeight: (() -> Unit)? = null,
+    wholeRupees: Boolean = false
 ) {
+    // The price on a browse card is display-only. `wholeRupees` is set by the manager-composed
+    // rails, which the brief asked to read "₹60" rather than "₹60.00"; every other surface keeps
+    // `formatPaise`, and neither can change what the server charges - the cart, checkout and bill
+    // always show the exact paise amount.
+    val priceLabel = if (wholeRupees) formatRupeesWhole(product.pricePaise) else formatPaise(product.pricePaise)
     val weighted = product.quantityType == QuantityType.WEIGHTED
     Card(
         modifier = modifier.width(148.dp),
@@ -529,14 +535,17 @@ fun HorizontalProductCard(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
-                            text = formatPaise(product.pricePaise),
+                            text = priceLabel,
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         if (product.hasDiscount) {
                             Text(
-                                text = formatPaise(product.mrpPaise!!),
+                                // Only read when a discount exists, so the non-null assertion is
+                                // as safe as it was before this line moved.
+                                text = if (wholeRupees) formatRupeesWhole(product.mrpPaise)
+                                else formatPaise(product.mrpPaise!!),
                                 style = MaterialTheme.typography.labelSmall.copy(textDecoration = TextDecoration.LineThrough),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

@@ -89,7 +89,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.SubcomposeAsyncImage
 import com.balaji.provision.domain.model.Category
 import com.balaji.provision.domain.model.Product
-import com.balaji.provision.domain.model.formatPaise
 import com.balaji.provision.ui.catalog.ProductViewModel
 import com.balaji.provision.ui.home.ResolvedCategoryGrid
 import com.balaji.provision.ui.home.ResolvedProductRail
@@ -97,6 +96,7 @@ import com.balaji.provision.ui.home.ResolvedSection
 import com.balaji.provision.ui.home.resolveStorefrontSections
 import com.balaji.provision.ui.home.ungroupedCategoryIds
 import com.balaji.provision.ui.components.categoryColors
+import com.balaji.provision.ui.components.formatRupeesWhole
 import com.balaji.provision.ui.components.navPillReserve
 import com.balaji.provision.ui.theme.appColors
 import kotlin.math.roundToInt
@@ -644,7 +644,9 @@ private fun ComposedProductTile(product: Product, onClick: () -> Unit) {
             modifier = Modifier.padding(top = 6.dp)
         )
         Text(
-            text = formatPaise(product.pricePaise),
+            // A composed rail on the Categories page is one of the new surfaces the brief asked
+            // to read "₹60" rather than "₹60.00". The listing grid keeps the exact amount.
+            text = formatRupeesWhole(product.pricePaise),
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.Bold
         )
