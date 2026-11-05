@@ -110,6 +110,13 @@ export const productSchema = z
     name: z.string().min(1, "Name is required").max(200),
     description: z.string().optional().nullable(),
     category_id: z.string().min(1, "Category is required"),
+    /**
+     * Additional category membership. Not a products column: it is written through the
+     * set_product_categories RPC together with category_id, which stays the PRIMARY category
+     * that reports and coupon scope use. Optional so a database that has not run
+     * 20261105000001 can still save a product on its primary alone.
+     */
+    category_ids: z.array(z.string().uuid()).optional(),
     image_path: z.string().optional().nullable(),
     quantity_type: quantityTypeEnum,
     price_paise: z.number().int().min(0),

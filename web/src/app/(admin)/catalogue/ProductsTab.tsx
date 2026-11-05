@@ -25,7 +25,12 @@ import {
 import { useDropzone, type DropzoneInputProps, type DropzoneRootProps } from "react-dropzone";
 import { Toaster, toast } from "sonner";
 
-type ProductWithCategory = Product & { categories?: { name: string }; id: string };
+type ProductWithCategory = Product & {
+  categories?: { name: string };
+  product_categories?: { category_id: string }[];
+  category_ids?: string[];
+  id: string;
+};
 
 const PRODUCT_IMAGE_BUCKET = "product-images";
 const PRODUCT_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
@@ -80,6 +85,7 @@ export default function ProductsTab({ canManage }: { canManage: boolean }) {
       name: "",
       description: "",
       category_id: "",
+      category_ids: [],
       image_path: "",
       quantity_type: "PACKED",
       price_paise: 10000,
@@ -122,10 +128,27 @@ export default function ProductsTab({ canManage }: { canManage: boolean }) {
   const fetchData = useCallback(async () => {
     setLoadError(null);
     const supabase = createClient();
-    const [productsRes, categoriesRes] = await Promise.all([
-      supabase.from("products").select("*, categories(name)").order("name"),
-      supabase.from("categories").select("id, name").eq("active", true).order("sort_order"),
-    ]);
+
+    // Prefer the membership embed. A database that has not run 20261105000001 has no
+    // product_categories relation, so the embedded select fails and we retry without it -
+    // the same legacy-select fallback the Android client uses, and the reason an un-migrated
+    // store can still manage its catalogue.
+    let membershipKnown = true;
+    let productsRes = await supabase
+      .from("products")
+      .select("*, categories(name), product_categories(category_id)")
+      .order("name");
+    if (productsRes.error) {
+      membershipKnown = false;
+      productsRes = await supabase.from("products").select("*, categories(name)").order("name");
+    }
+
+    const categoriesRes = await supabase
+      .from("categories")
+      .select("id, name")
+      .eq("active", true)
+      .order("sort_order");
+
     if (productsRes.error || categoriesRes.error) {
       const message =
         productsRes.error?.message ||
@@ -136,8 +159,19 @@ export default function ProductsTab({ canManage }: { canManage: boolean }) {
       toast.error("Failed to load catalogue data");
       return;
     }
-    setProducts(productsRes.data || []);
     const catList = categoriesRes.data || [];
+    setProducts(
+      (productsRes.data || []).map((row: ProductWithCategory) => ({
+        ...row,
+        // Without the join table the primary is the only membership we can honestly claim.
+        category_ids:
+          membershipKnown && row.product_categories
+            ? row.product_categories.map((m) => m.category_id)
+            : row.category_id
+              ? [row.category_id]
+              : [],
+      })),
+    );
     setCategories(catList);
     if (catList.length > 0 && !form.getValues("category_id")) {
       form.setValue("category_id", catList[0].id);
@@ -188,9 +222,11 @@ export default function ProductsTab({ canManage }: { canManage: boolean }) {
         stock_qty: _ignoredStock,
         variant_group_id: _variantGroupId,
         variant_label: _variantLabel,
+        category_ids: _categoryIds,
+        product_categories: _productCategories,
         image_path: rawImagePath,
         ...productFields
-      } = data;
+      } = data as ProductWithCategory;
       const selectedGroupId = data.variant_group_id?.trim() || null;
       const variantLabel =
         data.variant_label?.trim() || (isWeighted ? null : data.pack_size_label?.trim() || null);
@@ -238,6 +274,8 @@ export default function ProductsTab({ canManage }: { canManage: boolean }) {
         }
       }
 
+      let savedProductId: string | null = editingId;
+
       if (editingId) {
         const previousImage = products.find((p) => p.id === editingId)?.image_path;
         const { error } = await supabase.from("products").update(payload).eq("id", editingId);
@@ -256,7 +294,7 @@ export default function ProductsTab({ canManage }: { canManage: boolean }) {
           .select("id")
           .single();
         if (error) throw error;
-
+        savedProductId = inserted.id;
         const initialStockQty = isWeighted
           ? Math.round((stockInput || 0) * 1000)
           : Math.round(stockInput || 0);
@@ -282,6 +320,31 @@ export default function ProductsTab({ canManage }: { canManage: boolean }) {
           toast.success("Product created successfully!");
         }
       }
+      // Category membership goes through the RPC so products.category_id and
+      // product_categories cannot end up disagreeing - reports and coupon scope read the
+      // primary while listings read the join table, and a silent split is invisible to the
+      // manager. On a database that has not run 20261105000002 the function is absent; the
+      // primary was already written above, so the product is still correct and only the extra
+      // membership is unavailable. Either way the product save is not undone.
+      if (savedProductId) {
+        const wantedIds = Array.from(new Set([...(data.category_ids ?? []), selectedCategoryId]));
+        const { error: categoryError } = await supabase.rpc("set_product_categories", {
+          p_product_id: savedProductId,
+          p_primary_category_id: selectedCategoryId,
+          p_category_ids: wantedIds,
+        });
+        if (categoryError) {
+          const detail = categoryError.message || "unknown error";
+          if (/does not exist|Could not find the function|PGRST202|42883/i.test(detail)) {
+            toast.error(
+              "Product saved, but multi-category needs migration 20261105000002 - only the primary category was stored.",
+            );
+          } else {
+            toast.error(`Product saved, but its categories were not updated: ${detail}`);
+          }
+        }
+      }
+
       setEditingId(null);
       setCreating(false);
       form.reset();
@@ -318,6 +381,7 @@ export default function ProductsTab({ canManage }: { canManage: boolean }) {
       quantity_type: isWeighted ? "WEIGHTED" : "PACKED",
       max_qty: prod.max_qty || undefined,
       pack_size_label: prod.pack_size_label || undefined,
+      category_ids: prod.category_ids?.length ? prod.category_ids : [prod.category_id],
     });
     setPriceRupees(prod.price_paise / 100);
     setMrpRupees(prod.mrp_paise ? (prod.mrp_paise / 100).toString() : "");
@@ -450,6 +514,7 @@ export default function ProductsTab({ canManage }: { canManage: boolean }) {
                 name: "",
                 description: "",
                 category_id: categories.length > 0 ? categories[0].id : "",
+                category_ids: categories.length > 0 ? [categories[0].id] : [],
                 image_path: "",
                 quantity_type: "PACKED",
                 price_paise: 10000,
@@ -586,9 +651,36 @@ export default function ProductsTab({ canManage }: { canManage: boolean }) {
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg">
-                            {prod.categories?.name || "General"}
-                          </span>
+                          <div className="flex flex-wrap gap-1">
+                            {(prod.category_ids?.length
+                              ? prod.category_ids
+                              : prod.category_id
+                                ? [prod.category_id]
+                                : []
+                            ).map((cid) => {
+                              const isPrimary = cid === prod.category_id;
+                              // The `categories` state holds active categories only, so a
+                              // deactivated membership would otherwise be labelled "General",
+                              // which reads like a real category rather than a missing one.
+                              const name = isPrimary
+                                ? prod.categories?.name
+                                : categories.find((c) => c.id === cid)?.name;
+                              return (
+                                <span
+                                  key={cid}
+                                  title={isPrimary ? "Primary category" : "Additional category"}
+                                  className={cn(
+                                    "text-xs font-semibold px-2.5 py-1 rounded-lg",
+                                    isPrimary
+                                      ? "text-slate-700 bg-slate-200"
+                                      : "text-slate-600 bg-slate-100",
+                                  )}
+                                >
+                                  {name || "Inactive category"}
+                                </span>
+                              );
+                            })}
+                          </div>
                         </td>
                         <td className="px-4 py-3">
                           <span
@@ -740,6 +832,34 @@ function ProductFormCard({
   const isWeighted = watchedQuantityType?.toLowerCase() === "weighted";
   const imagePath = form.watch("image_path");
   const errors = form.formState.errors;
+  const primaryCategoryId = form.watch("category_id");
+  const selectedCategoryIds = form.watch("category_ids") ?? [];
+
+  /**
+   * Membership and primary are one set: the primary is always a member, and at least one
+   * category must survive. Ticking is free; unchecking the primary moves it to the first
+   * remaining selection, and unchecking the last box is refused. That keeps the form unable
+   * to produce a state the RPC would have to reject, instead of letting a manager submit a
+   * product with no category and read an error after the save.
+   */
+  const toggleCategory = (id: string, on: boolean) => {
+    const next = on
+      ? Array.from(new Set([...selectedCategoryIds, id]))
+      : selectedCategoryIds.filter((x) => x !== id);
+
+    if (next.length === 0) {
+      form.setValue("category_ids", primaryCategoryId ? [primaryCategoryId] : [], {
+        shouldValidate: true,
+      });
+      return;
+    }
+
+    form.setValue("category_ids", next, { shouldValidate: true, shouldDirty: true });
+
+    if (!next.includes(primaryCategoryId)) {
+      form.setValue("category_id", next[0], { shouldValidate: true, shouldDirty: true });
+    }
+  };
 
   const onInvalid = (formErrors: FieldErrors<Product>) => {
     const first = Object.values(formErrors).find((error) => Boolean(error?.message));
@@ -921,30 +1041,70 @@ function ProductFormCard({
           </div>
 
           <div>
-            <label
-              htmlFor="product-category"
+            <span
+              id="product-categories-label"
               className="block text-xs font-semibold text-slate-700 mb-1"
             >
-              Category *
-            </label>
-            <select
-              id="product-category"
-              {...form.register("category_id")}
-              aria-required="true"
-              aria-invalid={Boolean(errors.category_id)}
-              aria-describedby={errors.category_id ? "product-category-error" : undefined}
-              className={cn(
-                "w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-slate-900 text-sm focus:ring-2 focus:ring-emerald-500",
-                errors.category_id ? "border-red-400" : "border-slate-300",
-              )}
+              Categories *
+            </span>
+            {categories.length === 0 && (
+              <p className="text-xs text-slate-500">Create a category first.</p>
+            )}
+            <div
+              role="group"
+              aria-labelledby="product-categories-label"
+              className="grid grid-cols-1 sm:grid-cols-2 gap-2"
             >
-              {categories.length === 0 && <option value="">Create a category first</option>}
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+              {categories.map((c) => {
+                const checked = selectedCategoryIds.includes(c.id);
+                const isPrimary = primaryCategoryId === c.id;
+                return (
+                  <div
+                    key={c.id}
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-2 border rounded-xl text-sm",
+                      checked ? "border-emerald-400 bg-emerald-50" : "border-slate-300 bg-slate-50",
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      id={`product-cat-${c.id}`}
+                      checked={checked}
+                      onChange={(e) => toggleCategory(c.id, e.target.checked)}
+                      className="h-4 w-4 shrink-0 accent-emerald-600"
+                    />
+                    <label htmlFor={`product-cat-${c.id}`} className="flex-1 text-slate-800">
+                      {c.name}
+                    </label>
+                    <input
+                      type="radio"
+                      name="product-primary-category"
+                      id={`product-primary-${c.id}`}
+                      value={c.id}
+                      checked={isPrimary}
+                      disabled={!checked}
+                      onChange={() =>
+                        form.setValue("category_id", c.id, {
+                          shouldValidate: true,
+                          shouldDirty: true,
+                        })
+                      }
+                      className="h-4 w-4 shrink-0 accent-emerald-600"
+                    />
+                    <label
+                      htmlFor={`product-primary-${c.id}`}
+                      className={cn("text-xs", checked ? "text-slate-600" : "text-slate-400")}
+                    >
+                      Primary
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              A product can be listed in several categories. The primary is the one reports and
+              coupons use, and it always stays ticked.
+            </p>
             <FieldError id="product-category-error" message={errors.category_id?.message} />
           </div>
 
