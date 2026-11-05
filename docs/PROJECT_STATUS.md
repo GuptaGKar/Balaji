@@ -26,12 +26,16 @@ Postgres functions and RLS; clients only display results.
 - **Distribution route:** direct signed APK (D-DIST). No Play upload work is planned.
 - **Database:** migrations through `20261029000002_pincode_delivery_pricing.sql`
   are applied on the live project (plus `20261103000003_area_suggestions.sql`,
-  applied with owner approval). The two storefront migrations written on
-  2026-11-05 — `20261105000001_storefront_sections.sql` and
-  `20261105000002_product_category_assignment.sql` — are **not applied**: applying
-  one to the live project is a production change and needs explicit approval.
-  `supabase/tests` (pgTAP) have **never been
-  executed** in this environment: no Docker socket and no local Postgres.
+  applied with owner approval). On 2026-11-05, with owner approval,
+  `20261105000001_storefront_sections.sql` and
+  `20261105000002_product_category_assignment.sql` were applied through
+  `supabase db query --linked` inside an explicit transaction. They create three
+  tables, six policies, five RPCs and backfill `product_categories` (186 rows for
+  the 186 products that have a primary category). No section was inserted, so the
+  customer app still renders the un-composed fallback.
+  `supabase/tests` 045–048 have now been executed against that live database in a
+  rolled-back transaction; the earlier suites (001–044) have still never been run
+  in this environment — no Docker socket and no local Postgres.
 - **Device:** a physical Samsung Galaxy A34 (Android 16 / SDK 36) is connected and
   used for every on-device check.
 - **Web:** production build, lint, type-check and a local `next start` are verified;
@@ -102,9 +106,12 @@ Postgres functions and RLS; clients only display results.
 on the new surfaces, through one helper per platform (`web/src/lib/money.ts`,
 `ui/components/PriceFormat.kt`).
 
-**None of this has been seen running.** The migrations are unapplied, so the dashboard cannot
-save a section and the apps cannot fetch one; pgTAP 045–048 were never executed; the pill has
-not been looked at on a device. What was executed is in `QA_LOG.md`.
+**What has and has not been seen running.** The two migrations are applied and pgTAP
+045–048 pass against them — 100 assertions, `num_failed() = 0` — but that first execution
+found five defects in SQL written earlier in this work stream (see `QA_LOG.md` and
+`docs/DECISIONS.md`). What has *not* been seen: the Storefront page opened by a manager (no
+web manager login), a composed section on any screen (`storefront_sections` has zero rows), and
+the nav pill on a device (none attached). What was executed is recorded in `QA_LOG.md`.
 
 ## 4. Scope
 
@@ -138,8 +145,8 @@ approval), loyalty points and WhatsApp (both need owner policy).
 
 | Problem | Impact | Next step |
 |---|---|---|
-| **Storefront migrations unapplied** | Section composition cannot be used or tested for real; the new Android code only ever sees the zero-section fallback | Owner approval to apply `20261105000001` and `20261105000002`, then one dashboard pass and one device pass |
-| **pgTAP never executed** (no Docker/Postgres here) | The backend is only proven through device flows; regressions in RLS/pricing would be caught late | Push to trigger the CI `db-tests` job, or give a staging database URL |
+| **Storefront feature is un-exercised end to end** | The schema and RPCs pass pgTAP, but no manager has composed a section and no device has rendered one, so the customer-visible behaviour is still unproven | A manager web login and a device, then one composed Home section and one Categories section |
+| **pgTAP never executed** (001–044; no Docker/Postgres here) | The rest of the backend is only proven through device flows; regressions in RLS/pricing would be caught late | Push to trigger the CI `db-tests` job, or give a staging database URL. Suites 045–048 were run against the live database in a rolled-back transaction instead |
 | **No manager web login** | Dashboard pages (catalogue, coupons, requests, settings) are verified only by build + route protection | Provide an email/password for the web app |
 | **Rider path unproven** | `rider_update_status` and the rider-side delivery proof have not been exercised end-to-end | Assign order to `KART`, switch the staff app session, upload proof, deliver |
 | **Cancel/stock restore unproven** | Double-cancel and stock restoration rely on the original `cancel_my_order` | Place a small order and cancel while `pending_review` |

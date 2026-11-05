@@ -33,6 +33,7 @@ Result labels: **PASS** (executed, observed), **FAIL** (executed, broke),
 | BUG-007 | S2 | DB | Signup trigger defaulted new accounts to `manager` from client metadata | FIXED-VERIFIED (migration applied; signup path not re-exercised with a new number) |
 | BUG-008 | S3 | Web | `/app-updates` “current release” picked the first active row instead of the highest version code | FIXED-UNVERIFIED (build/type-check pass; page not opened with data) |
 | BUG-009 | S3 | Release Android | Diagnostic logging absent: all repository `catch` blocks swallowed the exception, hiding BUG-003 | FIXED-VERIFIED — the R8 crash was only found after adding `Log.e` |
+| BUG-010 | S2 | Data / both apps | 52 of the 89 products an anonymous shopper can see load their image from `imgs.search.brave.com/...` (a third-party search-proxy URL carrying a base64-encoded origin), 2 more from `m.media-amazon.com`, 1 from `freshlee.in`, 1 from `www.starquik.com`; only 12 come from our own storage and 14 have none. Every product browse therefore makes a request to a third party that identifies the catalogue item being viewed, and those URLs are not ours to keep alive | OPEN — measured by REST probe 2026-11-05. Not fixed: re-sourcing 52 images is a content decision for the owner (upload to `product-images` storage), not a code change |
 
 ## Executed checks
 
@@ -88,11 +89,16 @@ observed, not as expected.
 | `python3 -m unittest discover -s scripts/tests` | PASS | 8 tests, OK |
 | `npm --prefix web run format:check` | PASS | "All matched files use Prettier code style!" |
 | `npm --prefix web run type-check` | FAIL — pre-existing | 11 `react-hook-form` generic errors in `ProductsTab`, `CategoriesTab`, `settings`, `service-areas`. Verified not introduced here: the three in `ProductsTab.tsx` sit on constructs (`useForm<Product>`, `resolver: zodResolver(productSchema)`, two `form={form}`) that already existed at `59e7495~1`, and the identical error shape appears in `CategoriesTab.tsx`, which this work stream never touched. `next build` therefore still fails at HEAD. |
-| pgTAP suites 045–048 | NOT RUN | No Docker socket and no local Postgres. These four suites are the only proof of the storefront constraints, caps, RLS and RPC bodies, and none of that SQL has ever executed. CI `db-tests` is the first place it will run. |
-| Migrations `20261105000001`, `20261105000002` | NOT APPLIED | Applying to the live project needs owner approval (AGENTS rule 11). |
-| Storefront dashboard page opened with real data | NOT RUN | No manager web login supplied, and the tables behind it do not exist yet. |
-| Composed section seen in the app | NOT RUN | Needs the migrations applied. The apps have only ever executed the zero-section fallback path, and only inside unit tests — not a launch. |
-| Nav pill on a device (over a busy page, with `MiniCartBar`, light/dark, phone and tablet) | NOT RUN | No device attached at the end of this session (`adb devices` empty). The pill is a layout change proven only by its geometry constants. |
-| Airplane-mode cached layout, then fallback | NOT RUN | Needs a device and applied migrations. |
-| Multi-category product visible under both categories, once in All products | NOT RUN | Needs the migrations applied. |
-| 21st section and 31st item refused | NOT RUN | Trigger bodies have never executed. |
+| pgTAP suites 045–048, migration applied inside the same rolled-back transaction | PASS | `scripts/verify_migration_live.py` + `supabase db query --linked`: 30 + 23 + 27 + 20 = 100 assertions, `num_failed() = 0` for all four. This was the first time any of this SQL had ever run; it exposed five defects, all fixed in commit `2cc3d63` |
+| pgTAP suites 045–048, re-run against the applied database (no migration in the batch) | PASS | `num_failed() = 0` ×4 |
+| Migrations `20261105000001`, `20261105000002` applied to the live project | PASS | Owner approved on 2026-11-05. Before: `to_regclass`/`to_regprocedure` all NULL. After: 3 tables with RLS enabled, 6 policies, 5 RPCs, `storefront_sections` = 0 rows, `product_categories` = 186 rows against 186 products carrying a primary (backfill parity), `set_product_categories` has `prosecdef = false`, i.e. it really is SECURITY INVOKER. Applied with `supabase db query --linked` wrapped in an explicit `BEGIN`/`COMMIT`, not with `supabase db push` |
+| PostgREST, anon: `POST /rpc/get_storefront {"p_page":"home"}` | PASS | HTTP 200, body `[]` — the RPC is exposed to `anon`, RLS lets the call through, and nothing is composed yet |
+| PostgREST, anon: `GET /rest/v1/storefront_sections?select=id,title` | PASS | HTTP 200, `[]` |
+| PostgREST: the Android tier-1 membership select (`…,product_categories(category_id)`) | PASS | HTTP 200; each row carries its `product_categories` array, so this database does not need the tiered fallback |
+| Catalogue image hosts | MEASURED | See BUG-010: 52/89 visible products are third-party hotlinks |
+| Storefront dashboard page opened with real data | NOT RUN | No manager web login supplied. The tables behind it now exist |
+| Composed section seen in the app | NOT RUN | Needs a device, and `storefront_sections` is empty so there is nothing to display until a manager composes one |
+| Nav pill on a device (over a busy page, with `MiniCartBar`, light/dark, phone and tablet) | NOT RUN | No device attached at the end of this session (`adb devices` empty). The pill is a layout change proven only by its geometry constants |
+| Airplane-mode cached layout, then fallback | NOT RUN | Needs a device |
+| Multi-category product visible under both categories, once in All products | NOT RUN | No product has a second category yet — membership was backfilled 1:1 from the primary — and no app was installed to check |
+| 21st section and 31st item refused | PASS | S45-19, S45-20 and S47-19 now execute and pass. Not exercised through the dashboard, which cannot be opened |

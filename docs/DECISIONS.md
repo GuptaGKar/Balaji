@@ -1068,3 +1068,52 @@ storefront migration was applied. No composed section has been seen on a screen,
 dashboard or in the app, and the pill has not been looked at on a device. Both apps can only
 have run the zero-section fallback, which is the path that was tested - and only as unit
 tests, not as a launch.
+
+## Storefront migrations applied, and the first time this SQL ran (2026-11-05)
+
+The paragraph above was written before the owner's approval. It is kept rather than edited,
+because it is what was believed at the time and the record has to show that.
+
+**Applied with approval, with `supabase db query --linked`, not `supabase db push`.** Each
+migration file was wrapped in an explicit `BEGIN; ... COMMIT;`. `db push` was avoided because it
+reconciles against a local shadow database this machine cannot start (no Docker), and it would
+also try to apply anything else pending. The state was recorded on both sides: before, every
+`to_regclass` / `to_regprocedure` probe returned NULL; after, three tables with RLS enabled, six
+policies, five RPCs, `storefront_sections` empty, and `product_categories` holding 186 rows for
+the 186 products that carry a primary category - parity, which is what the backfill promises.
+`set_product_categories` was confirmed `prosecdef = false`, i.e. the INVOKER decision above is
+what actually landed.
+
+**Dry run first, on the live database, rolled back.** Before anything committed, each suite was
+run as `BEGIN; <both migrations>; <suite>; SELECT finish(); SELECT num_failed(); ROLLBACK;` -
+what `scripts/verify_migration_live.py` already builds. That is the only way to prove a
+migration and its tests together when there is no local Postgres, and nothing is written.
+
+**The first execution found five defects, all in SQL written earlier in this work stream.** Two
+made `save_storefront_section` uncompilable (`RAISE` with a parameter and no `%`, then a
+`format()` string starting `% ` which is not a specifier) - so the duplicate-id guard had never
+existed. One made suite 045 unparsable (`CREATE TEMP TABLE AS SELECT ... FROM (INSERT ...`;
+a data-modifying statement is only allowed in `WITH`). Three suites read their own temp tables
+under `SET LOCAL ROLE`, which fails on ownership and looked exactly like an RLS result. Fifteen
+message assertions used `throws_ok` with `%` patterns; this pgTAP build compares the message
+exactly there, and the LIKE form is `throws_like(try, msgpattern, description)` with no errcode
+slot and no four-argument variant. Suite 046 also filtered `pg_policies` on a column that does
+not exist.
+
+**The lesson, stated for whoever picks this up: an unrun test is not an asset, it is an
+unverified claim.** 100 assertions sat in `supabase/tests/` for a day, and every one of those
+five defects hid inside them. `num_failed() = 0` after the fixes is now the weakest of the
+claims here, because it was actually measured.
+
+**Two tooling facts worth knowing.** `supabase db query` prints only the **last** result set, and
+this pgTAP build has no `check_test_results()`, so a failing assertion is invisible unless each
+assertion's returned TAP line is collected somewhere. For this run every assertion was wrapped
+in `INSERT INTO tapdiag SELECT <assertion>` and the `not ok` rows were printed at the end; the
+script is `.tmp_device_qa/pgtap_diag.py`, deliberately left uncommitted. If this workflow is
+needed twice it belongs in `scripts/` next to `verify_migration_live.py`.
+
+**Still unverified after today:** the Storefront page opened by a manager (no web manager login),
+a composed section in either app (`storefront_sections` is empty by design - composing is the
+owner's content decision), and the nav pill on any screen. Measured along the way and logged as
+BUG-010: 52 of the 89 products an anonymous shopper can see load their image through
+`imgs.search.brave.com`, which is a data problem, not one this feature introduced.
