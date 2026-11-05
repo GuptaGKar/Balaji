@@ -126,11 +126,23 @@ class ProductViewModel @Inject constructor(
     }
 
     private suspend fun fetchProducts(anonKey: String): Response<List<ProductResponse>> {
+        // Three tiers, newest first. A database that has not run 20261105000001 rejects the
+        // membership embed with 400; an older one also rejects the variant columns. Each retry
+        // drops only what the server actually refused, so an un-migrated store still loads its
+        // catalogue instead of showing an empty shelf.
+        val withMembership = api.getProducts(
+            apiKey = anonKey,
+            auth = "Bearer $anonKey",
+            select = PRODUCT_SELECT_WITH_MEMBERSHIP
+        )
+        if (withMembership.isSuccessful || withMembership.code() != 400) return withMembership
+
         val withVariants = api.getProducts(
             apiKey = anonKey,
             auth = "Bearer $anonKey"
         )
         if (withVariants.isSuccessful || withVariants.code() != 400) return withVariants
+
         return api.getProducts(
             apiKey = anonKey,
             auth = "Bearer $anonKey",
@@ -155,7 +167,10 @@ class ProductViewModel @Inject constructor(
         var filtered = _allProducts.value
 
         if (!catId.isNullOrBlank()) {
-            filtered = filtered.filter { it.categoryId == catId }
+            // ANY membership, not just the primary. A product listed under two categories must
+            // appear in both listings, and still appears exactly once here because this filters
+            // the product list rather than joining to the membership table.
+            filtered = filtered.filter { isInCategory(it, catId) }
         }
 
         if (query.isNotEmpty()) {
@@ -190,6 +205,20 @@ class ProductViewModel @Inject constructor(
         _variantGroups.value = filtered.toVariantGroups()
     }
 
+    /**
+     * True when [catId] is any of the product's categories.
+     *
+     * Falls back to the primary when the membership set is empty. That is the state on a
+     * database that has not run migration 20261105000001, and without the fallback every
+     * product would vanish from every category listing the moment this build shipped.
+     */
+    private fun isInCategory(product: Product, catId: String): Boolean =
+        if (product.categoryIds.isEmpty()) {
+            product.categoryId == catId
+        } else {
+            product.categoryIds.contains(catId)
+        }
+
     private fun searchTerms(query: String): Set<String> =
         buildSet {
             add(query)
@@ -220,7 +249,9 @@ class ProductViewModel @Inject constructor(
                 }
             }
         }
-        if (product.categoryId in categoryIds) best = maxOf(best, CATEGORY_MATCH_SCORE)
+        // A query that names a category should reach every product listed under it, whichever
+        // category is the primary one.
+        if (categoryIds.any { isInCategory(product, it) }) best = maxOf(best, CATEGORY_MATCH_SCORE)
         return best
     }
 
@@ -277,5 +308,16 @@ class ProductViewModel @Inject constructor(
             "id,sku,name,description,category_id,image_path,quantity_type,price_paise,mrp_paise," +
                 "price_basis_qty,unit_label,pack_size_label,step_qty,min_qty,max_qty," +
                 "stock_qty,low_stock_threshold,active,available"
+
+        /**
+         * The normal select plus the `product_categories` embed. Kept as an explicit string
+         * rather than derived, because PostgREST rejects the whole query if the relation is
+         * missing - which is exactly the 400 the tiered fallback above catches.
+         */
+        const val PRODUCT_SELECT_WITH_MEMBERSHIP =
+            "id,sku,name,description,category_id,image_path,quantity_type,price_paise,mrp_paise," +
+                "price_basis_qty,unit_label,pack_size_label,step_qty,min_qty,max_qty,stock_qty," +
+                "low_stock_threshold,active,available,variant_group_id,variant_label," +
+                "product_categories(category_id)"
     }
 }

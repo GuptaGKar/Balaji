@@ -82,6 +82,13 @@ data class Product(
     val name: String,
     val description: String?,
     val categoryId: String,
+    /**
+     * Every category this product is listed under, always including [categoryId]. Listing,
+     * category filters and category-name search read this; variant grouping, coupon scope and
+     * reports keep reading [categoryId], which stays the product's primary category.
+     * Empty on a database that has not run migration 20261105000001.
+     */
+    val categoryIds: Set<String> = emptySet(),
     val imagePath: String?,
     val quantityType: QuantityType,
     val pricePaise: Long,

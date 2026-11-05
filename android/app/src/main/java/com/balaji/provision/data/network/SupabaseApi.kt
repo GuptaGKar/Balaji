@@ -243,6 +243,20 @@ interface SupabaseApi {
         @Body body: AreaSuggestionRequest
     ): Response<List<AreaSuggestionResponse>>
 
+    /**
+     * Manager-composed sections for one page. The server returns **ids only** - no price, stock
+     * or fee - because every commercial fact must come from the catalogue this app already
+     * loads, so a cached banner can never imply an old price. On a database that has not run
+     * migration 20261105000001 this call 400s and the caller falls back to the built-in layout.
+     */
+    @POST("rest/v1/rpc/get_storefront")
+    suspend fun getStorefront(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Header("Content-Type") contentType: String = "application/json",
+        @Body body: StorefrontRequest
+    ): Response<List<StorefrontSectionResponse>>
+
     @POST("rest/v1/device_tokens")
     suspend fun upsertDeviceToken(
         @Header("apikey") apiKey: String,
@@ -632,7 +646,13 @@ data class ProductResponse(
     val active: Boolean,
     val available: Boolean,
     val variant_group_id: String? = null,
-    val variant_label: String? = null
+    val variant_label: String? = null,
+    /**
+     * Additional category membership, embedded from `product_categories`. Null on a database
+     * that has not run migration 20261105000001, and also null when the retry dropped the
+     * embed - the caller then treats the primary as the only membership.
+     */
+    val product_categories: List<CategoryRefResponse>? = null
 )
 
 @Serializable
@@ -748,6 +768,36 @@ data class AreaSuggestionResponse(
     // ---- shared: zone centroid for an area, the saved pin for an address ----
     val lat: Double? = null,
     val lng: Double? = null
+)
+
+@Serializable
+data class StorefrontRequest(
+    /** `home` or `categories`. Anything else returns an empty list rather than an error. */
+    val p_page: String
+)
+
+/**
+ * One composed section. Property names are the server's snake_case keys verbatim: a renamed
+ * field decodes to null without complaint, which here would mean a section that renders empty.
+ *
+ * There is deliberately no price, stock or fee on this row. `item_ids` is resolved against the
+ * catalogue the app already fetched, so a cached section can never show a stale amount.
+ */
+@Serializable
+data class StorefrontSectionResponse(
+    val id: String? = null,
+    val title: String? = null,
+    val subtitle: String? = null,
+    /** `products` or `categories`. Anything else is skipped by the caller, not guessed at. */
+    val section_type: String? = null,
+    val updated_at: String? = null,
+    val item_ids: List<String>? = null
+)
+
+/** Embedded membership row from `product_categories(category_id)`. */
+@Serializable
+data class CategoryRefResponse(
+    val category_id: String? = null
 )
 
 @Serializable
@@ -1139,6 +1189,13 @@ fun ProductResponse.toDomain(): Product = Product(
     name = name,
     description = description,
     categoryId = category_id.orEmpty(),
+    // The primary is always a member, so a caller can filter on categoryIds alone and still
+    // place the product in its primary category. When the embed is absent - unmigrated database,
+    // or the retry that dropped it - the primary is the only membership we can honestly claim.
+    categoryIds = buildSet {
+        category_id?.let { add(it) }
+        product_categories?.forEach { ref -> ref.category_id?.let { add(it) } }
+    },
     imagePath = image_path,
     quantityType = try { QuantityType.valueOf(quantity_type.uppercase()) } catch (e: Exception) { QuantityType.PACKED },
     pricePaise = price_paise,
