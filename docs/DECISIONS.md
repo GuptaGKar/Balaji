@@ -946,3 +946,57 @@ is among them. Those clear first, or the Storefront editor ships on types nobody
 performed; no slice is scheduled. Both `DOCS/` and `qa/` remain untracked (`git status` shows
 `?? DOCS/`, `?? qa/`) - committing them is a separate decision, and roughly 8 MB of screenshots
 should not enter history without one.
+
+## Storefront sections and multi-category products (2026-11-05)
+
+Phase 1 of the section-driven Home/Categories brief. Migration
+`20261105000001_storefront_sections.sql` adds `storefront_sections`,
+`storefront_section_items` and `product_categories`, plus `get_storefront`,
+`save_storefront_section`, `reorder_storefront_sections` and
+`delete_storefront_section`. pgTAP suites 045 (30 assertions), 046 (23) and 047 (27)
+were written and **not run** - there is no local Postgres and Docker is unavailable, so
+they are unverified until CI executes them. The migration inserts no sections and no
+sample data, so with zero rows both apps must render exactly today's layout.
+
+**Money: the brief's suspicion was right, and nothing was changed.** The repo still
+stores integer paise - 668 `_paise` references across `supabase/migrations`, `formatPaise`
+used 60x, `paise_to_rupees()` in SQL. No money column, RPC or helper was migrated, renamed
+or converted, and `quote_cart`, coupons and fees were not touched. Whole-rupee display
+("₹60", no ".00") applies only to the new surfaces - the web item picker and preview, and
+the Home/Categories rails - through one shared helper per platform.
+
+**`products.category_id` stays the PRIMARY category.** `product_categories` is additional
+membership around it, never a replacement. Every existing use was read and classified:
+
+| Site | Decision | Why |
+|---|---|---|
+| `ProductViewModel.kt:158` category filter | **ANY** | a product listed under a category must appear there |
+| `ProductViewModel.kt:223` category-name search score | **ANY** | searching a category name should reach all its members |
+| `ProductViewModel.kt:141` `selectCategory` | **ANY** | same listing path |
+| `CatalogScreen.kt:76,94` `targetCategory` | **ANY** | the listing header names the category being browsed |
+| `HomeScreen.kt:91` `onNavigateToCategory` | **ANY** | a banner or tile destination must open a reachable listing |
+| `DomainModels.kt:354` `categoryId = default.categoryId` | **PRIMARY** | variant grouping must pick one canonical category per group |
+| `coupons.sql:171` `'category_id', v_product.category_id` in the quote line | **PRIMARY** | coupon scope is a discount decision; widening it would silently change money |
+| `coupons.sql:208-216`, `20261027000001:164-172`, `20261029000002:258-266`, `20261029000006:248-256` coupon category matching | **PRIMARY** | same reason; these four copies of the matching block are deliberately left alone |
+| `202610260000051_security_rls_fix.sql:7` index `products(category_id, active, available)` | **PRIMARY** | serves the old single-category read path; ANY filtering uses `product_categories_category_idx` instead |
+| `web/src/app/(admin)/coupons/page.tsx` category scope | **PRIMARY** | the dashboard must offer exactly what the server will honour |
+| `web/src/lib/schemas.ts:112` `category_id` required | **PRIMARY** | stays required; `category_ids` is added alongside it in Phase 2 |
+
+**Two places the repo disagrees with the brief.** `PROJECT_STATUS.md` lives at
+`docs/PROJECT_STATUS.md`, not the repository root the brief implies. And the brief's
+"never `GRANT ALL`" is already violated at `20261026000006_coupons.sql:61`
+(`GRANT ALL ON public.coupons TO authenticated`); the new tables use explicit
+SELECT/INSERT/UPDATE/DELETE grants, and that existing grant was not silently repaired
+because changing coupon privileges is a live-authority change that needs its own review.
+
+**One test the brief asked for was not written, on purpose.** "A save that fails partway
+leaves no partial section and no partial items" cannot be observed through pgTAP:
+`throws_ok` runs the statement in a subtransaction and rolls it back, so any write the
+function made is undone by Postgres regardless of how the function is ordered - the test
+would pass even against a naive delete-then-validate implementation. Suite 047 says so in
+its header and instead pins what is observable: a rejected save names the specific problem,
+and a successful one writes section and items in one call.
+
+**`NAV_PILL_ALPHA` = 0.30f**, owner-confirmed on 2026-11-05. The brief's wording was "70%
+transparency of pill background"; the owner chose 30% opaque, i.e. 70% see-through. It is a
+single named constant so the reading can be flipped without touching layout.
