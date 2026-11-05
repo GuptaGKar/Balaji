@@ -69,6 +69,7 @@ import com.balaji.provision.ui.components.BalajiBasketMark
 import com.balaji.provision.ui.components.EmptyState
 import com.balaji.provision.ui.components.FreeDeliveryProgress
 import com.balaji.provision.ui.components.MoneyText
+import com.balaji.provision.ui.components.NAV_PILL_RESERVE_DP
 import com.balaji.provision.ui.components.OutlinedQuantityStepper
 import com.balaji.provision.ui.components.ProductThumb
 import com.balaji.provision.ui.components.StickyBottomBar
@@ -363,7 +364,12 @@ fun CartScreen(
                 }
             }
 
-            StickyBottomBar {
+            StickyBottomBar(
+                // The navigation pill is drawn over the bottom of the window, and this bar holds
+                // the only route out of the basket, so it is lifted clear of the pill rather than
+                // allowed to sit behind it.
+                modifier = Modifier.padding(bottom = NAV_PILL_RESERVE_DP.dp)
+            ) {
                 Button(
                     onClick = onNavigateToCheckout,
                     enabled = quote != null && unavailableLines.isEmpty(),

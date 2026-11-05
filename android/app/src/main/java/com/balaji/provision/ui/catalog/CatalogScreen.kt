@@ -46,6 +46,8 @@ import com.balaji.provision.domain.model.Product
 import com.balaji.provision.domain.model.ProductVariantGroup
 import com.balaji.provision.domain.model.formatPaise
 import com.balaji.provision.ui.components.MiniCartBar
+import com.balaji.provision.ui.components.NAV_PILL_RESERVE_DP
+import com.balaji.provision.ui.components.navPillReserve
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.ui.platform.LocalConfiguration
 import com.balaji.provision.ui.cart.CartViewModel
@@ -391,7 +393,10 @@ fun CatalogScreen(
                         start = 16.dp,
                         end = 16.dp,
                         top = 4.dp,
-                        bottom = 24.dp
+                        // The basket bar is laid out in the column below this grid, so only the
+                        // floating pill can cover the last row - and only while the basket is
+                        // empty and the bar is not being drawn at all.
+                        bottom = if (cart.items.isEmpty()) navPillReserve() else 24.dp
                     ),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -435,7 +440,10 @@ fun CatalogScreen(
         MiniCartBar(
             itemCount = cart.items.size,
             detail = basketHint,
-            onClick = onNavigateToCart
+            onClick = onNavigateToCart,
+            // Lifted clear of the floating pill, which is drawn over the whole window and would
+            // otherwise cover the running total.
+            modifier = Modifier.padding(bottom = NAV_PILL_RESERVE_DP.dp)
         )
     }
 }

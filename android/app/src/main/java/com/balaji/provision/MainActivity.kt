@@ -14,34 +14,23 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.ReceiptLong
-import androidx.compose.material.icons.outlined.ShoppingBag
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -55,13 +44,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -72,6 +57,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.balaji.provision.ui.components.NavPill
+import com.balaji.provision.ui.components.NAV_PILL_BOTTOM_MARGIN_DP
 import com.balaji.provision.ui.account.AccountViewModel
 import com.balaji.provision.ui.auth.AuthViewModel
 import com.balaji.provision.ui.auth.LoginScreen
@@ -328,23 +315,22 @@ private fun CustomerShell(
     val cart by cartViewModel.cart.collectAsState()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route.orEmpty()
-    val showBottomBar = !currentRoute.startsWith("product/") &&
-        !currentRoute.startsWith("legal/")
+    // The pill is drawn over the page rather than reserving a strip, so it only appears on the
+    // screens that were built to clear it: the four tabs and the product listing they lead to.
+    // Full-screen flows (product details, checkout, account, order tracking, requests,
+    // favourites, legal) show no pill, which also means nothing there can end up hidden behind
+    // one. The old strip reserved space on every route; an overlay cannot, so the set is
+    // deliberately narrower.
+    val showBottomBar = currentRoute == "home" || currentRoute == "categories" ||
+        currentRoute == "orders" || currentRoute == "cart" ||
+        currentRoute.startsWith("listing/")
 
     Scaffold(
         // MainAppScreen already applies safeDrawingPadding around the whole
         // app. Opting out here stops the Scaffold from adding the status/nav
         // bar insets a second time (the cause of the extra gap at the top and
         // bottom of every shell screen).
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        bottomBar = {
-            if (showBottomBar) {
-                BottomNavigationBar(
-                    navController = navController,
-                    cartCount = cart.items.size
-                )
-            }
-        }
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { innerPadding ->
         Box(
             modifier = Modifier
@@ -360,6 +346,25 @@ private fun CustomerShell(
                 isDarkTheme = isDarkTheme,
                 onToggleTheme = onToggleTheme
             )
+
+            // The customer pill floats over the content instead of reserving a strip, so it is
+            // drawn here rather than in Scaffold's bottomBar. Every screen under this scaffold
+            // pays for it with com.balaji.provision.ui.components.navPillReserve() bottom
+            // padding, or its last row would scroll into a region the pill covers.
+            //
+            // This shell is customer-only (MainAppScreen routes staff to StaffApp, which owns
+            // its own navigation), so there is no staff variant of the bar to keep in sync.
+            if (showBottomBar) {
+                NavPill(
+                    navController = navController,
+                    cartCount = cart.items.size,
+                    onSelect = { route -> navigateToTab(navController, route) },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(bottom = NAV_PILL_BOTTOM_MARGIN_DP.dp)
+                )
+            }
         }
     }
 }
@@ -417,6 +422,11 @@ fun AppNavHost(
                 },
                 onOpenCategory = { categoryId ->
                     navController.navigate(listingRoute(categoryId, focusSearch = false))
+                },
+                // A composed rail on the Categories page shows real products, so tapping one has
+                // to reach its details exactly as it does from Home.
+                onOpenProduct = { productId ->
+                    navController.navigate("product/$productId")
                 }
             )
         }
@@ -627,100 +637,3 @@ fun listingRoute(categoryId: String, focusSearch: Boolean, query: String = ""): 
     val base = "listing/$categoryId?focusSearch=$focusSearch"
     return if (query.isBlank()) base else "$base&query=${Uri.encode(query)}"
 }
-
-@Composable
-fun BottomNavigationBar(
-    navController: NavHostController,
-    cartCount: Int
-) {
-    val destinations = listOf(
-        NavItem("home", "Home", Icons.Outlined.Home),
-        NavItem("categories", "Categories", Icons.Filled.GridView),
-        NavItem("orders", "Orders", Icons.Outlined.ReceiptLong),
-        NavItem("cart", "Basket", Icons.Outlined.ShoppingBag)
-    )
-
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route.orEmpty()
-    val selectedColor = MaterialTheme.colorScheme.primary
-    val inactiveColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val barColor = MaterialTheme.colorScheme.surface
-    val dividerColor = MaterialTheme.colorScheme.outlineVariant
-
-    Surface(color = barColor) {
-        Column {
-            Divider(color = dividerColor, thickness = 1.dp)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .padding(horizontal = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                destinations.forEach { item ->
-                    // The product listing is the category browser's destination,
-                    // so keep Categories highlighted while a listing is open.
-                    val selected = currentRoute == item.route ||
-                        (item.route == "categories" && currentRoute.startsWith("listing/"))
-                    val tint = if (selected) selectedColor else inactiveColor
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .selectable(
-                                selected = selected,
-                                onClick = { navigateToTab(navController, item.route) },
-                                role = Role.Tab
-                            ),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        if (item.route == "cart" && cartCount > 0) {
-                            BadgedBox(
-                                badge = {
-                                    Badge(containerColor = selectedColor) {
-                                        Text(
-                                            text = if (cartCount > 99) "99+" else cartCount.toString(),
-                                            color = MaterialTheme.colorScheme.onPrimary,
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                            ) {
-                                Icon(
-                                    item.icon,
-                                    contentDescription = null,
-                                    tint = tint,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                        } else {
-                            Icon(
-                                item.icon,
-                                contentDescription = null,
-                                tint = tint,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = item.label,
-                            color = tint,
-                            fontSize = 12.sp,
-                            lineHeight = 16.sp,
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                            maxLines = 1
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-data class NavItem(
-    val route: String,
-    val label: String,
-    val icon: ImageVector
-)

@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -67,6 +68,7 @@ import com.balaji.provision.ui.components.EmptyState
 import com.balaji.provision.ui.components.ErrorState
 import com.balaji.provision.ui.components.LoadingState
 import com.balaji.provision.ui.components.MoneyText
+import com.balaji.provision.ui.components.navPillReserve
 import com.balaji.provision.ui.components.ProductThumb
 import com.balaji.provision.ui.components.StatusPill
 import com.balaji.provision.ui.components.StoreTopBar
@@ -240,6 +242,9 @@ fun OrdersScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(horizontal = 16.dp),
+                        // The floating navigation pill is drawn over this list, so the list has
+                        // to be scrollable past it or the last order would be unreachable.
+                        contentPadding = PaddingValues(bottom = navPillReserve()),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         when (selectedTab) {
