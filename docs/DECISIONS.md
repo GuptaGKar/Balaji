@@ -1270,3 +1270,54 @@ than left in place as a convenient demo of a feature the owner has not chosen to
 wireless ADB mid-session and re-pairing needs a code from the device. Composition is now verified
 through the payload and the database, and the app's rendering of a composed section has still
 never been seen. BUG-012 (the light-theme pill) also remains the owner's call.
+
+## Why a published section never reached the screen (2026-11-06)
+
+Reported as "sections published from the dashboard do not appear in the app". The server was
+innocent, and proving that came first: the row was in `storefront_sections`, anon
+`get_storefront` returned it with six ids, all six were sellable, all six were in the catalogue the
+app's own select returns, and replaying the resolver's predicate over the real payload showed 6
+SHOWN and 0 dropped. Only then was the app itself implicated (BUG-021).
+
+**The fix is `copy()`, not a restructure.** `loadStoreInfo()`'s success branch built a fresh
+`HomeUiState(...)`, and because that constructor omits `sections` it reset the storefront read to
+empty. `init` starts both loads and the settings path does three round trips against the
+storefront's one, so it usually finished last and won. The tempting alternative - move `sections`
+out of `HomeUiState` into its own flow - was rejected: one state object per screen is what the rest
+of this app does, the bug was a missing field in one constructor call, and splitting the state
+would have been a wider change to hide a two-line mistake. The branch that already used `copy()`
+(the error branch) is the reason this only ever lost the happy path, and it is also the reason the
+bug survived review.
+
+**Reproduce first.** `HomeViewModelStorefrontTest` was written to fail before it was fixed, and it
+did - `expected:<1> but was:<0>`. It calls `loadStoreInfo()` explicitly instead of racing the two
+coroutines: the finishing order depends on how many round trips each path takes, and a fix that
+makes the order irrelevant is the point. A `StandardTestDispatcher` is required; an unconfined one
+runs the two in declaration order and hides the bug entirely.
+
+**Refresh on entry rather than a shorter TTL.** `refreshStorefront()` and `CategoriesViewModel.refresh()`
+had never been called by anything, so a section published while the app was open could not appear
+until the process was killed. Both screens now re-read on entry and the repository's five-minute
+window decides whether that is a request. Shortening the window instead would have cost a network
+call on every cold Home paint for the rest of the app's life, and would still have left a published
+section invisible for the length of the window.
+
+**The cache was one slot, not a cache.** A single `Cache?` plus a `cachedPage` marker meant Home and
+Categories evicted each other on every tab switch, so the five-minute rule never applied across a
+switch and every switch was a fresh call. Keyed by page now, with a mutex so the cold-start overlap
+between `init` and the new entry refresh cannot ask twice for one page. The existing pure
+`isFresh` predicate and its six tests are untouched, which is why `Cache` grew a `page` field rather
+than the signature changing.
+
+**`limit = 100` was a trap, not today's cause.** `getProducts` inherited Retrofit's default with no
+pagination anywhere in the app. 89 products are visible to a customer, so nothing is truncated now
+- but the day the store passes 100, catalogue items vanish silently, and a product the app never
+loaded cannot be resolved by the storefront resolver, so a published section would disappear with no
+error anywhere. Raised to a named `CATALOGUE_LIMIT = 1000` with the reason written down. **Paging is
+the real fix and is not done**; this only removes the silent cliff.
+
+**Not claimed.** Android lint was not re-run for these changes (the run was cancelled), and the
+fixed app has not been looked at on a device: the A34 is still advertised over mDNS but
+`adb connect` returns `Connection refused`, which means the wireless-debugging pairing has to be
+re-established on the handset. The fix is proven at the unit level and the data path at the HTTP
+level; "the customer can now see Diwali Specials" is not a statement this log makes.

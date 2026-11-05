@@ -44,6 +44,10 @@ Result labels: **PASS** (executed, observed), **FAIL** (executed, broke),
 | BUG-018 | S1 | Web dashboard | Deactivating a section removed it from the dashboard permanently. The editor loaded through `get_storefront`, which filters `active = true` because it is the customer read, so a hidden section could not be listed, renamed, re-shown or deleted from the UI — only by writing SQL | FIXED-VERIFIED — `20261105000004` adds `list_storefront_sections(text)` (editor read, inactive included, ids only, INVOKER so RLS bounds it) and the page uses it. Verified on live data: after hiding "Daily Essentials" it reappeared labelled "Hidden" with a working "Make … visible" control, and re-activating persisted `active = true` |
 | BUG-019 | S3 | Web dashboard | Every control inside a section card was anonymous — "Delete section", "Move section up", "Section heading" — on a page that can hold 20 near-identical cards, so a screen-reader user could not tell which section any action applied to | FIXED-VERIFIED — labels now carry the heading. Read back from the live DOM: `Delete Browse Aisles`, `Move Daily Essentials up`, `Heading for the Browse Aisles section` |
 | BUG-020 | S4 | Web dashboard | In the item picker, category rows render a price of "—" because `formatRupeesWhole(null)` is used for every item type. Categories have no price at all, so the dash is noise | OPEN — cosmetic, observed while composing a categories section; not fixed |
+| BUG-021 | S1 | Customer Android | **A composed section published from the dashboard never appeared in the app.** `HomeViewModel.loadStoreInfo()`'s success branch assigned a fresh `HomeUiState(...)` instead of `copy()`. That constructor omits `sections`, so it reset the storefront read to empty. `init` fires both loads and the settings path does more round trips (settings → addresses → per-PIN fee), so it usually lands last and wins. The error branch already used `copy()`; tapping "Try again" also wiped the shelf | FIXED-VERIFIED at the unit level — `HomeViewModelStorefrontTest` failed with `expected:<1> but was:<0>` before the change and passes after. Not yet confirmed on a screen (no device attachable) |
+| BUG-022 | S2 | Customer Android | `HomeViewModel.refreshStorefront()` and `CategoriesViewModel.refresh()` were dead code — nothing ever called them. The ViewModels outlive tab changes, so `init` ran once per process: a section published while the app was open could not appear until the app was killed. `CategoriesScreen`'s comment even claimed the tab "refreshes whenever opened", while only reloading the catalogue | FIXED-VERIFIED at compile level — both screens now call the refresh on entry. No test proves the re-entry behaviour (Compose UI test not written) |
+| BUG-023 | S3 | Customer Android | `StorefrontRepository` cached ONE page in a single slot plus a `cachedPage` marker, so Home and Categories evicted each other on every tab switch and the five-minute window never applied across a switch — every switch was a fresh network call | FIXED-VERIFIED — cache keyed by page, plus a mutex for single-flight. 4 new tests: two pages cached independently (2 calls for 3 reads), window holds then expires, `invalidate()` forces a refetch, concurrent reads of one page hit the network once |
+| BUG-024 | S3 | Customer Android | `getProducts` inherited Retrofit's default `limit = 100` and nothing in the app paginates. 89 products are visible to a customer today, so nothing is truncated yet — but past 100 the app silently loses catalogue items, and a product that is not in the catalogue cannot be resolved by the storefront resolver, so a published section would vanish with no error anywhere | PARTIALLY FIXED — raised to a named `CATALOGUE_LIMIT = 1000` with the trap documented. Real fix is paging, which is NOT done |
 
 ## Executed checks
 
@@ -187,6 +191,32 @@ recorded nowhere.
 | Two managers editing concurrently in two real browser tabs | The guard was proven by changing the row with SQL instead, which is the same server-side condition; a second logged-in browser session was not set up |
 | Other dashboard pages (coupons, inventory, reports, staff, billing) | Only Storefront was in scope for this pass; those pages remain verified by build and route protection alone |
 | Drag-and-drop reorder | Only the arrow buttons were exercised. The `reorder` action they share is tested, but the HTML5 drag handler itself was not driven |
+
+---
+
+## Executed checks — why a published section did not appear in the app (2026-11-06)
+
+Reported symptom: sections published from the Storefront dashboard were not visible in the
+customer app. Traced link by link against the live project, with the section that was actually
+published (`home / "Diwali Specials" / products / 6 items / active`).
+
+| Link in the chain | Result | Evidence |
+|---|---|---|
+| Publish wrote the section | PASS | `storefront_sections` 1 row, `storefront_section_items` 6 rows, all with `product_id` and no `category_id` |
+| `get_storefront` returns it to the customer read | PASS | anon `POST /rest/v1/rpc/get_storefront {"p_page":"home"}` → HTTP 200, one section, `item_ids` length 6, keys `id, title, subtitle, section_type, updated_at, item_ids` — ids only, no price or stock |
+| `get_storefront(text)` executable by `anon` | PASS | `has_function_privilege('anon', …) = true`; `prosecdef = false` |
+| Write RPCs NOT executable by `anon` | PASS | `save_/reorder_/delete_storefront_section` and `set_product_categories` all `anon = false`, `authenticated = true`, `service_role = true` |
+| `list_storefront_sections` (editor read) | PASS | `anon = false`, `authenticated = true` — the 20261105000003 revoke pattern held for the new function because suite 050 tested it |
+| RLS lets the active section through | PASS | `storefront_sections_read_active` SELECT for `{anon,authenticated}`; `storefront_section_items_read_active` SELECT; manager `ALL` policies separate |
+| The 6 items are sellable | PASS | all 6 `active = true`, `available = true`, `stock_qty >= min_qty` (49–50 on hand, min 1) |
+| The 6 items are in the catalogue the app fetches | PASS | replayed the app's own `PRODUCT_SELECT_WITH_MEMBERSHIP` over REST: 89 rows, and all 6 ids present (ranks 23, 50, 51, 63, 70, 93) |
+| Resolver would drop any of them | PASS — it does not | replayed `resolveStorefrontSections`' predicate (`available && active && stockQty >= minQty`) over the real payload: 6 SHOWN, 0 dropped |
+| **App applies the sections to its state** | **FAIL** | `HomeViewModel.loadStoreInfo()` replaced the whole `HomeUiState` instead of copying it, resetting `sections` to empty. Reproduced as a failing test, then fixed |
+| Cache TTL hiding a new section | FAIL — separate defect | not the TTL itself: nothing ever re-read the storefront (`refreshStorefront()` was dead code), and the single-slot cache meant tab switches always refetched |
+| Catalogue truncated by `limit` | NOT BITING TODAY | 89 visible products against a default limit of 100. Latent, logged as BUG-024 |
+| Unit tests after the fixes | PASS | 241 tests, 0 failures, 0 errors in both flavours (9 new); both flavours compile |
+| Android lint after the fixes | NOT RUN | the run was cancelled twice; no claim made about it |
+| The fixed app rendering "Diwali Specials" | NOT RUN | the A34 is advertised over mDNS at `10.195.135.210:42609` but `adb connect` gets `Connection refused` — the wireless-debugging pairing has to be redone on the handset, which needs the pairing code from the device. The fix is proven at the unit level and the data path at the HTTP level; the screen itself has not been looked at |
 
 ---
 
