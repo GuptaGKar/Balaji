@@ -23,12 +23,14 @@ import {
   Tag,
   Smartphone,
   PackageSearch,
+  Layers,
 } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Orders Queue", href: "/orders", icon: FileText },
   { name: "Catalogue", href: "/catalogue", icon: Package },
+  { name: "Storefront", href: "/storefront", icon: Layers },
   { name: "Coupons & Offers", href: "/coupons", icon: Tag },
   { name: "Product Requests", href: "/requests", icon: PackageSearch },
   { name: "Inventory", href: "/inventory", icon: ShoppingCart },
