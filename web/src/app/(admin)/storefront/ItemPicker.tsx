@@ -85,20 +85,24 @@ export default function ItemPicker({
   if (!open) return null;
 
   const toggle = (id: string) => {
-    if (draft.includes(id)) {
-      setDraft(draft.filter((x) => x !== id));
-      return;
-    }
-    if (draft.length >= MAX_ITEMS_PER_SECTION) return;
-    setDraft([...draft, id]);
+    // Functional updates, not `draft` from this closure. React batches state, so two clicks
+    // inside one event loop would otherwise both compute from the same stale array and only the
+    // last would survive - selections silently lost, and the 30-item cap read a stale length.
+    setDraft((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= MAX_ITEMS_PER_SECTION) return prev;
+      return [...prev, id];
+    });
   };
 
   const move = (index: number, direction: -1 | 1) => {
-    const target = index + direction;
-    if (target < 0 || target >= draft.length) return;
-    const next = [...draft];
-    [next[index], next[target]] = [next[target], next[index]];
-    setDraft(next);
+    setDraft((prev) => {
+      const target = index + direction;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
   };
 
   const atCap = draft.length >= MAX_ITEMS_PER_SECTION;

@@ -32,6 +32,7 @@ export const MAX_SUBTITLE_LENGTH = 80;
 export type SectionAction =
   | { type: "add"; section: StorefrontSection }
   | { type: "update"; id: string; patch: Partial<StorefrontSection> }
+  | { type: "setType"; id: string; sectionType: SectionType }
   | { type: "remove"; id: string }
   | { type: "move"; id: string; direction: -1 | 1 }
   | { type: "reorder"; fromId: string; toId: string }
@@ -41,14 +42,23 @@ export interface SectionState {
   sections: StorefrontSection[];
   /** Human-readable refusal, shown inline instead of mutating state. */
   notice: string | null;
+  /**
+   * True when the order has been changed and not yet published. Reordering touches no section's
+   * own fields, so no section is dirty - and a Publish button gated only on dirty sections
+   * silently strands every reorder. This is the flag that makes "move it up" saveable.
+   */
+  orderDirty: boolean;
 }
 
 function renumber(sections: StorefrontSection[]): StorefrontSection[] {
   return sections.map((section, index) => ({ ...section, sortOrder: index + 1 }));
 }
 
-export function initialSectionState(sections: StorefrontSection[] = []): SectionState {
-  return { sections: renumber(sections), notice: null };
+export function initialSectionState(
+  sections: StorefrontSection[] = [],
+  orderDirty = false,
+): SectionState {
+  return { sections: renumber(sections), notice: null, orderDirty };
 }
 
 export function sectionReducer(state: SectionState, action: SectionAction): SectionState {
@@ -63,6 +73,7 @@ export function sectionReducer(state: SectionState, action: SectionAction): Sect
       return {
         sections: renumber([...state.sections, { ...action.section, dirty: true }]),
         notice: null,
+        orderDirty: state.orderDirty,
       };
     }
 
@@ -70,13 +81,35 @@ export function sectionReducer(state: SectionState, action: SectionAction): Sect
       return {
         sections: state.sections.map((section) => {
           if (section.id !== action.id) return section;
-          // Type is fixed at creation. sectionType is dropped from the patch rather than
-          // trusted, so a stale or hand-edited form cannot silently turn a products rail into
-          // a category grid - the database would reject the items either way.
+          // Type is not editable through a patch. sectionType is dropped rather than trusted,
+          // so a stale or hand-edited form cannot silently turn a products rail into a category
+          // grid; the dedicated setType action below is the only way to change it.
           const { sectionType: _ignoredType, ...safePatch } = action.patch;
           return { ...section, ...safePatch, dirty: true };
         }),
         notice: null,
+        orderDirty: state.orderDirty,
+      };
+    }
+
+    case "setType": {
+      const target = state.sections.find((section) => section.id === action.id);
+      if (!target || target.sectionType === action.sectionType) return state;
+      // The item columns are mutually exclusive and the database trigger refuses a product_id in
+      // a "categories" section and vice versa, so switching cannot keep the shelf as chosen.
+      // Clearing it and saying so beats a section that can never be saved.
+      const sections = state.sections.map((section) =>
+        section.id === action.id
+          ? { ...section, sectionType: action.sectionType, itemIds: [], dirty: true }
+          : section,
+      );
+      return {
+        sections,
+        orderDirty: state.orderDirty,
+        notice:
+          target.itemIds.length > 0
+            ? `Switched to ${action.sectionType}. The ${target.itemIds.length} item(s) chosen for this section were cleared, because a ${action.sectionType} section can only hold ${action.sectionType}.`
+            : null,
       };
     }
 
@@ -84,6 +117,7 @@ export function sectionReducer(state: SectionState, action: SectionAction): Sect
       return {
         sections: renumber(state.sections.filter((section) => section.id !== action.id)),
         notice: null,
+        orderDirty: true,
       };
 
     case "move": {
@@ -95,7 +129,7 @@ export function sectionReducer(state: SectionState, action: SectionAction): Sect
       }
       const next = [...state.sections];
       [next[index], next[target]] = [next[target], next[index]];
-      return { sections: renumber(next), notice: null };
+      return { sections: renumber(next), notice: null, orderDirty: true };
     }
 
     case "reorder": {
@@ -105,7 +139,7 @@ export function sectionReducer(state: SectionState, action: SectionAction): Sect
       const next = [...state.sections];
       const [moved] = next.splice(from, 1);
       next.splice(to, 0, moved);
-      return { sections: renumber(next), notice: null };
+      return { sections: renumber(next), notice: null, orderDirty: true };
     }
 
     case "toggleActive":
@@ -114,6 +148,7 @@ export function sectionReducer(state: SectionState, action: SectionAction): Sect
           section.id === action.id ? { ...section, active: !section.active, dirty: true } : section,
         ),
         notice: null,
+        orderDirty: state.orderDirty,
       };
 
     default:

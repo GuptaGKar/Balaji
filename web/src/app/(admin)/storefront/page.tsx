@@ -37,6 +37,9 @@ interface StorefrontRow {
   title: string;
   subtitle: string | null;
   section_type: SectionType;
+  /** Present on the editor read. The customer read omits inactive rows entirely. */
+  active?: boolean;
+  sort_order?: number;
   updated_at: string | null;
   item_ids: string[];
 }
@@ -46,8 +49,10 @@ const toSection = (row: StorefrontRow, index: number): StorefrontSection => ({
   title: row.title,
   subtitle: row.subtitle,
   sectionType: row.section_type,
-  active: true,
-  sortOrder: index + 1,
+  // Was hard-coded to true, because the only read available was the customer read, which never
+  // returns an inactive row. A hidden section therefore disappeared from this page for good.
+  active: row.active !== false,
+  sortOrder: row.sort_order ?? index + 1,
   updatedAt: row.updated_at,
   itemIds: row.item_ids ?? [],
   dirty: false,
@@ -81,11 +86,13 @@ export default function StorefrontPageView() {
     // catalogue queries below, so the dashboard preview cannot accidentally become a second
     // source of truth for money.
     const [homeRes, catRes, productRes, categoryRes] = await Promise.all([
-      supabase.rpc("get_storefront", { p_page: "home" }),
-      supabase.rpc("get_storefront", { p_page: "categories" }),
+      supabase.rpc("list_storefront_sections", { p_page: "home" }),
+      supabase.rpc("list_storefront_sections", { p_page: "categories" }),
       supabase
         .from("products")
-        .select("id,name,sku,price_paise,pack_size_label,unit_label,image_path,active,available")
+        .select(
+          "id,name,sku,price_paise,pack_size_label,unit_label,image_path,active,available,stock_qty,min_qty",
+        )
         .eq("active", true)
         .order("name"),
       supabase
@@ -101,7 +108,7 @@ export default function StorefrontPageView() {
 
     if (rpcMissing) {
       setLoadError(
-        "The storefront tables are not in this database yet. Apply migration 20261105000001_storefront_sections.sql, then reload. Until then the apps keep their built-in layout.",
+        "The storefront tables are not in this database yet. Apply migrations 20261105000001_storefront_sections.sql and 20261105000004_storefront_editor_read.sql, then reload. Until then the apps keep their built-in layout.",
       );
       setLoading(false);
       return;
@@ -142,7 +149,11 @@ export default function StorefrontPageView() {
         pricePaise: typeof row.price_paise === "number" ? row.price_paise : null,
         imageUrl: row.image_path ? String(row.image_path) : null,
         active: row.active !== false,
-        inStock: row.available !== false,
+        // Must match the app's rule exactly, or the preview lies about what a shelf will show.
+        // `available` is an independent manager flag, NOT derived from stock: 36 live products
+        // have stock_qty <= 0 with available = true, and no trigger reconciles them. The Android
+        // resolver hides an item unless `available && stockQty >= minQty`, so this does too.
+        inStock: row.available !== false && Number(row.stock_qty ?? 0) >= Number(row.min_qty ?? 1),
       })),
     );
     setCategories(
@@ -161,7 +172,11 @@ export default function StorefrontPageView() {
   }, [fetchAll]);
 
   useEffect(() => {
-    const anyDirty = Object.values(states).some((s) => s.sections.some((section) => section.dirty));
+    // A reorder changes no section's own fields, so checking only `dirty` would let a manager
+    // rearrange the page and then navigate away with no warning and no way to save it.
+    const anyDirty = Object.values(states).some(
+      (s) => s.orderDirty || s.sections.some((section) => section.dirty),
+    );
     if (!anyDirty) return;
     const warn = (event: BeforeUnloadEvent) => {
       event.preventDefault();
@@ -182,6 +197,9 @@ export default function StorefrontPageView() {
           : categories;
 
   const dirtyCount = state.sections.filter((section) => section.dirty).length;
+  // Reordering alone has to be publishable, so this is the union of "a section changed" and
+  // "the order changed".
+  const hasUnpublishedChanges = dirtyCount > 0 || state.orderDirty;
 
   const addSection = () => {
     dispatch({
@@ -329,7 +347,7 @@ export default function StorefrontPageView() {
           <button
             type="button"
             onClick={() => void save()}
-            disabled={saving || dirtyCount === 0}
+            disabled={saving || !hasUnpublishedChanges}
             className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-sm font-bold text-white hover:bg-slate-800 disabled:opacity-40"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -392,6 +410,10 @@ export default function StorefrontPageView() {
               subtitle: section.subtitle,
               itemIds: section.itemIds,
             });
+            // A page can hold 20 near-identical cards, so a control named just "Delete section"
+            // tells a screen-reader user nothing about which one it acts on. Every control in the
+            // card therefore carries the heading it belongs to.
+            const sectionName = section.title.trim() || "untitled section";
             return (
               <li
                 key={section.id}
@@ -419,13 +441,45 @@ export default function StorefrontPageView() {
                             patch: { title: event.target.value },
                           })
                         }
-                        aria-label="Section heading"
+                        aria-label={`Heading for the ${sectionName} section`}
                         placeholder="Heading"
                         maxLength={40}
                         className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-bold focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       />
-                      <span className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
-                        {section.sectionType}
+                      {/*
+                          Both pages can hold either kind of section, because the apps render both:
+                          CategoriesScreen draws a products rail (with its own product tap target)
+                          and a category grid, and Home does the same. Fixing the type to the page
+                          would leave that app code unreachable, so the type is chosen here - and
+                          setType clears the items, since a section cannot hold both.
+                      */}
+                      <span
+                        className="flex overflow-hidden rounded-lg border border-slate-300"
+                        role="group"
+                        aria-label={`Section type for ${section.title || "untitled section"}`}
+                      >
+                        {(["products", "categories"] as SectionType[]).map((option) => (
+                          <button
+                            key={option}
+                            type="button"
+                            aria-pressed={section.sectionType === option}
+                            onClick={() =>
+                              dispatch({
+                                type: "setType",
+                                id: section.id,
+                                sectionType: option,
+                              })
+                            }
+                            className={cn(
+                              "px-2 py-1 text-xs font-semibold",
+                              section.sectionType === option
+                                ? "bg-emerald-600 text-white"
+                                : "bg-white text-slate-600 hover:bg-slate-50",
+                            )}
+                          >
+                            {option}
+                          </button>
+                        ))}
                       </span>
                     </div>
                     <input
@@ -437,7 +491,7 @@ export default function StorefrontPageView() {
                           patch: { subtitle: event.target.value },
                         })
                       }
-                      aria-label="Optional subtitle"
+                      aria-label={`Subtitle for the ${sectionName} section`}
                       placeholder="Optional subtitle"
                       maxLength={80}
                       className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -456,6 +510,7 @@ export default function StorefrontPageView() {
                         type="button"
                         onClick={() => dispatch({ type: "toggleActive", id: section.id })}
                         aria-pressed={section.active}
+                        aria-label={`Make the ${sectionName} section ${section.active ? "hidden" : "visible"}`}
                         className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                       >
                         {section.active ? (
@@ -469,7 +524,7 @@ export default function StorefrontPageView() {
                         type="button"
                         onClick={() => dispatch({ type: "move", id: section.id, direction: -1 })}
                         disabled={index === 0}
-                        aria-label="Move section up"
+                        aria-label={`Move ${sectionName} up`}
                         className="rounded-lg border border-slate-300 p-1.5 text-slate-600 hover:bg-slate-50 disabled:opacity-30"
                       >
                         <ArrowUp className="h-4 w-4" />
@@ -478,7 +533,7 @@ export default function StorefrontPageView() {
                         type="button"
                         onClick={() => dispatch({ type: "move", id: section.id, direction: 1 })}
                         disabled={index === state.sections.length - 1}
-                        aria-label="Move section down"
+                        aria-label={`Move ${sectionName} down`}
                         className="rounded-lg border border-slate-300 p-1.5 text-slate-600 hover:bg-slate-50 disabled:opacity-30"
                       >
                         <ArrowDown className="h-4 w-4" />
@@ -490,7 +545,7 @@ export default function StorefrontPageView() {
                             dispatch({ type: "remove", id: section.id });
                           }
                         }}
-                        aria-label="Delete section"
+                        aria-label={`Delete ${sectionName}`}
                         className="ml-auto rounded-lg border border-slate-300 p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600"
                       >
                         <Trash2 className="h-4 w-4" />
