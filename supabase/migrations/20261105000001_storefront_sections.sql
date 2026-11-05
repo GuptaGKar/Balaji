@@ -385,8 +385,8 @@ BEGIN
   SELECT count(*) INTO v_existing
     FROM (SELECT unnest(p_item_ids) AS x GROUP BY 1 HAVING count(*) > 1) d;
   IF v_existing > 0 THEN
-    RAISE EXCEPTION 'This section lists the same item more than once; each product or category may appear only once.', v_existing
-      USING HINT = format('% repeated group(s) found in the % ids given.', v_existing, coalesce(array_length(p_item_ids, 1), 0));
+    RAISE EXCEPTION 'This section lists the same item more than once; each product or category may appear only once.'
+      USING HINT = format('%s repeated group(s) found in the %s ids given.', v_existing, coalesce(array_length(p_item_ids, 1), 0));
   END IF;
 
   -- Every id must exist and match the section type.

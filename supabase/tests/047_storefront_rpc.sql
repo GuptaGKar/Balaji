@@ -131,6 +131,10 @@ CREATE TEMP TABLE s47_hidden AS
 SELECT (public.save_storefront_section(NULL, 'home', 'Later hidden', NULL, 'products', true,
         ARRAY[]::uuid[]) ->> 'id')::uuid AS id;
 
+-- Created under SET LOCAL ROLE authenticated and read again after RESET ROLE, i.e. by a
+-- different current user than the owner. A temp table is private unless granted.
+GRANT SELECT ON s47_hidden TO PUBLIC;
+
 SELECT lives_ok($$SELECT public.save_storefront_section(
         (SELECT id FROM s47_hidden), 'home', 'Later hidden', NULL, 'products', false,
         ARRAY[]::uuid[])$$,
@@ -156,29 +160,29 @@ SELECT is(
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claim.sub = '04700000-0000-0000-0000-000000000002';
 
-SELECT throws_ok($$SELECT public.save_storefront_section(
+SELECT throws_like($$SELECT public.save_storefront_section(
         NULL, 'home', '', NULL, 'products', true, ARRAY[]::uuid[])$$,
-  NULL, '%heading is required%',
+  '%heading is required%',
   'S47-16 an empty heading is refused with a readable message');
 
-SELECT throws_ok($$SELECT public.save_storefront_section(
+SELECT throws_like($$SELECT public.save_storefront_section(
         NULL, 'home', 'Bad type', NULL, 'products', true,
         ARRAY[(SELECT id FROM public.categories WHERE slug = 'qa47-cat')])$$,
-  NULL, '%does not exist%',
+  '%does not exist%',
   'S47-17 a category id in a products section is refused, not silently dropped');
 
-SELECT throws_ok($$SELECT public.save_storefront_section(
+SELECT throws_like($$SELECT public.save_storefront_section(
         NULL, 'home', 'Duplicated', NULL, 'products', true,
         ARRAY[(SELECT id FROM public.products WHERE sku='QA47-P1'),
               (SELECT id FROM public.products WHERE sku='QA47-P1')])$$,
-  NULL, '%same item more than once%',
+  '%same item more than once%',
   'S47-18 a duplicated id is refused before anything is written');
 
-SELECT throws_ok($$SELECT public.save_storefront_section(
+SELECT throws_like($$SELECT public.save_storefront_section(
         NULL, 'home', 'Too many', NULL, 'categories', true,
         (SELECT array_agg(id) FROM (SELECT id FROM public.categories
                                     UNION ALL SELECT gen_random_uuid() FROM generate_series(1,30)) x))$$,
-  NULL, '%at most 30 items%',
+  '%at most 30 items%',
   'S47-19 the 30-item cap is enforced by the RPC, not only by the trigger');
 
 -- ---------------------------------------------------------------- edit conflict
@@ -187,10 +191,12 @@ SELECT (public.save_storefront_section(NULL, 'home', 'Conflict target', NULL, 'p
         ARRAY[]::uuid[]) ->> 'id')::uuid AS id,
        now() - interval '1 hour' AS stale;
 
-SELECT throws_ok($$SELECT public.save_storefront_section(
+GRANT SELECT ON s47_conflict TO PUBLIC;
+
+SELECT throws_like($$SELECT public.save_storefront_section(
         (SELECT id FROM s47_conflict), 'home', 'Conflict target', NULL, 'products', true,
         ARRAY[]::uuid[], (SELECT stale FROM s47_conflict))$$,
-  NULL, '%changed by someone else%',
+  '%changed by someone else%',
   'S47-20 a stale p_expected_updated_at loses loudly instead of overwriting');
 
 SELECT is(
@@ -205,9 +211,9 @@ SELECT lives_ok($$SELECT public.save_storefront_section(
   'S47-22 the matching timestamp is accepted, so the guard is not simply refusing everything');
 
 -- ---------------------------------------------------------------- reorder and delete
-SELECT throws_ok($$SELECT public.reorder_storefront_sections('categories',
+SELECT throws_like($$SELECT public.reorder_storefront_sections('categories',
         ARRAY[(SELECT id FROM public.storefront_sections WHERE title = 'Daily essentials')])$$,
-  NULL, '%not a section on page%',
+  '%not a section on page%',
   'S47-23 reordering cannot move a section onto another page');
 
 SELECT lives_ok($$SELECT public.reorder_storefront_sections('home',
@@ -230,14 +236,14 @@ SELECT is(
 -- ---------------------------------------------------------------- access control
 SET LOCAL request.jwt.claim.sub = '04700000-0000-0000-0000-000000000001';
 
-SELECT throws_ok($$SELECT public.save_storefront_section(
+SELECT throws_like($$SELECT public.save_storefront_section(
         NULL, 'home', 'Customer attempt', NULL, 'products', true, ARRAY[]::uuid[])$$,
-  NULL, '%Only a manager%',
+  '%Only a manager%',
   'S47-26 a signed-in customer cannot compose the storefront');
 
-SELECT throws_ok($$SELECT public.delete_storefront_section(
+SELECT throws_like($$SELECT public.delete_storefront_section(
         (SELECT id FROM public.storefront_sections WHERE title = 'Conflict target'))$$,
-  NULL, '%Only a manager%',
+  '%Only a manager%',
   'S47-27 a signed-in customer cannot delete a section');
 
 RESET ROLE;

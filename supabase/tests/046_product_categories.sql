@@ -129,12 +129,12 @@ SELECT is(
   'S46-13 moving the primary did not delete the old membership - it stays a member');
 
 -- ---------------------------------------------------------------- primary protection
-SELECT throws_ok($x$
+SELECT throws_like($x$
   DELETE FROM public.product_categories pc
    USING public.products p, public.categories c
    WHERE pc.product_id = p.id AND pc.category_id = c.id
      AND p.sku = 'QA46-P1' AND c.slug = 'qa46-b'$x$,
-  NULL, '%is the primary category of product%',
+  '%is the primary category of product%',
   'S46-14 deleting the PRIMARY pair is refused with a message naming the product');
 
 SELECT lives_ok($x$
@@ -180,7 +180,7 @@ SELECT is(
 
 SELECT is(
   (SELECT count(*) FROM pg_policies
-     WHERE tablename = 'product_categories' AND polcmd::text = 'A'),
+     WHERE tablename = 'product_categories' AND cmd = 'ALL'),
   1::bigint,
   'S46-20 exactly one manager write policy governs membership');
 

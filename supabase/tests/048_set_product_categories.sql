@@ -49,6 +49,10 @@ SELECT p.id AS product,
        (SELECT id FROM public.categories WHERE slug = 'qa48-c') AS c
   FROM public.products p WHERE p.sku = 'QA48-P';
 
+-- The manager / customer blocks below read this table while SET LOCAL ROLE is in effect, and a
+-- temp table is private to its owner unless granted.
+GRANT SELECT ON q48 TO PUBLIC;
+
 SELECT pg_temp.make_profile('04800000-0000-0000-0000-000000000001', 'manager',  'QA48 Manager');
 SELECT pg_temp.make_profile('04800000-0000-0000-0000-000000000002', 'customer', 'QA48 Customer');
 
@@ -121,25 +125,25 @@ SELECT is(
   'S48-11 and it is the primary that got added');
 
 -- ---------------------------------------------------------------- validation
-SELECT throws_ok($$SELECT public.set_product_categories(
+SELECT throws_like($$SELECT public.set_product_categories(
         (SELECT product FROM q48), NULL, ARRAY[]::uuid[])$$,
-  NULL, '%must have a primary category%',
+  '%must have a primary category%',
   'S48-12 a null primary is refused with a plain-language message');
 
-SELECT throws_ok($$SELECT public.set_product_categories(
+SELECT throws_like($$SELECT public.set_product_categories(
         (SELECT product FROM q48), gen_random_uuid(), ARRAY[]::uuid[])$$,
-  NULL, '%cannot be the primary category%',
+  '%cannot be the primary category%',
   'S48-13 a primary that does not exist is refused');
 
-SELECT throws_ok($$SELECT public.set_product_categories(
+SELECT throws_like($$SELECT public.set_product_categories(
         (SELECT product FROM q48), (SELECT a FROM q48),
         ARRAY[(SELECT a FROM q48), gen_random_uuid()])$$,
-  NULL, '%no longer exist%',
+  '%no longer exist%',
   'S48-14 a deleted category in the membership list is refused, not silently dropped');
 
-SELECT throws_ok($$SELECT public.set_product_categories(
+SELECT throws_like($$SELECT public.set_product_categories(
         gen_random_uuid(), (SELECT a FROM q48), ARRAY[]::uuid[])$$,
-  NULL, '%does not exist%',
+  '%does not exist%',
   'S48-15 an unknown product is refused');
 
 -- ---------------------------------------------------------------- authority

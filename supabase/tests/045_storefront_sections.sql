@@ -157,7 +157,7 @@ SELECT throws_ok($x$
   NULL, NULL, 'S45-18 the same product twice in one section is rejected');
 
 -- ---------------------------------------------------------------- caps
-SELECT throws_ok($x$
+SELECT throws_like($x$
   DO $c1$
   DECLARE v_sec uuid; v_cat uuid; i integer;
   BEGIN
@@ -171,10 +171,10 @@ SELECT throws_ok($x$
     END LOOP;
   END;
   $c1$$x$,
-  NULL, 'A section can hold at most 30 items%',
+  'A section can hold at most 30 items%',
   'S45-19 a 31st item is refused with the readable cap message');
 
-SELECT throws_ok($x$
+SELECT throws_like($x$
   DO $c2$
   DECLARE i integer;
   BEGIN
@@ -184,7 +184,7 @@ SELECT throws_ok($x$
     END LOOP;
   END;
   $c2$$x$,
-  NULL, 'A page can have at most 20 sections%',
+  'A page can have at most 20 sections%',
   'S45-20 a 21st section on one page is refused with the readable cap message');
 
 SELECT lives_ok($x$INSERT INTO public.storefront_sections (page, title, section_type, sort_order)
@@ -224,12 +224,20 @@ SELECT is(
 -- ('Other page still open'), so every assertion below is pinned to these ids rather than
 -- to a global count or to created_at ordering, either of which would silently drift.
 CREATE TEMP TABLE s45_seed AS
+WITH inserted AS (
+    INSERT INTO public.storefront_sections (page, title, section_type, sort_order, active)
+        VALUES ('home', 'QA Visible', 'products', 900, true),
+               ('home', 'QA Hidden',  'products', 901, false)
+        RETURNING id, sort_order
+)
 SELECT (array_agg(id ORDER BY sort_order))[1] AS visible,
        (array_agg(id ORDER BY sort_order))[2] AS hidden
-  FROM (INSERT INTO public.storefront_sections (page, title, section_type, sort_order, active)
-             VALUES ('home', 'QA Visible', 'products', 900, true),
-                    ('home', 'QA Hidden',  'products', 901, false)
-        RETURNING id, sort_order) x;
+  FROM inserted;
+
+-- A temp table belongs to whoever created it, and the anon / authenticated blocks below read it
+-- by name while SET LOCAL ROLE is in effect. Without this grant those reads fail with
+-- "permission denied for table s45_seed" rather than testing anything about RLS.
+GRANT SELECT ON s45_seed TO PUBLIC;
 
 SELECT pg_temp.make_profile('04500000-0000-0000-0000-000000000001', 'customer', 'QA Customer');
 SELECT pg_temp.make_profile('04500000-0000-0000-0000-000000000002', 'manager',  'QA Manager');
