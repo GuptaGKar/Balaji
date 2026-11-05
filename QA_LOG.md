@@ -102,3 +102,8 @@ observed, not as expected.
 | Airplane-mode cached layout, then fallback | NOT RUN | Needs a device |
 | Multi-category product visible under both categories, once in All products | NOT RUN | No product has a second category yet — membership was backfilled 1:1 from the primary — and no app was installed to check |
 | 21st section and 31st item refused | PASS | S45-19, S45-20 and S47-19 now execute and pass. Not exercised through the dashboard, which cannot be opened |
+| CI on the pushed commit `afd1cd7` (run 42047599043) | MIXED | `guards` **success**; `db-tests`, `android`, `web-checks` **failure** |
+| CI `supabase db start` step | PASS | It ran before `supabase test db` and reached it, which means both storefront migrations apply cleanly to a fresh database — a fact that had never been established |
+| CI `android` job | FAIL — pre-existing, not our code | The failing step is `Run android-actions/setup-android@v3`, i.e. SDK provisioning on the runner. It failed at the same step on `9814bdc` and `14f9794`, before this feature existed |
+| CI `web-checks` job | FAIL — pre-existing | Fails at `npm run type-check`, the 11 errors recorded above |
+| CI `db-tests` job | FAIL — cannot be attributed | Fails at `Run supabase test db`, which also failed on `9814bdc`, `14f9794` and every other run in the repository's history — this job has never been green. Without the runner log (the logs API returns 403 unauthenticated and there is no `gh` or token here) it is impossible to say whether 045–048 contributed. What is known: 045–048 pass against the live database, and the same step was already failing on the two preceding commits, which did not contain this code. |

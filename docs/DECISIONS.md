@@ -1117,3 +1117,15 @@ a composed section in either app (`storefront_sections` is empty by design - com
 owner's content decision), and the nav pill on any screen. Measured along the way and logged as
 BUG-010: 52 of the 89 products an anonymous shopper can see load their image through
 `imgs.search.brave.com`, which is a data problem, not one this feature introduced.
+
+**CI is not the gate this project has been assuming it is.** Every run in the repository's history
+is red, including `db-tests`, and `guards` is the only job that passes. The `android` job never
+reaches Gradle - it dies in `setup-android@v3`. That matters here because "CI will run pgTAP" was
+the stated reason for not executing 045-048 locally; it would not have caught the five defects
+either, because that same step (`Run supabase test db`) was already failing on the two preceding
+commits, which did not contain this code. Why it failed there is unknown - see below - so it is
+possible an older suite is the cause and possible something environmental is.
+One genuinely new fact did come out of the run: `supabase db start` succeeded, so both storefront
+migrations apply cleanly to a fresh database, which had never been established. The runner logs
+themselves could not be read from here - the logs API is 403 unauthenticated and there is no `gh`
+or token on this machine - so no claim is made about which suite fails in CI.
