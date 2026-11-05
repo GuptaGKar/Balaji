@@ -44,6 +44,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.balaji.provision.domain.model.Product
 import com.balaji.provision.domain.model.ProductVariantGroup
+import com.balaji.provision.domain.model.formatPaise
+import com.balaji.provision.ui.components.MiniCartBar
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.ui.platform.LocalConfiguration
 import com.balaji.provision.ui.cart.CartViewModel
 import com.balaji.provision.ui.components.EmptyState
 import com.balaji.provision.ui.components.ErrorState
@@ -74,7 +78,9 @@ fun CatalogScreen(
     initialQuery: String = "",
     onBack: () -> Unit,
     onNavigateToCart: () -> Unit = {},
-    onNavigateToProduct: (productId: String) -> Unit = {}
+    onNavigateToProduct: (productId: String) -> Unit = {},
+    /** Opens the "Request an item" screen; when null the empty state offers Clear search. */
+    onRequestItem: (() -> Unit)? = null
 ) {
     val categories by viewModel.categories.collectAsState()
     val selectedCategory by viewModel.selectedCategory.collectAsState()
@@ -83,8 +89,21 @@ fun CatalogScreen(
     val error by viewModel.error.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val cart by cartViewModel.cart.collectAsState()
+    val cartQuote by cartViewModel.quote.collectAsState()
 
     val targetCategory = categoryId.takeIf { it.isNotBlank() && it != "all" }
+    // The category can now also be switched from the chip row below. Keep that choice
+    // across a trip to a product and back, like the typed query.
+    var entryCategory by rememberSaveable(targetCategory) { mutableStateOf(targetCategory) }
+
+    // The query typed on this screen survives a trip to a product and back; the
+    // shared view model is re-seeded from it instead of being reset to the
+    // navigation argument every time the screen re-enters.
+    var entryQuery by rememberSaveable(targetCategory, initialQuery) { mutableStateOf(initialQuery) }
+    fun updateQuery(query: String) {
+        entryQuery = query
+        viewModel.setSearchQuery(query)
+    }
 
     var searchOpen by rememberSaveable { mutableStateOf(focusSearch) }
     var sortOption by rememberSaveable { mutableStateOf(SortOption.DEFAULT) }
@@ -97,11 +116,11 @@ fun CatalogScreen(
     // query through navigation keeps the pinned catalogue search real: results
     // are filtered from the live catalogue instead of being a decorative field.
     LaunchedEffect(targetCategory, initialQuery, focusSearch) {
-        if (viewModel.selectedCategory.value != targetCategory) {
-            viewModel.selectCategory(targetCategory)
+        if (viewModel.selectedCategory.value != entryCategory) {
+            viewModel.selectCategory(entryCategory)
         }
-        viewModel.setSearchQuery(initialQuery)
-        searchOpen = focusSearch || initialQuery.isNotBlank()
+        viewModel.setSearchQuery(entryQuery)
+        searchOpen = focusSearch || entryQuery.isNotBlank()
     }
 
     weightDialogProduct?.let { product ->
@@ -117,11 +136,11 @@ fun CatalogScreen(
         )
     }
 
-    val categoryName = remember(categories, targetCategory) {
-        categories.firstOrNull { it.id == targetCategory }?.name
+    val categoryName = remember(categories, entryCategory) {
+        categories.firstOrNull { it.id == entryCategory }?.name
     }
     val title = when {
-        targetCategory == null -> "All products"
+        entryCategory == null -> "All products"
         else -> categoryName ?: "Products"
     }
 
@@ -167,10 +186,42 @@ fun CatalogScreen(
         if (searchOpen || searchQuery.isNotBlank()) {
             StoreSearchBar(
                 query = searchQuery,
-                onQueryChange = { viewModel.setSearchQuery(it) },
+                onQueryChange = { updateQuery(it) },
                 autoFocus = focusSearch && searchQuery.isBlank(),
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
             )
+        }
+
+        // Category chips: switch aisle without going back to the Categories tab.
+        if (categories.size > 1) {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(top = 4.dp)
+            ) {
+                item(key = "chip_all") {
+                    CategoryChip(
+                        label = "All",
+                        selected = entryCategory == null,
+                        onClick = {
+                            entryCategory = null
+                            viewModel.selectCategory(null)
+                        }
+                    )
+                }
+                categories.forEach { category ->
+                    item(key = "chip_${category.id}") {
+                        CategoryChip(
+                            label = category.name,
+                            selected = entryCategory == category.id,
+                            onClick = {
+                                entryCategory = category.id
+                                viewModel.selectCategory(category.id)
+                            }
+                        )
+                    }
+                }
+            }
         }
 
         // Sort / filter / availability row.
@@ -303,23 +354,38 @@ fun CatalogScreen(
                         icon = Icons.Default.SearchOff,
                         title = "No items found",
                         message = when {
+                            searchQuery.isNotBlank() && entryCategory == null && onRequestItem != null ->
+                                "We could not find \"$searchQuery\". Check the spelling, or ask us to stock it."
+                            searchQuery.isNotBlank() && entryCategory == null ->
+                                "We could not find \"$searchQuery\" in the store."
                             searchQuery.isNotBlank() ->
                                 "We could not find \"$searchQuery\" in this category."
                             inStockOnly ->
                                 "Everything in this category is out of stock right now."
                             else -> "There are no items in this category right now."
                         },
-                        actionLabel = if (searchQuery.isNotBlank()) "Clear search" else null,
-                        onAction = if (searchQuery.isNotBlank()) {
-                            { viewModel.setSearchQuery("") }
-                        } else {
-                            null
+                        actionLabel = when {
+                            searchQuery.isNotBlank() && entryCategory == null && onRequestItem != null ->
+                                "Request this item"
+                            searchQuery.isNotBlank() -> "Clear search"
+                            else -> null
+                        },
+                        onAction = when {
+                            searchQuery.isNotBlank() && entryCategory == null && onRequestItem != null ->
+                                onRequestItem
+                            searchQuery.isNotBlank() -> {
+                                { updateQuery("") }
+                            }
+                            else -> null
                         }
                     )
                 }
 
                 else -> LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
+                    columns = GridCells.Fixed(
+                        // 2 on phones, more on tablets, instead of two giant cards.
+                        (LocalConfiguration.current.screenWidthDp / 170).coerceIn(2, 5)
+                    ),
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(
                         start = 16.dp,
@@ -355,6 +421,22 @@ fun CatalogScreen(
                 }
             }
         }
+
+        val basketHint = cartQuote
+            ?.takeIf { q -> q.lines.count { !it.isFreeItem } == cart.items.size }
+            ?.let { q ->
+                when {
+                    q.deliveryFeePaise <= 0L -> "Free delivery unlocked"
+                    q.amountToFreeDelivery > 0L ->
+                        "Add ${formatPaise(q.amountToFreeDelivery)} more for free delivery"
+                    else -> null
+                }
+            }
+        MiniCartBar(
+            itemCount = cart.items.size,
+            detail = basketHint,
+            onClick = onNavigateToCart
+        )
     }
 }
 
@@ -380,6 +462,32 @@ private fun ProductGrid(
         onDecrease = { cartItem?.let { onDecrease(product, it.qtyBase) } },
         onWeight = { onWeight(product) }
     )
+}
+
+@Composable
+private fun CategoryChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = if (selected) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant
+        },
+        contentColor = if (selected) {
+            MaterialTheme.colorScheme.onPrimary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        modifier = Modifier.clickable(onClick = onClick)
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            maxLines = 1,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+        )
+    }
 }
 
 @Composable

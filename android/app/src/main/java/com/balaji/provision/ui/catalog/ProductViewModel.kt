@@ -159,28 +159,69 @@ class ProductViewModel @Inject constructor(
         }
 
         if (query.isNotEmpty()) {
-            // A query may name a category rather than a product, e.g. "Dairy".
-            // Match category names and slugs so the catalogue search returns
-            // the real products inside that category instead of nothing.
+            // A query may name a category rather than a product, e.g. "Dairy", or use
+            // a common Hindi/Punjabi word ("doodh", "atta"). Expand it to a few related
+            // terms, then rank: a name match beats a category match, which beats a
+            // match buried in the description ("milk" must not lead with a chocolate
+            // bar whose blurb says "milky caramel").
+            val terms = searchTerms(query)
             val matchingCategoryIds = _categories.value
                 .filter { category ->
-                    category.name.lowercase().contains(query) ||
-                        category.slug.lowercase().contains(query)
+                    terms.any { term ->
+                        category.name.lowercase().contains(term) ||
+                            category.slug.lowercase().contains(term)
+                    }
                 }
                 .mapTo(mutableSetOf()) { it.id }
 
-            filtered = filtered.filter {
-                it.name.lowercase().contains(query) ||
-                    (it.description?.lowercase()?.contains(query) == true) ||
-                    it.sku.lowercase().contains(query) ||
-                    it.packLabel.lowercase().contains(query) ||
-                    it.categoryId in matchingCategoryIds ||
-                    it.variantsMatch(query)
+            val scored = filtered.mapNotNull { product ->
+                val score = relevance(product, terms, matchingCategoryIds)
+                if (score > 0) product to score else null
             }
+            val best = scored.maxOfOrNull { it.second } ?: 0
+            // When real name matches exist, drop weak description-only hits entirely.
+            filtered = scored
+                .filter { best < NAME_MATCH_SCORE || it.second >= CATEGORY_MATCH_SCORE }
+                .sortedByDescending { it.second } // stable: catalogue order within a tie
+                .map { it.first }
         }
 
         _products.value = filtered
         _variantGroups.value = filtered.toVariantGroups()
+    }
+
+    private fun searchTerms(query: String): Set<String> =
+        buildSet {
+            add(query)
+            SEARCH_ALIASES[query]?.let { addAll(it) }
+        }
+
+    private fun relevance(product: Product, terms: Set<String>, categoryIds: Set<String>): Int {
+        val name = product.name.lowercase()
+        val nameWords = name.split(' ', '-', '|', '(', ')', ',', '/')
+        var best = 0
+        for (term in terms) {
+            val nameScore = when {
+                name.startsWith(term) -> 100
+                nameWords.any { it.startsWith(term) } -> 80
+                name.contains(term) -> NAME_MATCH_SCORE
+                else -> 0
+            }
+            best = maxOf(best, nameScore)
+            if (nameScore == 0) {
+                if (product.packLabel.lowercase().contains(term) ||
+                    product.sku.lowercase().contains(term) ||
+                    product.variantsMatch(term)
+                ) {
+                    best = maxOf(best, 20)
+                }
+                if (product.description?.lowercase()?.contains(term) == true) {
+                    best = maxOf(best, 10)
+                }
+            }
+        }
+        if (product.categoryId in categoryIds) best = maxOf(best, CATEGORY_MATCH_SCORE)
+        return best
     }
 
     /** Finds a variant group by the id of any product in the group. */
@@ -196,6 +237,38 @@ class ProductViewModel @Inject constructor(
     }
 
     private companion object {
+        const val NAME_MATCH_SCORE = 60
+        const val CATEGORY_MATCH_SCORE = 40
+
+        /**
+         * Starter list of everyday words customers type that are not in product
+         * names. Values are matched against product names and category names, so
+         * keep them to words that appear there. Extend it from real "no items
+         * found" searches and product requests.
+         */
+        val SEARCH_ALIASES: Map<String, Set<String>> = mapOf(
+            "milk" to setOf("dairy"), "doodh" to setOf("milk", "dairy"),
+            "dahi" to setOf("curd", "dairy"), "curd" to setOf("dahi", "dairy"),
+            "paneer" to setOf("dairy"), "butter" to setOf("dairy"), "cheese" to setOf("dairy"),
+            "lassi" to setOf("dairy"),
+            "atta" to setOf("flour"), "aata" to setOf("atta", "flour"),
+            "maida" to setOf("flour"), "suji" to setOf("flour"), "besan" to setOf("flour"),
+            "dal" to setOf("pulses"), "daal" to setOf("dal", "pulses"),
+            "chana" to setOf("pulses"), "rajma" to setOf("pulses"),
+            "tel" to setOf("oil"), "oil" to setOf("ghee"),
+            "masala" to setOf("spices"), "mirch" to setOf("spices", "chilli"),
+            "haldi" to setOf("spices", "turmeric"),
+            "chai" to setOf("tea", "drinks"), "juice" to setOf("drinks"),
+            "cola" to setOf("drinks"), "coffee" to setOf("drinks"),
+            "chips" to setOf("snacks"), "namkeen" to setOf("snacks"),
+            "bhujia" to setOf("namkeen", "snacks"),
+            "achar" to setOf("pickle"), "pickle" to setOf("achar"),
+            "sabun" to setOf("soap", "personal care"), "soap" to setOf("personal care"),
+            "shampoo" to setOf("personal care"), "toothpaste" to setOf("personal care"),
+            "surf" to setOf("detergent", "household"), "detergent" to setOf("household"),
+            "ketchup" to setOf("sauce", "sauces")
+        )
+
         /** Column list used before the category-images migration is applied. */
         const val LEGACY_CATEGORY_SELECT = "id,name,slug,sort_order,active"
 

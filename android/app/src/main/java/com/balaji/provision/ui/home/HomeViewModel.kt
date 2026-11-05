@@ -22,7 +22,15 @@ data class HomeBanner(
     val id: String,
     val title: String,
     val subtitle: String,
-    val imageUrl: String
+    val imageUrl: String,
+    /** "category" or "product" when the manager set a destination; otherwise null. */
+    val destinationType: String? = null,
+    val destinationId: String? = null,
+    /**
+     * false = show the uploaded image as-is, with no gradient, title, subtitle or
+     * button on top. Use it for posters that already contain their own text.
+     */
+    val overlay: Boolean = true
 )
 
 data class HomeUiState(
@@ -125,11 +133,25 @@ class HomeViewModel @Inject constructor(
             if (title.isBlank() || !(imageUrl.startsWith("https://") || imageUrl.startsWith("http://"))) {
                 return@mapNotNull null
             }
+            // Optional destination, either {"destination": {"type", "id"}} or the flat
+            // destination_type / destination_id keys. Anything else is ignored so a
+            // malformed banner still shows and simply opens the catalogue.
+            val destination = obj["destination"] as? JsonObject
+            val destinationType = ((destination?.get("type") ?: obj["destination_type"]) as? JsonPrimitive)
+                ?.contentOrNull()?.trim()?.lowercase()
+                ?.takeIf { it == "category" || it == "product" }
+            val destinationId = ((destination?.get("id") ?: obj["destination_id"]) as? JsonPrimitive)
+                ?.contentOrNull()?.trim()?.takeIf { it.isNotEmpty() }
+            val hasDestination = destinationType != null && destinationId != null
             HomeBanner(
                 id = (obj["id"] as? JsonPrimitive)?.contentOrNull() ?: imageUrl,
                 title = title,
                 subtitle = (obj["subtitle"] as? JsonPrimitive)?.contentOrNull().orEmpty(),
-                imageUrl = imageUrl
+                imageUrl = imageUrl,
+                destinationType = if (hasDestination) destinationType else null,
+                destinationId = if (hasDestination) destinationId else null,
+                overlay = (obj["overlay"] as? JsonPrimitive)?.contentOrNull()
+                    ?.trim()?.lowercase()?.toBooleanStrictOrNull() ?: true
             )
         }
     }

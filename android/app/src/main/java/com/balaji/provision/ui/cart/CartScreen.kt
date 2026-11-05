@@ -64,6 +64,7 @@ import com.balaji.provision.domain.model.QuantityType
 import com.balaji.provision.domain.model.QuoteBreakdown
 import com.balaji.provision.domain.model.formatPaise
 import com.balaji.provision.ui.account.AccountViewModel
+import com.balaji.provision.ui.components.deliveryWindowLabel
 import com.balaji.provision.ui.components.BalajiBasketMark
 import com.balaji.provision.ui.components.EmptyState
 import com.balaji.provision.ui.components.FreeDeliveryProgress
@@ -371,8 +372,11 @@ fun CartScreen(
                         .height(50.dp),
                     shape = RoundedCornerShape(14.dp)
                 ) {
+                    // Show the server total on the action itself so the amount is
+                    // visible without scrolling to the bill.
                     Text(
-                        "Proceed to Checkout",
+                        text = quote?.let { "Proceed to Checkout · ${formatPaise(it.grandTotalPaise)}" }
+                            ?: "Proceed to Checkout",
                         style = MaterialTheme.typography.titleSmall
                     )
                 }
@@ -408,7 +412,7 @@ private fun StoreCard(estimatedWindow: String?, storeOpen: Boolean) {
                 Text(
                     text = when {
                         !storeOpen -> "Store closed — orders will be reviewed later"
-                        !estimatedWindow.isNullOrBlank() -> "Delivery in $estimatedWindow"
+                        !estimatedWindow.isNullOrBlank() -> deliveryWindowLabel(estimatedWindow)
                         else -> "Cash on Delivery available"
                     },
                     style = MaterialTheme.typography.bodySmall,
@@ -633,10 +637,17 @@ fun OrderSummaryCard(quote: QuoteBreakdown) {
             when {
                 // Coupon applied — show its code and saving amount
                 quote.couponApplied && quote.couponCode != null -> {
-                    val isFreeDelivery = quote.discountPaise == 0L
+                    // A gift coupon has no money value either, so a zero discount does
+                    // not mean free delivery. The gift is listed in its own row below.
+                    val hasGift = quote.lines.any { it.isFreeItem }
+                    val isFreeDelivery = quote.discountPaise == 0L && !hasGift
                     SummaryRow(
                         label = "Coupon (${quote.couponCode})",
-                        value = if (isFreeDelivery) "FREE delivery" else "-${formatPaise(quote.discountPaise)}",
+                        value = when {
+                            quote.discountPaise > 0L -> "-${formatPaise(quote.discountPaise)}"
+                            isFreeDelivery -> "FREE delivery"
+                            else -> "Applied"
+                        },
                         valueColor = MaterialTheme.appColors.success
                     )
                 }

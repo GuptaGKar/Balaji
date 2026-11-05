@@ -56,6 +56,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.balaji.provision.domain.model.Product
 import com.balaji.provision.domain.model.ProductVariantGroup
+import com.balaji.provision.domain.model.formatPaise
+import com.balaji.provision.ui.components.MiniCartBar
+import com.balaji.provision.ui.components.deliveryWindowLabel
+import androidx.compose.ui.platform.LocalConfiguration
 import com.balaji.provision.ui.account.AccountViewModel
 import com.balaji.provision.ui.cart.CartViewModel
 import com.balaji.provision.ui.catalog.ProductViewModel
@@ -101,16 +105,24 @@ fun HomeScreen(
     val cart by cartViewModel.cart.collectAsState()
 
     val cartItems = cart.items.associateBy { it.productId }
+    val cartQuote by cartViewModel.quote.collectAsState()
     val address = accountState.addresses.firstOrNull { it.isDefault }
         ?: accountState.addresses.firstOrNull()
     val initials = (accountState.profile?.displayName?.trim()?.firstOrNull()
         ?: 'B').uppercaseChar().toString()
 
+    // The basket quote must use the same PIN rule the cart and checkout use, so
+    // the free-delivery hint below never disagrees with them.
+    LaunchedEffect(address?.postalCode) { cartViewModel.setDeliveryPin(address?.postalCode) }
+
     val categoryIds = groups.map { it.categoryId }.toSet()
     val visibleCategories = categories.filter { it.id in categoryIds }
     val inStockGroups = groups.filter { group -> group.variants.any { it.isInStock } }
-    val freshPicks = inStockGroups.take(10)
-    val moreToExplore = inStockGroups.drop(10).take(10)
+    // Catalogue order is alphabetical, so the first ten groups were four sauces and
+    // two atta packs. Taking one group per category in turn shows the whole store.
+    val variedGroups = remember(inStockGroups) { roundRobinBy(inStockGroups) { it.categoryId } }
+    val freshPicks = variedGroups.take(10)
+    val moreToExplore = variedGroups.drop(10).take(10)
 
     var weightProduct by remember { mutableStateOf<Product?>(null) }
     weightProduct?.let { product ->
@@ -130,239 +142,274 @@ fun HomeScreen(
         )
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 24.dp)
-    ) {
-        item(key = "header") {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable(onClick = onNavigateToAccount)
-                ) {
-                    Text(
-                        text = "DELIVER TO",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.LocationOn,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text = address?.let { addr ->
-                                listOfNotNull(addr.label, addr.area ?: addr.city)
-                                    .joinToString(" · ")
-                            } ?: "Set your delivery address",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
-                        )
-                        Icon(
-                            Icons.Default.ArrowDropDown,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clickable(onClick = onNavigateToAccount)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = initials,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                }
+    // Only describe delivery when the server quote matches what is in the basket.
+    val basketHint = cartQuote
+        ?.takeIf { q -> q.lines.count { !it.isFreeItem } == cart.items.size }
+        ?.let { q ->
+            when {
+                q.deliveryFeePaise <= 0L -> "Free delivery unlocked"
+                q.amountToFreeDelivery > 0L ->
+                    "Add ${formatPaise(q.amountToFreeDelivery)} more for free delivery"
+                else -> null
             }
         }
 
-        item(key = "search") {
-            StoreSearchBar(
-                onClick = onNavigateToSearch,
-                placeholder = "Search for atta, milk, snacks…",
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
-            )
-        }
-
-        item(key = "offer") {
-            HomeOfferCarousel(
-                banners = state.banners,
-                storeOpen = state.storeOpen,
-                estimatedWindow = state.estimatedWindow,
-                onOpenCatalog = onNavigateToCatalog
-            )
-        }
-
-        if (visibleCategories.isNotEmpty()) {
-            item(key = "categories_header") {
-                SectionHeader(
-                    title = "Shop by category",
-                    subtitle = "Everyday essentials from the store",
-                    actionLabel = "See all",
-                    onAction = onNavigateToCategories,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-            }
-            item(key = "categories_grid") {
-                HomeCategoryGrid(
-                    categories = visibleCategories.take(7),
-                    allCategories = visibleCategories,
-                    onOpenCategory = onNavigateToCategory,
-                    onMore = onNavigateToCategories
-                )
-            }
-        }
-
-        if (state.error != null) {
-            item(key = "store_error") {
-                Card(
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = if (cart.items.isEmpty()) 24.dp else 96.dp)
+        ) {
+            item(key = "header") {
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer
-                    )
+                        .padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    ErrorState(
-                        message = state.error.orEmpty(),
-                        actionLabel = "Reload store details",
-                        onAction = { viewModel.loadStoreInfo() }
-                    )
-                }
-            }
-        }
-
-        when {
-            groups.isEmpty() && catalogueLoading -> item(key = "catalogue_loading") {
-                InlineLoader(modifier = Modifier.padding(vertical = 32.dp))
-            }
-
-            groups.isEmpty() && catalogueError != null -> item(key = "catalogue_error") {
-                Box(modifier = Modifier.padding(vertical = 12.dp)) {
-                    ErrorState(
-                        message = catalogueError.orEmpty(),
-                        onAction = { productViewModel.loadData() }
-                    )
-                }
-            }
-
-            else -> {
-                if (freshPicks.isNotEmpty()) {
-                    item(key = "fresh_header") {
-                        SectionHeader(
-                            title = "Fresh picks",
-                            subtitle = "Available in today's catalogue",
-                            actionLabel = "View all",
-                            onAction = onNavigateToCatalog,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable(onClick = onNavigateToAccount)
+                    ) {
+                        Text(
+                            text = "DELIVER TO",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
                         )
-                    }
-                    item(key = "fresh_row") {
-                        ProductRail(
-                            groups = freshPicks,
-                            cartItems = cartItems,
-                            onOpenProduct = onNavigateToProduct,
-                            onAdd = { product ->
-                                cartViewModel.addItem(product.id, product.minQty)
-                            },
-                            onIncrease = { product, qty ->
-                                cartViewModel.updateQuantity(
-                                    product.id,
-                                    (qty + product.stepQty).coerceAtMost(product.maxOrderQty)
-                                )
-                            },
-                            onDecrease = { product, qty ->
-                                cartViewModel.updateQuantity(product.id, qty - product.stepQty)
-                            },
-                            onWeight = { product -> weightProduct = product }
-                        )
-                    }
-                }
-
-                if (moreToExplore.isNotEmpty()) {
-                    item(key = "more_header") {
-                        SectionHeader(
-                            title = "More to explore",
-                            subtitle = "Pantry and daily needs",
-                            actionLabel = "View all",
-                            onAction = onNavigateToCatalog,
-                            modifier = Modifier.padding(
-                                start = 16.dp,
-                                end = 16.dp,
-                                top = 18.dp,
-                                bottom = 8.dp
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.LocationOn,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
                             )
-                        )
+                            Text(
+                                text = address?.let { addr ->
+                                    listOfNotNull(addr.label, addr.area ?: addr.city)
+                                        .joinToString(" · ")
+                                } ?: "Set your delivery address",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            Icon(
+                                Icons.Default.ArrowDropDown,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
-                    item(key = "more_row") {
-                        ProductRail(
-                            groups = moreToExplore,
-                            cartItems = cartItems,
-                            onOpenProduct = onNavigateToProduct,
-                            onAdd = { product ->
-                                cartViewModel.addItem(product.id, product.minQty)
-                            },
-                            onIncrease = { product, qty ->
-                                cartViewModel.updateQuantity(
-                                    product.id,
-                                    (qty + product.stepQty).coerceAtMost(product.maxOrderQty)
-                                )
-                            },
-                            onDecrease = { product, qty ->
-                                cartViewModel.updateQuantity(product.id, qty - product.stepQty)
-                            },
-                            onWeight = { product -> weightProduct = product }
+
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clickable(onClick = onNavigateToAccount)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = initials,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+                }
+            }
+
+            item(key = "search") {
+                StoreSearchBar(
+                    onClick = onNavigateToSearch,
+                    placeholder = "Search for atta, milk, snacks…",
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+                )
+            }
+
+            item(key = "offer") {
+                HomeOfferCarousel(
+                    banners = state.banners,
+                    storeOpen = state.storeOpen,
+                    estimatedWindow = state.estimatedWindow,
+                    onOpenCatalog = onNavigateToCatalog,
+                    onOpenBanner = { banner ->
+                        // Only follow a destination that still exists in the live
+                        // catalogue; otherwise fall back to the catalogue, never a dead end.
+                        val id = banner.destinationId
+                        when {
+                            banner.destinationType == "category" && id != null &&
+                                categories.any { it.id == id } -> onNavigateToCategory(id)
+                            banner.destinationType == "product" && id != null &&
+                                groups.any { g -> g.groupId == id || g.variants.any { it.id == id } } ->
+                                onNavigateToProduct(id)
+                            else -> onNavigateToCatalog()
+                        }
+                    }
+                )
+            }
+
+            if (visibleCategories.isNotEmpty()) {
+                item(key = "categories_header") {
+                    SectionHeader(
+                        title = "Shop by category",
+                        subtitle = "Everyday essentials from the store",
+                        actionLabel = "See all",
+                        onAction = onNavigateToCategories,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
+                item(key = "categories_grid") {
+                    HomeCategoryGrid(
+                        categories = visibleCategories.take(7),
+                        allCategories = visibleCategories,
+                        onOpenCategory = onNavigateToCategory,
+                        onMore = onNavigateToCategories
+                    )
+                }
+            }
+
+            if (state.error != null) {
+                item(key = "store_error") {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
+                        )
+                    ) {
+                        ErrorState(
+                            message = state.error.orEmpty(),
+                            actionLabel = "Reload store details",
+                            onAction = { viewModel.loadStoreInfo() }
                         )
                     }
                 }
             }
+
+            when {
+                groups.isEmpty() && catalogueLoading -> item(key = "catalogue_loading") {
+                    InlineLoader(modifier = Modifier.padding(vertical = 32.dp))
+                }
+
+                groups.isEmpty() && catalogueError != null -> item(key = "catalogue_error") {
+                    Box(modifier = Modifier.padding(vertical = 12.dp)) {
+                        ErrorState(
+                            message = catalogueError.orEmpty(),
+                            onAction = { productViewModel.loadData() }
+                        )
+                    }
+                }
+
+                else -> {
+                    if (freshPicks.isNotEmpty()) {
+                        item(key = "fresh_header") {
+                            SectionHeader(
+                                title = "From every aisle",
+                                subtitle = "A pick from each category, in stock today",
+                                actionLabel = "View all",
+                                onAction = onNavigateToCatalog,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                        }
+                        item(key = "fresh_row") {
+                            ProductRail(
+                                groups = freshPicks,
+                                cartItems = cartItems,
+                                onOpenProduct = onNavigateToProduct,
+                                onAdd = { product ->
+                                    cartViewModel.addItem(product.id, product.minQty)
+                                },
+                                onIncrease = { product, qty ->
+                                    cartViewModel.updateQuantity(
+                                        product.id,
+                                        (qty + product.stepQty).coerceAtMost(product.maxOrderQty)
+                                    )
+                                },
+                                onDecrease = { product, qty ->
+                                    cartViewModel.updateQuantity(product.id, qty - product.stepQty)
+                                },
+                                onWeight = { product -> weightProduct = product }
+                            )
+                        }
+                    }
+
+                    if (moreToExplore.isNotEmpty()) {
+                        item(key = "more_header") {
+                            SectionHeader(
+                                title = "More to explore",
+                                subtitle = "More from the store",
+                                actionLabel = "View all",
+                                onAction = onNavigateToCatalog,
+                                modifier = Modifier.padding(
+                                    start = 16.dp,
+                                    end = 16.dp,
+                                    top = 18.dp,
+                                    bottom = 8.dp
+                                )
+                            )
+                        }
+                        item(key = "more_row") {
+                            ProductRail(
+                                groups = moreToExplore,
+                                cartItems = cartItems,
+                                onOpenProduct = onNavigateToProduct,
+                                onAdd = { product ->
+                                    cartViewModel.addItem(product.id, product.minQty)
+                                },
+                                onIncrease = { product, qty ->
+                                    cartViewModel.updateQuantity(
+                                        product.id,
+                                        (qty + product.stepQty).coerceAtMost(product.maxOrderQty)
+                                    )
+                                },
+                                onDecrease = { product, qty ->
+                                    cartViewModel.updateQuantity(product.id, qty - product.stepQty)
+                                },
+                                onWeight = { product -> weightProduct = product }
+                            )
+                        }
+                    }
+                }
+            }
+
+            item(key = "store_strip") {
+                StoreStrip(
+                    storeOpen = state.storeOpen,
+                    estimatedWindow = state.estimatedWindow,
+                    deliveryText = state.deliveryText,
+                    onlinePaymentEnabled = state.onlinePaymentEnabled,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)
+                )
+            }
+
+            item(key = "legal") {
+                Text(
+                    text = "Prices, availability and delivery timing are confirmed by the store. Invoices are issued from the store's billing system.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
         }
 
-        item(key = "store_strip") {
-            StoreStrip(
-                storeOpen = state.storeOpen,
-                estimatedWindow = state.estimatedWindow,
-                deliveryText = state.deliveryText,
-                onlinePaymentEnabled = state.onlinePaymentEnabled,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)
-            )
-        }
 
-        item(key = "legal") {
-            Text(
-                text = "Prices, availability and delivery timing are confirmed by the store. Invoices are issued from the store's billing system.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 24.dp)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-        }
+        MiniCartBar(
+            itemCount = cart.items.size,
+            detail = basketHint,
+            onClick = onNavigateToCart,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
     }
 }
 
@@ -471,7 +518,9 @@ private data class OfferSlide(
     val id: String,
     val title: String,
     val subtitle: String,
-    val imageUrl: String? = null
+    val imageUrl: String? = null,
+    val banner: HomeBanner? = null,
+    val overlay: Boolean = true
 )
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -480,7 +529,8 @@ private fun HomeOfferCarousel(
     banners: List<HomeBanner>,
     storeOpen: Boolean,
     estimatedWindow: String?,
-    onOpenCatalog: () -> Unit
+    onOpenCatalog: () -> Unit,
+    onOpenBanner: (HomeBanner) -> Unit
 ) {
     val slides = remember(banners, storeOpen, estimatedWindow) {
         if (banners.isNotEmpty()) {
@@ -489,7 +539,9 @@ private fun HomeOfferCarousel(
                     id = banner.id,
                     title = banner.title,
                     subtitle = banner.subtitle,
-                    imageUrl = banner.imageUrl
+                    imageUrl = banner.imageUrl,
+                    banner = banner,
+                    overlay = banner.overlay
                 )
             }
         } else {
@@ -499,7 +551,7 @@ private fun HomeOfferCarousel(
                     title = if (storeOpen) "Fresh groceries, delivered" else "We are closed right now",
                     subtitle = when {
                         !storeOpen -> "You can still browse; orders are reviewed when we reopen."
-                        !estimatedWindow.isNullOrBlank() -> "Delivery in $estimatedWindow · Cash on Delivery"
+                        !estimatedWindow.isNullOrBlank() -> "${deliveryWindowLabel(estimatedWindow)} · Cash on Delivery"
                         else -> "Shop the full range · Cash on Delivery"
                     }
                 ),
@@ -546,7 +598,10 @@ private fun HomeOfferCarousel(
             ) { page ->
                 OfferSlideCard(
                     slide = slides[page % slides.size],
-                    onClick = onOpenCatalog
+                    onClick = {
+                        val banner = slides[page % slides.size].banner
+                        if (banner != null) onOpenBanner(banner) else onOpenCatalog()
+                    }
                 )
             }
 
@@ -588,11 +643,13 @@ private fun OfferSlideCard(
 ) {
     val shape = RoundedCornerShape(18.dp)
     if (slide.imageUrl != null) {
+        // A fixed 140 dp crop turned wide posters into a thin strip on tablets.
+        val bannerHeight = (LocalConfiguration.current.screenWidthDp / 2.4f).coerceIn(140f, 220f).dp
         Card(
             onClick = onClick,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(140.dp),
+                .height(bannerHeight),
             shape = shape,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -604,40 +661,42 @@ private fun OfferSlideCard(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(
-                                    Color.Black.copy(alpha = 0.10f),
-                                    Color.Black.copy(alpha = 0.65f)
+                if (slide.overlay) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(
+                                        Color.Black.copy(alpha = 0.10f),
+                                        Color.Black.copy(alpha = 0.65f)
+                                    )
                                 )
                             )
-                        )
-                )
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(14.dp),
-                    verticalArrangement = Arrangement.Bottom
-                ) {
-                    Text(
-                        slide.title,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = Color.White,
-                        maxLines = 2
                     )
-                    if (slide.subtitle.isNotBlank()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.Bottom
+                    ) {
                         Text(
-                            slide.subtitle,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.9f),
+                            slide.title,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = Color.White,
                             maxLines = 2
                         )
+                        if (slide.subtitle.isNotBlank()) {
+                            Text(
+                                slide.subtitle,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.9f),
+                                maxLines = 2
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        ShopNowPill(containerColor = Color.White)
                     }
-                    Spacer(Modifier.height(8.dp))
-                    ShopNowPill(containerColor = Color.White)
                 }
             }
         }
@@ -759,7 +818,7 @@ private fun StoreStrip(
                 )
             }
             val details = buildList {
-                if (!estimatedWindow.isNullOrBlank()) add("Delivery in $estimatedWindow")
+                if (!estimatedWindow.isNullOrBlank()) add(deliveryWindowLabel(estimatedWindow))
                 deliveryText?.let { add(it) }
                 add(if (onlinePaymentEnabled) "Cash on Delivery / online" else "Cash on Delivery only")
             }
@@ -783,4 +842,14 @@ private fun StoreStrip(
             }
         }
     }
+}
+
+/** Interleaves items so each key appears in turn: A1, B1, C1, A2, B2, ... */
+private fun <T> roundRobinBy(items: List<T>, key: (T) -> String): List<T> {
+    val queues = items.groupBy(key).values.map { ArrayDeque(it) }
+    val result = ArrayList<T>(items.size)
+    while (queues.any { it.isNotEmpty() }) {
+        queues.forEach { queue -> queue.removeFirstOrNull()?.let(result::add) }
+    }
+    return result
 }
