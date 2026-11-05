@@ -79,6 +79,7 @@ observed, not as expected.
 | Check | Result | Evidence |
 |---|---|---|
 | Kotlin compile, both flavours (`:app:compileCustomerDebugKotlin`, `:app:compileStaffDebugKotlin`) | PASS | BUILD SUCCESSFUL, 0 errors |
+| Debug APK build, both flavours (`:app:assembleCustomerDebug`, `:app:assembleStaffDebug`) | PASS | BUILD SUCCESSFUL in 2m 48s; neither APK was installed (no device attached) |
 | Android JVM unit tests, customer flavour | PASS | 232 tests, 0 failures, 0 errors (includes 13 new `ResolvedSectionsTest`, 5 new `NavPillLayoutTest`) |
 | Android JVM unit tests, staff flavour | PASS | 232 tests, 0 failures, 0 errors |
 | Android lint, both flavours | PASS | BUILD SUCCESSFUL; 0 errors, 70 warnings, 4 hints; no issue points at `NavPill.kt` or any file changed here (the one hit in `OrdersScreen.kt:105` is a pre-existing `AutoboxingStateCreation` hint) |
