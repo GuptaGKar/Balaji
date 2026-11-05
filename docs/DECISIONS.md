@@ -1321,3 +1321,36 @@ fixed app has not been looked at on a device: the A34 is still advertised over m
 `adb connect` returns `Connection refused`, which means the wireless-debugging pairing has to be
 re-established on the handset. The fix is proven at the unit level and the data path at the HTTP
 level; "the customer can now see Diwali Specials" is not a statement this log makes.
+
+## The device closed it, and found one more (2026-11-06)
+
+The paragraph above was written while the handset was unreachable, and it is kept rather than
+deleted - it is what was true at the time. The A34 was then paired and the claim became testable.
+
+**Before-and-after on the same device, same section.** The installed pre-fix build cold-started to
+`Diwali present: False` with the default shelves rendering, while the server was returning the
+section - the reported bug, on a real screen, reproduced before anything was changed. After
+building and installing the fix: the heading renders, "Shop by category" / "From every aisle" /
+"More to explore" are all gone, prices read ₹300 and ₹95 with no decimals while the store card
+still says "₹30.00 delivery", and tapping a composed card opens its details with the pill absent.
+
+**One measurement I got wrong first and corrected.** The footer text appeared to sit behind the
+pill in the first screenshot. It did not: the page was not scrolled to its end. At true max scroll
+the footer ends at 1972 and the pill labels start at 2129 - 157 px clear. A screenshot that looks
+like an overlap is not evidence; the bounds are.
+
+**BUG-025 is why this section exists.** Tapping the composed Cadbury card - the manager placed
+`SKU-3A6BE174`, 1 pc, ₹300 - opened Product details showing ₹10.00, which belongs to
+`CADBURY-5STAR-SOFTER-20` (40 gm) in the same variant family. Two paths compute "this family's
+default variant" differently: `toVariantGroups()` for the rail, `findVariantGroup` plus
+`ProductDetailsScreen` for the destination. It is not fixed, on purpose. The two candidate fixes
+- make one canonical default-variant computation, or make a composed rail open exactly the placed
+product id - have different consequences for the catalogue, the search ranking and the cart, and
+both change money display on a screen the customer buys from. That is the owner's call, not a
+change to slip in under a bug report.
+
+**Pairing note for whoever picks this up:** `adb pair` succeeded and every `adb connect` still
+failed with the port open at TCP level. The cause was that `adb kill-server` was run *after*
+pairing, and the pairing material lives in the daemon. Pair, then connect without restarting the
+daemon, and the mDNS-advertised port works first try. The pairing code is one-time, so a fresh
+code was needed from the handset.

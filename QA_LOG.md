@@ -48,6 +48,7 @@ Result labels: **PASS** (executed, observed), **FAIL** (executed, broke),
 | BUG-022 | S2 | Customer Android | `HomeViewModel.refreshStorefront()` and `CategoriesViewModel.refresh()` were dead code — nothing ever called them. The ViewModels outlive tab changes, so `init` ran once per process: a section published while the app was open could not appear until the app was killed. `CategoriesScreen`'s comment even claimed the tab "refreshes whenever opened", while only reloading the catalogue | FIXED-VERIFIED at compile level — both screens now call the refresh on entry. No test proves the re-entry behaviour (Compose UI test not written) |
 | BUG-023 | S3 | Customer Android | `StorefrontRepository` cached ONE page in a single slot plus a `cachedPage` marker, so Home and Categories evicted each other on every tab switch and the five-minute window never applied across a switch — every switch was a fresh network call | FIXED-VERIFIED — cache keyed by page, plus a mutex for single-flight. 4 new tests: two pages cached independently (2 calls for 3 reads), window holds then expires, `invalidate()` forces a refetch, concurrent reads of one page hit the network once |
 | BUG-024 | S3 | Customer Android | `getProducts` inherited Retrofit's default `limit = 100` and nothing in the app paginates. 89 products are visible to a customer today, so nothing is truncated yet — but past 100 the app silently loses catalogue items, and a product that is not in the catalogue cannot be resolved by the storefront resolver, so a published section would vanish with no error anywhere | PARTIALLY FIXED — raised to a named `CATALOGUE_LIMIT = 1000` with the trap documented. Real fix is paging, which is NOT done |
+| BUG-025 | S2 | Customer Android | **A composed rail card and the product screen it opens can show different prices.** "Diwali Specials" places `SKU-3A6BE174` (1 pc, ₹30000 paise). The card renders ₹300, and tapping it opens Product details showing ₹10.00 — which belongs to `CADBURY-5STAR-SOFTER-20` (40 gm, ₹1000) in the same variant family. `ProductRail` navigates by `group.defaultVariant.id` computed one way, while `MainActivity` re-resolves the group with `findVariantGroup` and `ProductDetailsScreen` picks its default another way. The manager chose a specific pack and the customer lands on a different one | OPEN — found and reproduced on the A34 with the live section, root cause identified, deliberately NOT fixed. Which variant is canonical for a family, and whether a composed rail must open exactly the placed pack, is a product decision that changes money display across the whole app |
 
 ## Executed checks
 
@@ -217,6 +218,23 @@ published (`home / "Diwali Specials" / products / 6 items / active`).
 | Unit tests after the fixes | PASS | 241 tests, 0 failures, 0 errors in both flavours (9 new); both flavours compile |
 | Android lint after the fixes | NOT RUN | the run was cancelled twice; no claim made about it |
 | The fixed app rendering "Diwali Specials" | NOT RUN | the A34 is advertised over mDNS at `10.195.135.210:42609` but `adb connect` gets `Connection refused` — the wireless-debugging pairing has to be redone on the handset, which needs the pairing code from the device. The fix is proven at the unit level and the data path at the HTTP level; the screen itself has not been looked at |
+
+### Device verification after re-pairing (2026-11-06, 02:46–02:52)
+
+The A34 was paired and attached, so the above "NOT RUN" is now closed. Same handset, same session, before and after:
+
+| Step | Result | Measured |
+|---|---|---|
+| Pre-fix build (installed 21:09, versionName 1.12) cold start | **bug reproduced on screen** | `Diwali present: False`; the default shelves "Shop by category" and "From every aisle" rendered instead — while the server was returning the section |
+| Fixed release built 02:46, installed with `-r` (session and data kept) | PASS | `Success`, versionName unchanged, install 5.0s |
+| Composed section renders | PASS | "Diwali Specials" heading at `(45,936)-(372,1003)`; cards Cadbury 5 Star Softer Bar, Everest Mango Pickle, Everest Mixed Pickle |
+| Default shelves replaced | PASS | "Shop by category", "From every aisle" and "More to explore" all absent — composed content takes over the page, as designed |
+| Whole-rupee prices on the composed rail | PASS | ₹300, ₹95, ₹95 — no `.00`, while the store card still reads "₹30.00 delivery" (exact, unchanged) |
+| Tapping a composed card | PASS | reached Product details ("Pack size", "In stock", "Cash on Delivery"), and the pill is absent there |
+| Last row clears the pill at true max scroll | PASS | footer text ends at 1972, pill labels start at 2129 → 157 px clear. An earlier reading of "overlap" was my own error: the page was not scrolled to its end |
+| Categories page (nothing composed there) | PASS | the fallback grid rendered all categories, and "Diwali Specials" did not leak across pages |
+| Price consistency card → details | **FAIL** | card ₹300, details ₹10.00 — logged as BUG-025, not fixed |
+| Android lint after the fixes | NOT RUN | still not re-run; no claim made |
 
 ---
 

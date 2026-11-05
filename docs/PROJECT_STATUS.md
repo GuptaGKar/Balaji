@@ -49,7 +49,11 @@ Postgres functions and RLS; clients only display results.
   used for every on-device check. On 2026-11-05 it carried the nav-pill pass: the
   pill's geometry, the bottom clearance on every tab, the basket bar stacked above
   it and the fallback Home layout against the migrated database all measured
-  correct; the pill is hard to read in the **light** theme (BUG-012).
+  correct; the pill is hard to read in the **light** theme (BUG-012). On 2026-11-06
+  it reproduced BUG-021 on screen with the pre-fix build, then confirmed the fix:
+  "Diwali Specials" renders, the default shelves are replaced, prices show ₹300/₹95
+  without decimals, tapping a card opens its details, and the last row clears the
+  pill by 157 px. It also surfaced BUG-025.
 - **Web:** production build, lint, type-check and a local `next start` are verified.
   A manager login was supplied on 2026-11-05 and the **Storefront** page was driven
   end to end against live data — compose, publish, reorder, hide, re-show, delete —
@@ -127,10 +131,12 @@ found five defects in SQL written earlier in this work stream, a sixth on the pr
 measured the pill correctly: geometry, bottom clearance on every tab, the basket bar stacked above
 it, and its absence on product details and account. The dashboard was driven by a real manager
 session, so composition, ordering, hiding, the concurrency guard and the cascade are proven down
-to the database and the anon payload. What has *still* never been seen: **a composed section on a
-phone screen** — the device dropped off wireless ADB during the pass, and re-pairing needs a code
-from the handset. Also unproven: the pill in the light theme works (BUG-012 says it does not), the
-pill on a tablet, and every other dashboard page. What was executed is in `QA_LOG.md`.
+to the database and the anon payload. The Galaxy A34 has now run the build and confirmed it on
+screen: "Diwali Specials" renders, the default shelves are replaced, whole-rupee prices show, and
+tapping a composed card opens its details. What has *not* been seen: the pill in the light theme
+working (BUG-012 says it does not), the pill on a tablet, and every other dashboard page. A new
+defect surfaced during that pass — a composed card and the product screen it opens disagreeing on
+price (BUG-025). What was executed is in `QA_LOG.md`.
 
 ## 4. Scope
 
@@ -164,7 +170,8 @@ approval), loyalty points and WhatsApp (both need owner policy).
 
 | Problem | Impact | Next step |
 |---|---|---|
-| **A composed section has still never been seen on a phone** | The dashboard writes it, the API returns it and the resolver is unit-tested, but the rendered result is unproven — the one place a customer would notice a mistake | Re-pair the A34 (wireless debugging → pair device → give me the six-digit code), then compose one Home section and run the same scripted pass over the composed state |
+| **Composed sections were not reaching the app at all** | Resolved: the bug was `HomeViewModel` replacing its whole state after the storefront read, and it was reproduced on the A34 before the fix and confirmed gone after (BUG-021, plus BUG-022 dead refresh calls, BUG-023 single-slot cache) | Nothing outstanding on the happy path. Android lint was not re-run for the change |
+| **A composed card and the product screen it opens can disagree on price** (BUG-025) | Verified on the A34: the manager placed a ₹300 pack, the card shows ₹300, tapping it opens details showing ₹10.00 from the same variant family. Two code paths compute "this family's default variant" differently | Owner decision on which variant is canonical and whether a composed rail must open exactly the placed pack. Not fixed unilaterally because it changes money display across the app |
 | **The pill is illegible in the light theme** (BUG-012) | Product names behind the 30 %-opaque pill read through the tab labels, so the navigation looks broken on a light device | Owner decision: keep 0.30 as instructed, or raise `NAV_PILL_ALPHA` in `ui/components/NavPill.kt`. One constant either way |
 | **Storefront write RPCs were executable by `anon`** | Fixed and applied: anon now gets `42501` before the function body on all four writes, while the `get_storefront` read and the manager path both still work (re-probed over REST) | Nothing outstanding; pgTAP 049 keeps it pinned |
 | **CI has never been green** | Every run in the repository's history failed, including `db-tests`, so "check CI" is not the safety net anyone thinks it is. `guards` is the only job that passes | Read the runner log for `db-tests` (needs a GitHub token; the logs API is 403 unauthenticated) and fix the oldest failing suite. The `android` job fails at `setup-android@v3`, before any Gradle runs |
