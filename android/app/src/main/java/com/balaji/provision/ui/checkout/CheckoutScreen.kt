@@ -72,7 +72,11 @@ import com.balaji.provision.ui.cart.CartViewModel
 import com.balaji.provision.ui.cart.OrderPlacementState
 import com.balaji.provision.ui.cart.OrderSummaryCard
 import com.balaji.provision.ui.components.CheckoutStepIndicator
+import com.balaji.provision.ui.components.ClosedPanelPlace
+import com.balaji.provision.ui.components.ClosedStorePanel
 import com.balaji.provision.ui.components.EmptyState
+import com.balaji.provision.ui.components.SlideConfirmState
+import com.balaji.provision.ui.components.SlideToConfirm
 import com.balaji.provision.ui.components.StatusPill
 import com.balaji.provision.ui.components.StickyBottomBar
 import com.balaji.provision.ui.components.SummaryRow
@@ -423,24 +427,65 @@ fun CheckoutScreen(
                 }
 
                 StickyBottomBar {
-                    Button(
-                        onClick = {
-                            when (step) {
-                                1 -> {
-                                    if (selectedAddress == null) {
-                                        coroutineScope.launch {
-                                            snackbarHostState.showSnackbar(
-                                                "Add or select a delivery address."
-                                            )
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        ClosedStorePanel(
+                            storeOpen = homeState.storeOpen,
+                            place = ClosedPanelPlace.Cart
+                        )
+                        if (step < 3) {
+                            // The two intermediate steps only move through the wizard, so they
+                            // stay ordinary buttons. The slide gesture is reserved for the one
+                            // action that cannot be undone by pressing back.
+                            Button(
+                                onClick = {
+                                    when (step) {
+                                        1 -> {
+                                            if (selectedAddress == null) {
+                                                coroutineScope.launch {
+                                                    snackbarHostState.showSnackbar(
+                                                        "Add or select a delivery address."
+                                                    )
+                                                }
+                                            } else {
+                                                step = 2
+                                            }
                                         }
-                                    } else {
-                                        step = 2
+
+                                        2 -> step = 3
                                     }
-                                }
-
-                                2 -> step = 3
-
-                                else -> {
+                                },
+                                enabled = when (step) {
+                                    1 -> canContinueAddress
+                                    else -> canContinuePayment
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(50.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary
+                                )
+                            ) {
+                                Text(
+                                    text = if (step == 1) "Continue to payment" else "Review order",
+                                    style = MaterialTheme.typography.titleSmall
+                                )
+                            }
+                        } else {
+                            SlideToConfirm(
+                                label = "Slide to Place Order",
+                                successLabel = "Order placed",
+                                sublabel = quote?.let { formatPaise(it.grandTotalPaise) },
+                                state = when (placement) {
+                                    is OrderPlacementState.Placing -> SlideConfirmState.Submitting
+                                    is OrderPlacementState.Placed -> SlideConfirmState.Success
+                                    else -> SlideConfirmState.Idle
+                                },
+                                // The store decides whether an order can be taken. A closed store
+                                // used to leave this enabled and let the server reject the tap,
+                                // which reads as a broken app; the panel above says why instead.
+                                enabled = canPlaceOrder && homeState.storeOpen,
+                                onConfirm = {
                                     val address = selectedAddress
                                     if (address == null) {
                                         step = 1
@@ -449,53 +494,24 @@ fun CheckoutScreen(
                                                 "Add or select a delivery address."
                                             )
                                         }
-                                        return@Button
+                                    } else {
+                                        cartViewModel.placeOrder(
+                                            AddressRequest(
+                                                recipient_name = address.recipientName,
+                                                phone = address.phone,
+                                                address_lines = address.addressLines,
+                                                landmark = address.landmark,
+                                                area = address.area,
+                                                city = address.city,
+                                                state = address.state,
+                                                postal_code = address.postalCode,
+                                                lat = address.lat,
+                                                lng = address.lng
+                                            ),
+                                            customerNote.ifBlank { null }
+                                        )
                                     }
-                                    cartViewModel.placeOrder(
-                                        AddressRequest(
-                                            recipient_name = address.recipientName,
-                                            phone = address.phone,
-                                            address_lines = address.addressLines,
-                                            landmark = address.landmark,
-                                            area = address.area,
-                                            city = address.city,
-                                            state = address.state,
-                                            postal_code = address.postalCode,
-                                            lat = address.lat,
-                                            lng = address.lng
-                                        ),
-                                        customerNote.ifBlank { null }
-                                    )
                                 }
-                            }
-                        },
-                        enabled = when (step) {
-                            1 -> canContinueAddress
-                            2 -> canContinuePayment
-                            else -> canPlaceOrder
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        if (isPlacingOrder && step == 3) {
-                            CircularProgressIndicator(
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(22.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Text(
-                                text = when (step) {
-                                    1 -> "Continue to payment"
-                                    2 -> "Review order"
-                                    else -> "Place order"
-                                },
-                                style = MaterialTheme.typography.titleSmall
                             )
                         }
                     }

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -80,6 +81,8 @@ import com.balaji.provision.domain.model.Product
 import com.balaji.provision.domain.model.ProductVariantGroup
 import com.balaji.provision.domain.model.QuantityType
 import com.balaji.provision.domain.model.formatPaise
+import com.balaji.provision.ui.theme.BalajiDesign
+import com.balaji.provision.ui.theme.BalajiText
 import com.balaji.provision.ui.theme.appColors
 import coil.compose.SubcomposeAsyncImage
 
@@ -194,7 +197,15 @@ fun StoreSearchBar(
     }
 }
 
-/** Compact orange ADD pill used on product cards. */
+/**
+ * Compact orange action pill.
+ *
+ * Only the weighted "Choose weight" entry still uses it. Packed products use
+ * [AnimatedAddQuantityControl], which owns the ADD-to-stepper language; keeping two ADD buttons
+ * that animate differently is how a list ends up feeling broken in one rail and fine in another.
+ * The hit box is 40 dp tall inside a 48 dp row - the reference mockup's 32 dp pill was measured
+ * and is below the accessibility floor this app holds to.
+ */
 @Composable
 fun AddPill(
     onClick: () -> Unit,
@@ -205,23 +216,85 @@ fun AddPill(
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.height(32.dp),
-        shape = RoundedCornerShape(8.dp),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp),
+        modifier = modifier.height(BalajiDesign.ControlHeight),
+        shape = RoundedCornerShape(BalajiDesign.RadiusPill),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            horizontal = 16.dp,
+            vertical = 0.dp
+        ),
         colors = ButtonDefaults.buttonColors(
             containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+        ),
+        elevation = ButtonDefaults.buttonElevation(
+            defaultElevation = 0.dp,
+            pressedElevation = 0.dp
         )
     ) {
         Text(
             label,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1
         )
     }
 }
 
-/** White stepper with a grey border and orange controls. */
+/**
+ * The one purchasing control on a product card, and the only place the card decides what its
+ * bottom row looks like.
+ *
+ * It lives on its own fixed-height row rather than beside the price. A 48 dp stepper and a price
+ * do not both fit in a 148 dp rail card, and shrinking the buttons to make them fit would trade a
+ * real touch target for a mockup's proportions - the other failure mode is the card growing a
+ * row taller the moment something is added, which makes a list jump under the thumb.
+ */
+@Composable
+private fun ProductPurchaseControl(
+    product: Product,
+    cartItem: CartItem?,
+    weighted: Boolean,
+    onAdd: () -> Unit,
+    onIncrease: () -> Unit,
+    onDecrease: () -> Unit,
+    onWeight: (() -> Unit)?,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier.height(BalajiDesign.MinTouchTarget),
+        contentAlignment = Alignment.CenterEnd
+    ) {
+        if (weighted) {
+            AddPill(
+                onClick = { onWeight?.invoke() ?: onAdd() },
+                enabled = product.isInStock,
+                label = if (cartItem != null) "Edit" else "Choose weight"
+            )
+        } else {
+            AnimatedAddQuantityControl(
+                quantityBase = cartItem?.qtyBase ?: 0L,
+                stepQty = product.stepQty,
+                onAdd = onAdd,
+                onIncrement = onIncrease,
+                onDecrement = onDecrease,
+                productName = product.name,
+                enabled = product.isInStock,
+                canIncrease = (cartItem?.qtyBase ?: 0L) + product.stepQty <= product.maxOrderQty
+            )
+        }
+    }
+}
+
+/**
+ * The stepper for a line that already exists in the basket.
+ *
+ * This is what the cart uses instead of [AnimatedAddQuantityControl], and the difference is
+ * meaning, not style: on a browse card the control moves between "not in the basket" and "in the
+ * basket", while a cart row only ever changes a quantity - collapsing to ADD at the bottom of a
+ * cart would offer to re-add the line the customer just removed.
+ */
 @Composable
 fun OutlinedQuantityStepper(
     value: Long,
@@ -234,19 +307,22 @@ fun OutlinedQuantityStepper(
     canIncrease: Boolean = true
 ) {
     Surface(
-        modifier = modifier.height(32.dp),
-        shape = RoundedCornerShape(8.dp),
+        modifier = modifier.height(BalajiDesign.ControlHeight),
+        shape = RoundedCornerShape(BalajiDesign.RadiusPill),
         color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        border = BorderStroke(
+            BalajiDesign.CardBorder,
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
+        )
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(2.dp)
+            horizontalArrangement = Arrangement.spacedBy(0.dp)
         ) {
             IconButton(
                 onClick = onDecrease,
                 enabled = canDecrease,
-                modifier = Modifier.size(30.dp)
+                modifier = Modifier.size(BalajiDesign.MinTouchTarget)
             ) {
                 Icon(
                     Icons.Default.Remove,
@@ -256,19 +332,20 @@ fun OutlinedQuantityStepper(
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                     },
-                    modifier = Modifier.size(14.dp)
+                    modifier = Modifier.size(16.dp)
                 )
             }
             Text(
                 text = value.toString(),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
+                style = BalajiText.Quantity,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.widthIn(min = 24.dp)
             )
             IconButton(
                 onClick = onIncrease,
                 enabled = canIncrease,
-                modifier = Modifier.size(30.dp)
+                modifier = Modifier.size(BalajiDesign.MinTouchTarget)
             ) {
                 Icon(
                     Icons.Default.Add,
@@ -278,7 +355,7 @@ fun OutlinedQuantityStepper(
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                     },
-                    modifier = Modifier.size(14.dp)
+                    modifier = Modifier.size(16.dp)
                 )
             }
         }
@@ -301,7 +378,7 @@ fun ProductGridCard(
     val weighted = product.quantityType == QuantityType.WEIGHTED
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(BalajiDesign.RadiusCard),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
@@ -343,17 +420,17 @@ fun ProductGridCard(
 
             Text(
                 text = product.name,
-                style = MaterialTheme.typography.titleSmall,
+                style = BalajiText.ProductName,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
-                    .heightIn(min = 36.dp)
+                    .heightIn(min = 38.dp)
                     .clickable(onClick = onOpenDetails)
             )
             Text(
                 text = product.packLabel,
-                style = MaterialTheme.typography.bodySmall,
+                style = BalajiText.Metadata,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -372,70 +449,51 @@ fun ProductGridCard(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Column {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = formatPaise(product.pricePaise),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        if (product.hasDiscount) {
-                            Text(
-                                text = formatPaise(product.mrpPaise!!),
-                                style = MaterialTheme.typography.bodySmall.copy(textDecoration = TextDecoration.LineThrough),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    if (product.hasDiscount) {
-                        Text(
-                            text = "${product.discountPercent}% OFF",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    if (!product.isInStock) {
-                        Text(
-                            text = "Out of stock",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    } else if (product.isLowStock) {
-                        Text(
-                            text = "Only a few left",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.appColors.warning
-                        )
-                    }
-                }
-
-                when {
-                    weighted -> AddPill(
-                        onClick = { onWeight?.invoke() ?: onAdd() },
-                        enabled = product.isInStock,
-                        label = if (cartItem != null) "EDIT" else "WEIGHT"
-                    )
-                    cartItem != null -> OutlinedQuantityStepper(
-                        value = cartItem.qtyBase,
-                        onDecrease = onDecrease,
-                        onIncrease = onIncrease,
-                        decreaseContentDescription = "Decrease ${product.name}",
-                        increaseContentDescription = "Increase ${product.name}",
-                        canIncrease = cartItem.qtyBase < product.maxOrderQty
-                    )
-                    else -> AddPill(
-                        onClick = onAdd,
-                        enabled = product.isInStock
+                Text(
+                    text = formatPaise(product.pricePaise),
+                    style = BalajiText.Price,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (product.hasDiscount) {
+                    // The badge on the photo already says "15% OFF". Repeating it here is the
+                    // duplication the brief calls out; what belongs beside a price is the old
+                    // price, so the saving is legible as a difference rather than as a slogan.
+                    Text(
+                        text = formatPaise(product.mrpPaise!!),
+                        style = BalajiText.Mrp.copy(textDecoration = TextDecoration.LineThrough),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
+
+            if (!product.isInStock) {
+                Text(
+                    text = "Out of stock",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            } else if (product.isLowStock) {
+                Text(
+                    text = "Only a few left",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.appColors.warning
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            ProductPurchaseControl(
+                product = product,
+                cartItem = cartItem,
+                weighted = weighted,
+                onAdd = onAdd,
+                onIncrease = onIncrease,
+                onDecrease = onDecrease,
+                onWeight = onWeight,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
@@ -462,7 +520,7 @@ fun HorizontalProductCard(
     val weighted = product.quantityType == QuantityType.WEIGHTED
     Card(
         modifier = modifier.width(148.dp),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(BalajiDesign.RadiusCard),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
@@ -502,17 +560,17 @@ fun HorizontalProductCard(
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = product.name,
-                style = MaterialTheme.typography.titleSmall,
+                style = BalajiText.ProductName,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
-                    .heightIn(min = 34.dp)
+                    .heightIn(min = 38.dp)
                     .clickable(onClick = onOpenDetails)
             )
             Text(
                 text = product.packLabel,
-                style = MaterialTheme.typography.bodySmall,
+                style = BalajiText.Metadata,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1
             )
@@ -527,59 +585,45 @@ fun HorizontalProductCard(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Column {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = priceLabel,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        if (product.hasDiscount) {
-                            Text(
-                                // Only read when a discount exists, so the non-null assertion is
-                                // as safe as it was before this line moved.
-                                text = if (wholeRupees) formatRupeesWhole(product.mrpPaise)
-                                else formatPaise(product.mrpPaise!!),
-                                style = MaterialTheme.typography.labelSmall.copy(textDecoration = TextDecoration.LineThrough),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    if (product.hasDiscount) {
-                        Text(
-                            text = "${product.discountPercent}% OFF",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-                when {
-                    weighted -> AddPill(
-                        onClick = { onWeight?.invoke() ?: onAdd() },
-                        enabled = product.isInStock,
-                        label = if (cartItem != null) "EDIT" else "WEIGHT"
-                    )
-                    cartItem != null -> OutlinedQuantityStepper(
-                        value = cartItem.qtyBase,
-                        onDecrease = onDecrease,
-                        onIncrease = onIncrease,
-                        decreaseContentDescription = "Decrease ${product.name}",
-                        increaseContentDescription = "Increase ${product.name}",
-                        canIncrease = cartItem.qtyBase < product.maxOrderQty
-                    )
-                    else -> AddPill(
-                        onClick = onAdd,
-                        enabled = product.isInStock
+                Text(
+                    text = priceLabel,
+                    style = BalajiText.Price,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (product.hasDiscount) {
+                    // One discount statement per card: the badge on the photo says the percent,
+                    // this says what it was before. Both would be noise.
+                    Text(
+                        text = if (wholeRupees) formatRupeesWhole(product.mrpPaise)
+                        else formatPaise(product.mrpPaise!!),
+                        style = BalajiText.Mrp.copy(textDecoration = TextDecoration.LineThrough),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
+
+            if (!product.isInStock) {
+                Text(
+                    text = "Out of stock",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            ProductPurchaseControl(
+                product = product,
+                cartItem = cartItem,
+                weighted = weighted,
+                onAdd = onAdd,
+                onIncrease = onIncrease,
+                onDecrease = onDecrease,
+                onWeight = onWeight,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }

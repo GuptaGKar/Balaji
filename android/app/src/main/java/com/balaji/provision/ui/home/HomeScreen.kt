@@ -27,7 +27,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Store
+import androidx.compose.material.icons.filled.Wallet
+import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -49,9 +53,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.balaji.provision.ui.components.BalajiGlassSurface
+import com.balaji.provision.ui.components.ClosedPanelPlace
+import com.balaji.provision.ui.components.ClosedStorePanel
+import com.balaji.provision.ui.theme.BalajiDesign
+import com.balaji.provision.ui.theme.BalajiText
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.balaji.provision.domain.model.Product
@@ -184,70 +196,18 @@ fun HomeScreen(
             contentPadding = PaddingValues(bottom = navPillReserve(basketBarVisible = cart.items.isNotEmpty()))
         ) {
             item(key = "header") {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable(onClick = onNavigateToAccount)
-                    ) {
-                        Text(
-                            text = "DELIVER TO",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.LocationOn,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text = address?.let { addr ->
-                                    listOfNotNull(addr.label, addr.area ?: addr.city)
-                                        .joinToString(" · ")
-                                } ?: "Set your delivery address",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false)
-                            )
-                            Icon(
-                                Icons.Default.ArrowDropDown,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clickable(onClick = onNavigateToAccount)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                text = initials,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-                    }
-                }
+                HomeBrandHeader(
+                    addressLine = address?.let { addr ->
+                        listOfNotNull(addr.label, addr.area ?: addr.city)
+                            .joinToString(" · ")
+                            .ifBlank { addr.postalCode }
+                    } ?: "Set your delivery address",
+                    initials = initials,
+                    storeOpen = state.storeOpen,
+                    estimatedWindow = state.estimatedWindow,
+                    onOpenAccount = onNavigateToAccount,
+                    onOpenAddress = onNavigateToAccount
+                )
             }
 
             item(key = "search") {
@@ -258,7 +218,30 @@ fun HomeScreen(
                 )
             }
 
+            if (composedSections.isEmpty()) {
+                item(key = "service_tiles") {
+                    HomeServiceTiles(
+                        onlinePaymentEnabled = state.onlinePaymentEnabled,
+                        hasDeliveryPin = !address?.postalCode.isNullOrBlank(),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                    )
+                }
+            }
+
             item(key = "offer") {
+                // Closed: the status panel leads, because "can I order?" is the only question on
+                // the screen for a customer who has just found the shop shut. The manager's
+                // banners stay underneath rather than being hidden - they are real store content
+                // and there is no reason for them to vanish because of the hour.
+                ClosedStorePanel(
+                    storeOpen = state.storeOpen,
+                    place = ClosedPanelPlace.Home,
+                    modifier = Modifier.padding(
+                        start = BalajiDesign.ScreenPadding,
+                        end = BalajiDesign.ScreenPadding,
+                        top = 12.dp
+                    )
+                )
                 HomeOfferCarousel(
                     banners = state.banners,
                     storeOpen = state.storeOpen,
@@ -895,6 +878,240 @@ private fun ShopNowPill(containerColor: Color) {
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(16.dp)
             )
+        }
+    }
+}
+
+/**
+ * What the header badge says.
+ *
+ * Pure because every alternative here is a lie waiting to happen: the mockups show "30-60 min
+ * Delivery" and "Tomorrow, 7-11 AM", and neither is a Balaji fact. Only the store's own
+ * configured window is ever quoted, and only while the store is open; a closed store gets a
+ * status, never a promise about the future, because nothing in this build schedules deliveries.
+ */
+internal fun storeStatusBadgeLabel(storeOpen: Boolean, estimatedWindow: String?): String = when {
+    !storeOpen -> "Store Closed"
+    !estimatedWindow.isNullOrBlank() -> deliveryWindowLabel(estimatedWindow)
+    else -> "Store Open"
+}
+
+/**
+ * The orange brand header: store identity, the delivery location the order will actually use, and
+ * the store's real status.
+ *
+ * The account entry point stays here rather than in the navigation pill. The reference board
+ * shows an `Account` tab, but this build has no top-level account route in the pill's four
+ * destinations, and the header is the only place the profile was reachable from - dropping the
+ * avatar to match the mockup would strand the screen.
+ */
+@Composable
+private fun HomeBrandHeader(
+    addressLine: String,
+    initials: String,
+    storeOpen: Boolean,
+    estimatedWindow: String?,
+    onOpenAccount: () -> Unit,
+    onOpenAddress: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(
+                Brush.verticalGradient(
+                    listOf(BalajiDesign.Primary, BalajiDesign.PrimaryDeep)
+                )
+            )
+            .padding(
+                horizontal = BalajiDesign.ScreenPadding,
+                vertical = 14.dp
+            )
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Balaji",
+                    style = BalajiText.Brand,
+                    color = Color.White
+                )
+                Text(
+                    text = "Provision Store",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.92f)
+                )
+            }
+            Surface(
+                shape = CircleShape,
+                color = Color.White.copy(alpha = 0.22f),
+                modifier = Modifier
+                    .size(44.dp)
+                    .clickable(onClick = onOpenAccount)
+                    .semantics {
+                        contentDescription = "Your account and saved addresses"
+                    }
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = initials,
+                        style = BalajiText.SectionTitle,
+                        color = Color.White
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        BalajiGlassSurface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .clickable(onClick = onOpenAddress),
+            cornerRadius = 14.dp,
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.60f))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(BalajiDesign.InnerGap)
+            ) {
+                Icon(
+                    Icons.Default.LocationOn,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Delivering to",
+                        style = BalajiText.Metadata,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = addressLine,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Icon(
+                    Icons.Default.ArrowDropDown,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                StatusPill(
+                    text = storeStatusBadgeLabel(storeOpen, estimatedWindow),
+                    icon = if (storeOpen) Icons.Default.CheckCircle else Icons.Default.Store,
+                    containerColor = if (storeOpen) {
+                        MaterialTheme.appColors.successContainer
+                    } else {
+                        MaterialTheme.colorScheme.errorContainer
+                    },
+                    contentColor = if (storeOpen) {
+                        MaterialTheme.appColors.onSuccessContainer
+                    } else {
+                        MaterialTheme.colorScheme.onErrorContainer
+                    }
+                )
+            }
+        }
+    }
+}
+
+/**
+ * A capability this build genuinely has, shown in the Home strip.
+ *
+ * The reference board's tiles read "30-60 min", "100% Safe & Hygienic" and "Easy Reorder". Two of
+ * those are claims this app cannot back up - there is no hygiene promise in the data model and no
+ * reorder RPC - so the strip lists what the customer can verify by tapping: how they pay, whether
+ * the address is serviceable, that orders have a trackable history, and that the store confirms
+ * prices. Nothing here is marketing copy about speed.
+ */
+internal data class ServiceTile(val label: String, val detail: String)
+
+internal fun homeServiceTiles(
+    onlinePaymentEnabled: Boolean,
+    hasDeliveryPin: Boolean
+): List<ServiceTile> = buildList {
+    add(
+        if (onlinePaymentEnabled) {
+            ServiceTile("UPI & cards", "Pay online at checkout")
+        } else {
+            ServiceTile("Cash on Delivery", "Pay when it arrives")
+        }
+    )
+    add(
+        if (hasDeliveryPin) {
+            ServiceTile("Delivers here", "Checked against your PIN code")
+        } else {
+            ServiceTile("Set your address", "Charges depend on your PIN")
+        }
+    )
+    add(ServiceTile("Order history", "Every order has a status"))
+    add(ServiceTile("Store-priced", "Prices set by the store, not the app"))
+}
+
+/** The capability strip under search. Hidden entirely once a manager composes the page. */
+@Composable
+private fun HomeServiceTiles(
+    onlinePaymentEnabled: Boolean,
+    hasDeliveryPin: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val tiles = homeServiceTiles(onlinePaymentEnabled, hasDeliveryPin)
+    val icons = listOf(
+        Icons.Default.Wallet,
+        Icons.Default.VerifiedUser,
+        Icons.Default.History,
+        Icons.Default.Store
+    )
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(BalajiDesign.InnerGap)
+    ) {
+        tiles.forEachIndexed { index, tile ->
+            BalajiGlassSurface(
+                modifier = Modifier.weight(1f),
+                cornerRadius = BalajiDesign.RadiusCard,
+                shadowElevation = 0.dp
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        icons[index],
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = tile.label,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        text = tile.detail,
+                        style = BalajiText.Metadata,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
         }
     }
 }
