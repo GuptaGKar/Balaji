@@ -10,6 +10,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -17,6 +19,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -85,8 +88,16 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.SubcomposeAsyncImage
 import com.balaji.provision.domain.model.Category
+import com.balaji.provision.domain.model.Product
+import com.balaji.provision.domain.model.formatPaise
 import com.balaji.provision.ui.catalog.ProductViewModel
+import com.balaji.provision.ui.home.ResolvedCategoryGrid
+import com.balaji.provision.ui.home.ResolvedProductRail
+import com.balaji.provision.ui.home.ResolvedSection
+import com.balaji.provision.ui.home.resolveStorefrontSections
+import com.balaji.provision.ui.home.ungroupedCategoryIds
 import com.balaji.provision.ui.components.categoryColors
+import com.balaji.provision.ui.components.navPillReserve
 import com.balaji.provision.ui.theme.appColors
 import kotlin.math.roundToInt
 
@@ -165,12 +176,16 @@ internal fun catalogueGridMetrics(widthDp: Int): CatalogueGridMetrics = when {
 @Composable
 fun CategoriesScreen(
     productViewModel: ProductViewModel = hiltViewModel(),
+    categoriesViewModel: CategoriesViewModel = hiltViewModel(),
     onNavigateToSearch: (String) -> Unit = {},
-    onOpenCategory: (String) -> Unit = {}
+    onOpenCategory: (String) -> Unit = {},
+    onOpenProduct: (String) -> Unit = {}
 ) {
     val categories by productViewModel.categories.collectAsState()
     val isLoading by productViewModel.isLoading.collectAsState()
     val error by productViewModel.error.collectAsState()
+    val variantGroups by productViewModel.variantGroups.collectAsState()
+    val composedSections by categoriesViewModel.sections.collectAsState()
 
     var query by rememberSaveable { mutableStateOf("") }
 
@@ -223,13 +238,35 @@ fun CategoriesScreen(
                         onAction = { productViewModel.loadData() }
                     )
 
-                    else -> CatalogueContent(
-                        categories = categories,
-                        metrics = metrics,
-                        refreshError = error,
-                        onRetry = { productViewModel.loadData() },
-                        onOpenCategory = onOpenCategory
-                    )
+                    else -> {
+                        // Composed content replaces the flat grid. The tail below is what makes
+                        // that safe: without it, composing six sections out of forty categories
+                        // would leave thirty-four with no way to reach them at all.
+                        val resolved = resolveStorefrontSections(
+                            sections = composedSections,
+                            products = variantGroups.flatMap { group -> group.variants },
+                            categories = categories
+                        )
+                        if (resolved.isEmpty()) {
+                            CatalogueContent(
+                                categories = categories,
+                                metrics = metrics,
+                                refreshError = error,
+                                onRetry = { productViewModel.loadData() },
+                                onOpenCategory = onOpenCategory
+                            )
+                        } else {
+                            ComposedCategoriesContent(
+                                sections = resolved,
+                                allCategories = categories,
+                                metrics = metrics,
+                                refreshError = error,
+                                onRetry = { productViewModel.loadData() },
+                                onOpenCategory = onOpenCategory,
+                                onOpenProduct = onOpenProduct
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -394,7 +431,9 @@ private fun CatalogueContent(
             start = metrics.horizontalPaddingDp.dp,
             end = metrics.horizontalPaddingDp.dp,
             top = 16.dp,
-            bottom = 24.dp
+            // Clears the floating navigation pill, which is drawn over this grid instead of
+            // reserving a strip of its own.
+            bottom = navPillReserve()
         ),
         horizontalArrangement = Arrangement.spacedBy(metrics.gapDp.dp),
         verticalArrangement = Arrangement.spacedBy(metrics.rowGapDp.dp)
@@ -422,6 +461,193 @@ private fun CatalogueContent(
                 onClick = { onOpenCategory(category.id) }
             )
         }
+    }
+}
+
+/**
+ * Composed content for the Categories page.
+ *
+ * Section headings are full-span items in the same grid, so the tiles keep the exact size and
+ * spacing of the default layout - a composed page and a default page should not look like two
+ * different apps.
+ *
+ * The palette index for a tile is taken from [allCategories], not from the section's own slice,
+ * so a category keeps its colour wherever a manager puts it.
+ *
+ * A products section opens the product rather than adding it. This screen has never held the
+ * cart, and wiring the cart in here would mean changing its call site in MainActivity for a
+ * surface whose job is browsing. Adding still happens one tap away, on the product page.
+ */
+@Composable
+private fun ComposedCategoriesContent(
+    sections: List<ResolvedSection>,
+    allCategories: List<Category>,
+    metrics: CatalogueGridMetrics,
+    refreshError: String?,
+    onRetry: () -> Unit,
+    onOpenCategory: (String) -> Unit,
+    onOpenProduct: (String) -> Unit
+) {
+    val tailIds = ungroupedCategoryIds(sections, allCategories)
+    val tailCategories = allCategories.filter { tailIds.contains(it.id) }
+
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(metrics.columns),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = metrics.horizontalPaddingDp.dp,
+            end = metrics.horizontalPaddingDp.dp,
+            top = 16.dp,
+            // Clears the floating navigation pill, which sits over the content rather than
+            // reserving its own space at the bottom of the window.
+            bottom = navPillReserve()
+        ),
+        horizontalArrangement = Arrangement.spacedBy(metrics.gapDp.dp),
+        verticalArrangement = Arrangement.spacedBy(metrics.rowGapDp.dp)
+    ) {
+        if (refreshError != null) {
+            item(key = "refresh-error", span = { GridItemSpan(maxLineSpan) }) {
+                CatalogueRefreshBanner(message = refreshError, onRetry = onRetry)
+            }
+        }
+
+        sections.forEach { section ->
+            item(key = "header_${section.id}", span = { GridItemSpan(maxLineSpan) }) {
+                Column {
+                    Text(
+                        text = section.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    section.subtitle?.let { text ->
+                        Text(
+                            text = text,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            when (section) {
+                is ResolvedCategoryGrid -> items(
+                    items = section.categories,
+                    key = { category -> "${section.id}_${category.id}" }
+                ) { category ->
+                    val (containerColor, contentColor) = categoryColors(
+                        allCategories.indexOf(category).coerceAtLeast(0)
+                    )
+                    CatalogueCategoryTile(
+                        category = category,
+                        containerColor = containerColor,
+                        contentColor = contentColor,
+                        labelFontSize = metrics.labelFontSizeSp.sp,
+                        labelLineHeight = metrics.labelLineHeightSp.sp,
+                        onClick = { onOpenCategory(category.id) }
+                    )
+                }
+
+                is ResolvedProductRail -> item(
+                    key = "${section.id}_rail",
+                    span = { GridItemSpan(maxLineSpan) }
+                ) {
+                    // A scrollable Row rather than LazyRow: this file already imports the grid
+                    // flavour of `items`, and a rail is capped at 30 tiles, so lazy loading buys
+                    // nothing here while a conflicting import would break the file.
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        section.products.forEach { product ->
+                            ComposedProductTile(
+                                product = product,
+                                onClick = { onOpenProduct(product.id) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if (tailCategories.isNotEmpty()) {
+            item(key = "header_ungrouped", span = { GridItemSpan(maxLineSpan) }) {
+                Text(
+                    text = "More categories",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            items(tailCategories, key = { category -> "ungrouped_${category.id}" }) { category ->
+                val (containerColor, contentColor) = categoryColors(
+                    allCategories.indexOf(category).coerceAtLeast(0)
+                )
+                CatalogueCategoryTile(
+                    category = category,
+                    containerColor = containerColor,
+                    contentColor = contentColor,
+                    labelFontSize = metrics.labelFontSizeSp.sp,
+                    labelLineHeight = metrics.labelLineHeightSp.sp,
+                    onClick = { onOpenCategory(category.id) }
+                )
+            }
+        }
+    }
+}
+
+/** A product tile for a composed rail on the browsing page: image and name, and it opens detail. */
+@Composable
+private fun ComposedProductTile(product: Product, onClick: () -> Unit) {
+    // Same rule as the category tile: only a real URL is loaded. A relative path left in the
+    // column would otherwise be handed to the image loader and fail as a network error.
+    val imageUrl = product.imagePath?.takeIf {
+        it.startsWith("http://") || it.startsWith("https://")
+    }
+
+    Column(
+        modifier = Modifier
+            .width(112.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClickLabel = "Open ${product.name}", role = Role.Button, onClick = onClick)
+            .padding(8.dp),
+        horizontalAlignment = Alignment.Start
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(84.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center
+        ) {
+            if (imageUrl != null) {
+                SubcomposeAsyncImage(
+                    model = imageUrl,
+                    contentDescription = product.name,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Outlined.BakeryDining,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Text(
+            text = product.name,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(top = 6.dp)
+        )
+        Text(
+            text = formatPaise(product.pricePaise),
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
@@ -576,7 +802,8 @@ private fun CatalogueLoadingState(metrics: CatalogueGridMetrics) {
             start = metrics.horizontalPaddingDp.dp,
             end = metrics.horizontalPaddingDp.dp,
             top = 16.dp,
-            bottom = 24.dp
+            // Same reserve as the real grid, so the skeleton does not jump when data arrives.
+            bottom = navPillReserve()
         ),
         horizontalArrangement = Arrangement.spacedBy(metrics.gapDp.dp),
         verticalArrangement = Arrangement.spacedBy(metrics.rowGapDp.dp),

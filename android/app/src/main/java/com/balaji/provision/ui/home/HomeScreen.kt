@@ -56,8 +56,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.balaji.provision.domain.model.Product
 import com.balaji.provision.domain.model.ProductVariantGroup
+import com.balaji.provision.domain.model.toVariantGroups
 import com.balaji.provision.domain.model.formatPaise
 import com.balaji.provision.ui.components.MiniCartBar
+import com.balaji.provision.ui.components.NAV_PILL_RESERVE_DP
+import com.balaji.provision.ui.components.navPillReserve
 import com.balaji.provision.ui.components.deliveryWindowLabel
 import androidx.compose.ui.platform.LocalConfiguration
 import com.balaji.provision.ui.account.AccountViewModel
@@ -124,6 +127,18 @@ fun HomeScreen(
     val freshPicks = variedGroups.take(10)
     val moreToExplore = variedGroups.drop(10).take(10)
 
+    // Composed content replaces the default shelves entirely once a manager has made any. With
+    // none - un-migrated database, network failure, or simply nothing composed - this is empty
+    // and every block below renders exactly as it did before the feature existed. Prices and
+    // stock come from the catalogue objects, never from the section payload, which is ids only.
+    val composedSections = remember(state.sections, groups, categories) {
+        resolveStorefrontSections(
+            sections = state.sections,
+            products = groups.flatMap { group -> group.variants },
+            categories = categories
+        )
+    }
+
     var weightProduct by remember { mutableStateOf<Product?>(null) }
     weightProduct?.let { product ->
         val existing = cartItems[product.id]
@@ -157,7 +172,9 @@ fun HomeScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = if (cart.items.isEmpty()) 24.dp else 96.dp)
+            // The navigation pill and the basket bar both float over this list, so the list has
+            // to be scrollable past them or its last row can never be reached.
+            contentPadding = PaddingValues(bottom = navPillReserve(basketBarVisible = cart.items.isNotEmpty()))
         ) {
             item(key = "header") {
                 Row(
@@ -256,7 +273,32 @@ fun HomeScreen(
                 )
             }
 
-            if (visibleCategories.isNotEmpty()) {
+            if (composedSections.isNotEmpty()) {
+                composedSections.forEach { section ->
+                    item(key = "composed_${section.id}") {
+                        ComposedSectionBlock(
+                            section = section,
+                            cartItems = cartItems,
+                            allCategories = visibleCategories,
+                            onOpenCategory = onNavigateToCategory,
+                            onOpenProduct = onNavigateToProduct,
+                            onAdd = { product -> cartViewModel.addItem(product.id, product.minQty) },
+                            onIncrease = { product, qty ->
+                                cartViewModel.updateQuantity(
+                                    product.id,
+                                    (qty + product.stepQty).coerceAtMost(product.maxOrderQty)
+                                )
+                            },
+                            onDecrease = { product, qty ->
+                                cartViewModel.updateQuantity(product.id, qty - product.stepQty)
+                            },
+                            onWeight = { product -> weightProduct = product }
+                        )
+                    }
+                }
+            }
+
+            if (composedSections.isEmpty() && visibleCategories.isNotEmpty()) {
                 item(key = "categories_header") {
                     SectionHeader(
                         title = "Shop by category",
@@ -311,7 +353,7 @@ fun HomeScreen(
                 }
 
                 else -> {
-                    if (freshPicks.isNotEmpty()) {
+                    if (composedSections.isEmpty() && freshPicks.isNotEmpty()) {
                         item(key = "fresh_header") {
                             SectionHeader(
                                 title = "From every aisle",
@@ -343,7 +385,7 @@ fun HomeScreen(
                         }
                     }
 
-                    if (moreToExplore.isNotEmpty()) {
+                    if (composedSections.isEmpty() && moreToExplore.isNotEmpty()) {
                         item(key = "more_header") {
                             SectionHeader(
                                 title = "More to explore",
@@ -408,8 +450,84 @@ fun HomeScreen(
             itemCount = cart.items.size,
             detail = basketHint,
             onClick = onNavigateToCart,
-            modifier = Modifier.align(Alignment.BottomCenter)
+            // Stacked on top of the floating pill rather than behind it: the bar is the only
+            // place the customer sees the running total, and the pill is never scrolled away.
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = NAV_PILL_RESERVE_DP.dp)
         )
+    }
+}
+
+/**
+ * One manager-composed section.
+ *
+ * Column count follows the window, not the device type, so one build lays out correctly on a
+ * phone, a foldable and a tablet. Tiles keep the palette index from the full category list
+ * rather than from the section's own slice, so the same category is the same colour wherever a
+ * manager places it.
+ *
+ * There is deliberately no "See all" action here: the manager chose these exact items in this
+ * order, and a link that jumps to the whole catalogue would undercut that choice.
+ */
+@Composable
+private fun ComposedSectionBlock(
+    section: ResolvedSection,
+    cartItems: Map<String, com.balaji.provision.domain.model.CartItem>,
+    allCategories: List<com.balaji.provision.domain.model.Category>,
+    onOpenCategory: (String) -> Unit,
+    onOpenProduct: (String) -> Unit,
+    onAdd: (Product) -> Unit,
+    onIncrease: (Product, Long) -> Unit,
+    onDecrease: (Product, Long) -> Unit,
+    onWeight: (Product) -> Unit
+) {
+    Column {
+        SectionHeader(
+            title = section.title,
+            subtitle = section.subtitle,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+        when (section) {
+            is ResolvedProductRail -> ProductRail(
+                groups = section.products.toVariantGroups(),
+                cartItems = cartItems,
+                onOpenProduct = onOpenProduct,
+                onAdd = onAdd,
+                onIncrease = onIncrease,
+                onDecrease = onDecrease,
+                onWeight = onWeight
+            )
+
+            is ResolvedCategoryGrid -> {
+                val columns = (LocalConfiguration.current.screenWidthDp / 96)
+                    .toInt()
+                    .coerceIn(4, 6)
+                Column(modifier = Modifier.padding(horizontal = 12.dp)) {
+                    section.categories.chunked(columns).forEach { row ->
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            row.forEach { category ->
+                                val (container, content) = categoryColors(
+                                    allCategories.indexOf(category).coerceAtLeast(0)
+                                )
+                                CategoryShortcut(
+                                    category = category,
+                                    containerColor = container,
+                                    contentColor = content,
+                                    onClick = { onOpenCategory(category.id) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            // Short rows are padded so the last row keeps the same tile width
+                            // instead of stretching three tiles across four slots.
+                            repeat((columns - row.size).coerceAtLeast(0)) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -482,7 +600,7 @@ private fun MoreShortcut(onClick: () -> Unit, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun ProductRail(
+internal fun ProductRail(
     groups: List<ProductVariantGroup>,
     cartItems: Map<String, com.balaji.provision.domain.model.CartItem>,
     onOpenProduct: (String) -> Unit,

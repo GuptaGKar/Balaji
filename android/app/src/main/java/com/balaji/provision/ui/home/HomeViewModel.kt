@@ -7,6 +7,8 @@ import com.balaji.provision.data.network.DeliveryFeeRequest
 import com.balaji.provision.data.network.SupabaseApi
 import com.balaji.provision.data.repository.AccountRepository
 import com.balaji.provision.data.repository.AccountResult
+import com.balaji.provision.data.repository.StorefrontRepository
+import com.balaji.provision.data.repository.StorefrontSection
 import com.balaji.provision.domain.model.formatPaise
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,13 +44,20 @@ data class HomeUiState(
     val banners: List<HomeBanner> = emptyList(),
     val deliveryText: String? = null,
     val onlinePaymentEnabled: Boolean = false,
+    /**
+     * Manager-composed sections for this page. Empty means nothing was composed, or the store
+     * has not been migrated, or the network failed - all three of which must show today's
+     * built-in layout rather than a blank screen.
+     */
+    val sections: List<StorefrontSection> = emptyList(),
     val error: String? = null
 )
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val api: SupabaseApi,
-    private val accountRepository: AccountRepository
+    private val accountRepository: AccountRepository,
+    private val storefrontRepository: StorefrontRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeUiState())
@@ -56,6 +65,26 @@ class HomeViewModel @Inject constructor(
 
     init {
         loadStoreInfo()
+        loadStorefront()
+    }
+
+    /**
+     * Composed content is ids only, so nothing about price or stock is fetched here - the
+     * catalogue already loaded elsewhere supplies both.
+     */
+    private fun loadStorefront(force: Boolean = false) {
+        viewModelScope.launch {
+            val sections = storefrontRepository.sectionsFor(page = "home", force = force)
+            _state.value = _state.value.copy(sections = sections)
+        }
+    }
+
+    /**
+     * Called when Home is re-entered. The repository decides whether that is actually a refresh
+     * based on how long ago it last fetched, so coming back from a product does not re-request.
+     */
+    fun refreshStorefront() {
+        loadStorefront(force = false)
     }
 
     fun loadStoreInfo() {
