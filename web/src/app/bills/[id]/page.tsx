@@ -9,13 +9,16 @@ import { ArrowLeft, ReceiptText } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-export default async function CustomerBillPage({ params }: { params: { id: string } }) {
+export default async function CustomerBillPage({ params }: { params: Promise<{ id: string }> }) {
+  // Next.js 15 passes route params as a Promise in server components. Reading it synchronously
+  // type-errors and fails the build, so unwrap it once here and use `billId` below.
+  const { id: billId } = await params;
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect(`/login?redirect=${encodeURIComponent(`/bills/${params.id}`)}`);
+  if (!user) redirect(`/login?redirect=${encodeURIComponent(`/bills/${billId}`)}`);
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -24,14 +27,14 @@ export default async function CustomerBillPage({ params }: { params: { id: strin
     .maybeSingle();
 
   if (profile?.role === "staff" || profile?.role === "manager") {
-    redirect(`/billing/${params.id}`);
+    redirect(`/billing/${billId}`);
   }
   if (profile?.role !== "customer") {
     redirect("/login");
   }
 
   const { data, error } = await supabase.rpc("get_bill", {
-    p_bill_id: params.id,
+    p_bill_id: billId,
   });
   const payload = data as (BillData & { error?: string; message?: string }) | null;
   const unavailable = error || !payload || payload.error;
