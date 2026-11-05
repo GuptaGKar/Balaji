@@ -1,6 +1,6 @@
 # Balaji Provision Store — Project Status
 
-_Last updated: 2026-10-29. This file is the single place that describes what the
+_Last updated: 2026-11-05 (section 3.5). This file is the single place that describes what the
 system is, what changed recently, what is proven, and what is still open. It
 complements `docs/DECISIONS.md` (why), `docs/IMPLEMENTATION_PLAN.md` (the original
 plan) and `QA_LOG.md` (test evidence)._
@@ -25,7 +25,12 @@ Postgres functions and RLS; clients only display results.
   bumped to 1.8 / 9) before distribution.
 - **Distribution route:** direct signed APK (D-DIST). No Play upload work is planned.
 - **Database:** migrations through `20261029000002_pincode_delivery_pricing.sql`
-  are applied on the live project. `supabase/tests` (pgTAP) have **never been
+  are applied on the live project (plus `20261103000003_area_suggestions.sql`,
+  applied with owner approval). The two storefront migrations written on
+  2026-11-05 — `20261105000001_storefront_sections.sql` and
+  `20261105000002_product_category_assignment.sql` — are **not applied**: applying
+  one to the live project is a production change and needs explicit approval.
+  `supabase/tests` (pgTAP) have **never been
   executed** in this environment: no Docker socket and no local Postgres.
 - **Device:** a physical Samsung Galaxy A34 (Android 16 / SDK 36) is connected and
   used for every on-device check.
@@ -83,6 +88,24 @@ Postgres functions and RLS; clients only display results.
   and runs pgTAP.
 - Old APKs (1.4, 1.5) removed; 1.6 kept for the in-app updater test.
 
+### 3.5 Section-driven storefront, multi-category products and the floating pill (2026-11-05)
+
+| Layer | Change |
+|---|---|
+| Database | `20261105000001_storefront_sections.sql` adds `storefront_sections`, `storefront_section_items` and `product_categories`, cap triggers (20 sections per page, 30 items per section), RLS and four `SECURITY INVOKER` RPCs: `get_storefront`, `save_storefront_section`, `reorder_storefront_sections`, `delete_storefront_section`. `20261105000002_product_category_assignment.sql` adds `set_product_categories` plus triggers that keep `products.category_id` in sync as the PRIMARY category and refuse to blank it. **Neither is applied.** |
+| Web dashboard | New `/storefront` page: compose Home and Categories sections, add/rename/reorder/deactivate/delete them, pick products or categories in an item picker, preview. `catalogue/ProductsTab` gained a multi-category editor with one radio marking the primary category. |
+| Android data | `SupabaseApi.getStorefront` plus DTOs; `StorefrontRepository` with one shared five-minute cache window per page, degrading to "no sections" on any failure; `Product.categoryIds`; a three-tier catalogue select (newest column set → fewer columns → oldest) so an unmigrated database still loads; `PriceFormat` for whole-rupee text on the new surfaces only. |
+| Android UI | Home and Categories render composed sections through `resolveStorefrontSections`, which drops ids that no longer resolve, drops products that are inactive, out of stock or below their minimum quantity, and hides any section left with nothing to draw. Categories appends a "More categories" tail so no active category can be stranded by composition. With zero sections both pages keep the previous automatic layout. |
+| Navigation | The customer tab strip is replaced by a floating pill (`ui/components/NavPill.kt`): surface at 30 % opacity, 1 dp outline, shadow, 480 dp max width, 48 dp touch targets. Because it overlays rather than reserves space, Home / Categories / Catalog / Orders / Basket clear `navPillReserve()` and `MiniCartBar` stacks on top of it. The staff app keeps its own navigation. |
+
+**Money handling is unchanged.** Paise stays paise end to end; whole-rupee display appears only
+on the new surfaces, through one helper per platform (`web/src/lib/money.ts`,
+`ui/components/PriceFormat.kt`).
+
+**None of this has been seen running.** The migrations are unapplied, so the dashboard cannot
+save a section and the apps cannot fetch one; pgTAP 045–048 were never executed; the pill has
+not been looked at on a device. What was executed is in `QA_LOG.md`.
+
 ## 4. Scope
 
 **In scope, delivered:** the repairs and features above, the staff/rider proof
@@ -91,7 +114,9 @@ and verification, CI wiring, documentation.
 
 **In scope, not finished:** rider-only delivery path verification, cancel/stock
 restore verification, web dashboard functional pass, pgTAP execution, version bump
-and regenerated `releases/`.
+and regenerated `releases/`. From 3.5: applying the two storefront migrations, the
+pgTAP run behind them, and every on-device or on-dashboard check of the composed
+storefront and the nav pill.
 
 **Out of scope / parked:** UPI or any online payment (stays gated), refunds,
 payment webhooks, Play Store submission, continuous GPS tracking (needs explicit
@@ -113,6 +138,7 @@ approval), loyalty points and WhatsApp (both need owner policy).
 
 | Problem | Impact | Next step |
 |---|---|---|
+| **Storefront migrations unapplied** | Section composition cannot be used or tested for real; the new Android code only ever sees the zero-section fallback | Owner approval to apply `20261105000001` and `20261105000002`, then one dashboard pass and one device pass |
 | **pgTAP never executed** (no Docker/Postgres here) | The backend is only proven through device flows; regressions in RLS/pricing would be caught late | Push to trigger the CI `db-tests` job, or give a staging database URL |
 | **No manager web login** | Dashboard pages (catalogue, coupons, requests, settings) are verified only by build + route protection | Provide an email/password for the web app |
 | **Rider path unproven** | `rider_update_status` and the rider-side delivery proof have not been exercised end-to-end | Assign order to `KART`, switch the staff app session, upload proof, deliver |

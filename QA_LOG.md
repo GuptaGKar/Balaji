@@ -68,3 +68,30 @@ Result labels: **PASS** (executed, observed), **FAIL** (executed, broke),
 | Rotation / font scale / process death sweep | Not executed |
 | Offline / airplane-mode recovery | Not executed |
 | Concurrency (last unit, double cancel) | No database access |
+
+---
+
+## Executed checks — storefront sections, multi-category products, nav pill (2026-11-05)
+
+Everything below was run in this session on this machine. Commands and results are stated as
+observed, not as expected.
+
+| Check | Result | Evidence |
+|---|---|---|
+| Kotlin compile, both flavours (`:app:compileCustomerDebugKotlin`, `:app:compileStaffDebugKotlin`) | PASS | BUILD SUCCESSFUL, 0 errors |
+| Android JVM unit tests, customer flavour | PASS | 232 tests, 0 failures, 0 errors (includes 13 new `ResolvedSectionsTest`, 5 new `NavPillLayoutTest`) |
+| Android JVM unit tests, staff flavour | PASS | 232 tests, 0 failures, 0 errors |
+| Android lint, both flavours | PASS | BUILD SUCCESSFUL; 0 errors, 70 warnings, 4 hints; no issue points at `NavPill.kt` or any file changed here (the one hit in `OrdersScreen.kt:105` is a pre-existing `AutoboxingStateCreation` hint) |
+| `scripts/check_guards.sh` | PASS | "no minimum-order concept; no hard-coded thresholds outside seed/tests" |
+| `npm --prefix web test` | PASS | 43 tests, 43 pass, 0 fail |
+| `python3 -m unittest discover -s scripts/tests` | PASS | 8 tests, OK |
+| `npm --prefix web run format:check` | PASS | "All matched files use Prettier code style!" |
+| `npm --prefix web run type-check` | FAIL — pre-existing | 11 `react-hook-form` generic errors in `ProductsTab`, `CategoriesTab`, `settings`, `service-areas`. Verified not introduced here: the three in `ProductsTab.tsx` sit on constructs (`useForm<Product>`, `resolver: zodResolver(productSchema)`, two `form={form}`) that already existed at `59e7495~1`, and the identical error shape appears in `CategoriesTab.tsx`, which this work stream never touched. `next build` therefore still fails at HEAD. |
+| pgTAP suites 045–048 | NOT RUN | No Docker socket and no local Postgres. These four suites are the only proof of the storefront constraints, caps, RLS and RPC bodies, and none of that SQL has ever executed. CI `db-tests` is the first place it will run. |
+| Migrations `20261105000001`, `20261105000002` | NOT APPLIED | Applying to the live project needs owner approval (AGENTS rule 11). |
+| Storefront dashboard page opened with real data | NOT RUN | No manager web login supplied, and the tables behind it do not exist yet. |
+| Composed section seen in the app | NOT RUN | Needs the migrations applied. The apps have only ever executed the zero-section fallback path, and only inside unit tests — not a launch. |
+| Nav pill on a device (over a busy page, with `MiniCartBar`, light/dark, phone and tablet) | NOT RUN | No device attached at the end of this session (`adb devices` empty). The pill is a layout change proven only by its geometry constants. |
+| Airplane-mode cached layout, then fallback | NOT RUN | Needs a device and applied migrations. |
+| Multi-category product visible under both categories, once in All products | NOT RUN | Needs the migrations applied. |
+| 21st section and 31st item refused | NOT RUN | Trigger bodies have never executed. |

@@ -1000,3 +1000,71 @@ and a successful one writes section and items in one call.
 **`NAV_PILL_ALPHA` = 0.30f**, owner-confirmed on 2026-11-05. The brief's wording was "70%
 transparency of pill background"; the owner chose 30% opaque, i.e. 70% see-through. It is a
 single named constant so the reading can be flipped without touching layout.
+
+## Storefront implementation decisions: phases 2-5 (2026-11-05)
+
+Decisions taken while building the dashboard editor, the Android rendering and the nav pill.
+None of them changes the money path.
+
+**The four storefront RPCs are `SECURITY INVOKER`, not `SECURITY DEFINER`.** They were first
+written as DEFINER, which is the house style for `place_order` and friends - but those exist to
+act *as the owner* on rows the caller may not touch. A section save does nothing the manager
+RLS policy on `storefront_sections` does not already allow, so DEFINER would have added a
+privilege bypass and no capability: any authenticated caller could write sections, because the
+function ignores policies. INVOKER means RLS is the only authority, and the function's own
+`current_role() = 'manager'` guard is a readable error message rather than the security
+boundary. Same reasoning for `set_product_categories`.
+
+**`product_categories` writes are manager-only.** A staff write policy was drafted (a store
+associate re-categorising stock is a plausible ask) and removed before commit: the matching
+`products_write_manager` policy is manager-only, so staff would have been able to change
+*additional* memberships while being unable to move `products.category_id`, the primary. That
+pair is worse than no access - the sync trigger would let a half-edit stand. Widening staff
+write access is a live-authority change and needs its own decision, not a side effect.
+
+**`get_storefront` returns ids only** (`product_id` / `category_id`, order, title, subtitle).
+Prices, stock and availability come from the catalogue the app already loads. A section can
+therefore never present a stale or invented amount, and a cached section cannot survive into a
+price change.
+
+**The Categories page appends a "More categories" tail.** If composition only drew the
+categories a manager placed, a store with forty categories and six composed would leave
+thirty-four with no path to their products at all. The tail lists every active category no
+section placed, and disappears when everything is placed. Home has no tail because Home is
+supposed to be curated.
+
+**The pill appears only on the four tabs and the product listing, and the old full-width strip
+was deleted rather than kept for staff.** An overlay reserves nothing, so every screen under it
+must add the reserve itself; that is tractable for five screens and not for the twelve full-screen
+flows (checkout, account, order tracking, requests, favourites, legal...) the strip used to sit
+under automatically. Showing no pill on a flow can hide nothing; showing one on a screen that
+forgot to reserve it silently makes its last row unreachable. On the staff side: `CustomerShell`
+is only rendered when `IS_STAFF` is false (`MainAppScreen` routes staff to `StaffApp`, which owns
+its navigation), so a staff-only branch in that shell would be unreachable code that reads like a
+supported path. `BottomNavigationBar` was removed with it.
+
+**Three-tier catalogue select in `ProductViewModel`.** The newest select asks for
+`category_ids`; on HTTP 400 it retries with the same select minus that column, then with the
+oldest column set. The storefront feature ships ahead of its migration being applied, and the
+alternative - a single select referencing a column the live database does not have yet - fails
+the entire catalogue, i.e. the whole app, on launch.
+
+**`set_product_categories` went into `20261105000002` instead of being appended to `...000001`.**
+Both were unapplied when written, so appending would have worked; the split is kept because the
+first migration is the storefront feature and the second changes product-category membership,
+which is the part a reviewer should be able to roll back or approve on its own.
+
+**`web` type-check still fails, and nothing here fixed it or hid it.** Eleven
+`react-hook-form` generic errors remain across `ProductsTab`, `CategoriesTab`, `settings` and
+`service-areas`; `next build` therefore still fails. Three of them sit in `ProductsTab.tsx`,
+which this work stream edited, so they were checked rather than assumed: the same three
+constructs (`useForm<Product>`, `resolver: zodResolver(productSchema)`, two `form={form}`
+props) already existed at `59e7495~1`, before the multi-category editor, and the identical
+error appears in `CategoriesTab.tsx`, which was not touched. `format:check` and `lint` are
+clean and the 43-test node suite passes.
+
+**Not verified.** pgTAP 045-048 were never executed (no Docker, no local Postgres). Neither
+storefront migration was applied. No composed section has been seen on a screen, in the
+dashboard or in the app, and the pill has not been looked at on a device. Both apps can only
+have run the zero-section fallback, which is the path that was tested - and only as unit
+tests, not as a launch.
