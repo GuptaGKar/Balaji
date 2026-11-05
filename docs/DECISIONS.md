@@ -1129,3 +1129,40 @@ One genuinely new fact did come out of the run: `supabase db start` succeeded, s
 migrations apply cleanly to a fresh database, which had never been established. The runner logs
 themselves could not be read from here - the logs API is 403 unauthenticated and there is no `gh`
 or token on this machine - so no claim is made about which suite fails in CI.
+
+## Supabase grants EXECUTE on every new function to PUBLIC and anon (2026-11-05)
+
+Discovered while probing the applied storefront RPCs from the outside, and the reason for
+`20261105000003_storefront_write_privileges.sql` (logged as BUG-011).
+
+`20261105000001` ended with `GRANT EXECUTE ON FUNCTION public.save_storefront_section(...) TO
+authenticated` and read like a restriction. It restricted nothing. Supabase provisions functions
+with EXECUTE already granted to PUBLIC and to anon, so that statement added a grantee to a set
+that was already open: `has_function_privilege('anon', 'save_storefront_section(...)', 'EXECUTE')`
+measured **true** on the live project for all four write RPCs.
+
+**It was not exploitable, and the migration is hygiene, not an incident.** Verified against the
+live database, not inferred: an anonymous `save_storefront_section` call reached the body and was
+turned away by the `current_role()` guard; an anonymous `set_product_categories` call died at
+`42501 permission denied for table products`. Counting rows afterwards gave the same 0 sections
+and 186 memberships. The second and third layers held. The first layer was simply not there.
+
+**Decisions inside 20261105000003.**
+
+- Revoke EXECUTE from PUBLIC and anon on the four write RPCs, re-grant to `authenticated` and
+  `service_role`. Signatures go through `to_regprocedure` and the migration raises if a name does
+  not resolve, so a later signature change cannot leave a stale grant behind (AGENTS rule 15).
+- `get_storefront` stays executable by anon. The customer app renders a composed Home page for a
+  signed-out shopper, and the read policies already limit it to active rows. The migration
+  asserts this at apply time rather than trusting it.
+- **No `current_role()` guard added to `set_product_categories`.** It looks inconsistent with its
+  three siblings, but 42501 is the stronger boundary - a table privilege, not a policy sentence -
+  and suite 048's S48-16 already pins that error code. A guard would trade a hard stop for a
+  nicer message and change a test that exists to prove authority.
+- `service_role` is asserted, not assumed: the dashboard's server-side client authenticates as it,
+  so a revoke there would have broken manager saves while protecting nothing.
+
+**A limitation of running these suites against production, stated before it bites anyone.** 045
+and 047 insert up to 21 sections on one page to prove the caps, so they only hold while
+`storefront_sections` is close to empty. Once the owner composes sections, they must run on a
+fresh database - which in turn means repairing the `db-tests` CI job first.

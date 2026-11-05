@@ -36,6 +36,9 @@ Postgres functions and RLS; clients only display results.
   `supabase/tests` 045–048 have now been executed against that live database in a
   rolled-back transaction; the earlier suites (001–044) have still never been run
   in this environment — no Docker socket and no local Postgres.
+  `20261105000003_storefront_write_privileges.sql` (BUG-011: Supabase had left all
+  four storefront write RPCs executable by `anon`) is written, dry-run green with
+  pgTAP 049, and **not applied** — it needs owner approval.
 - **Device:** a physical Samsung Galaxy A34 (Android 16 / SDK 36) is connected and
   used for every on-device check.
 - **Web:** production build, lint, type-check and a local `next start` are verified;
@@ -145,6 +148,7 @@ approval), loyalty points and WhatsApp (both need owner policy).
 
 | Problem | Impact | Next step |
 |---|---|---|
+| **Storefront write RPCs are executable by `anon` on the live project** | Not exploitable — the role guard and the table privileges both refuse the call and were verified to write nothing — but the first layer of the boundary is missing (BUG-011) | Approve applying `20261105000003_storefront_write_privileges.sql`; pgTAP 049 already proves the fix and that managers and anon reads keep working |
 | **CI has never been green** | Every run in the repository's history failed, including `db-tests`, so "check CI" is not the safety net anyone thinks it is. `guards` is the only job that passes | Read the runner log for `db-tests` (needs a GitHub token; the logs API is 403 unauthenticated) and fix the oldest failing suite. The `android` job fails at `setup-android@v3`, before any Gradle runs |
 | **Storefront feature is un-exercised end to end** | The schema and RPCs pass pgTAP, but no manager has composed a section and no device has rendered one, so the customer-visible behaviour is still unproven | A manager web login and a device, then one composed Home section and one Categories section |
 | **pgTAP never executed** (001–044; no Docker/Postgres here) | The rest of the backend is only proven through device flows; regressions in RLS/pricing would be caught late | Pushing will not help until the `db-tests` job itself is fixed (see above). Either repair CI or run the same suites with `scripts/verify_migration_live.py`, which applies a migration and a suite to the live database inside one transaction and rolls it back - the way 045–048 were finally executed. |
