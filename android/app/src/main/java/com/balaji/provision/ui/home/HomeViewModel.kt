@@ -111,7 +111,13 @@ class HomeViewModel @Inject constructor(
                         thresholdPaise = settings.delivery_charge_threshold_paise,
                         freeThresholdPaise = settings.free_delivery_threshold_paise
                     )
-                _state.value = HomeUiState(
+                // copy(), never a fresh HomeUiState(): this load runs alongside the storefront
+                // read in init(), and a new state object would reset `sections` to its default
+                // empty list. The settings path makes more round trips, so it usually lands last
+                // - which is why a published section never appeared on screen even though the
+                // server was returning it. The error branch below already copied; this one
+                // silently did not.
+                _state.value = _state.value.copy(
                     isLoading = false,
                     storeOpen = settings.store_open,
                     contactPhone = settings.contact_phone,
@@ -119,7 +125,8 @@ class HomeViewModel @Inject constructor(
                     hours = parseHours(weeklyHours),
                     banners = parseBanners(weeklyHours),
                     deliveryText = deliveryLine,
-                    onlinePaymentEnabled = settings.online_payment_enabled
+                    onlinePaymentEnabled = settings.online_payment_enabled,
+                    error = null
                 )
             } catch (e: Exception) {
                 _state.value = _state.value.copy(

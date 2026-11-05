@@ -133,20 +133,23 @@ class ProductViewModel @Inject constructor(
         val withMembership = api.getProducts(
             apiKey = anonKey,
             auth = "Bearer $anonKey",
-            select = PRODUCT_SELECT_WITH_MEMBERSHIP
+            select = PRODUCT_SELECT_WITH_MEMBERSHIP,
+            limit = CATALOGUE_LIMIT
         )
         if (withMembership.isSuccessful || withMembership.code() != 400) return withMembership
 
         val withVariants = api.getProducts(
             apiKey = anonKey,
-            auth = "Bearer $anonKey"
+            auth = "Bearer $anonKey",
+            limit = CATALOGUE_LIMIT
         )
         if (withVariants.isSuccessful || withVariants.code() != 400) return withVariants
 
         return api.getProducts(
             apiKey = anonKey,
             auth = "Bearer $anonKey",
-            select = LEGACY_PRODUCT_SELECT
+            select = LEGACY_PRODUCT_SELECT,
+            limit = CATALOGUE_LIMIT
         )
     }
 
@@ -302,6 +305,18 @@ class ProductViewModel @Inject constructor(
 
         /** Column list used before the category-images migration is applied. */
         const val LEGACY_CATEGORY_SELECT = "id,name,slug,sort_order,active"
+
+        /**
+         * How many products one read returns. The Retrofit default was 100 and nothing in the app
+         * paginates, so a store that grows past 100 sellable products silently loses the rest -
+         * including any that a manager had just placed on the Home page, which would make a
+         * published section vanish with no error anywhere. 89 products are visible today, so this
+         * is a ceiling being raised before it bites, not a live outage.
+         *
+         * The real fix is paging; this one is honest about the limit instead of inheriting a
+         * default that reads like a page size.
+         */
+        const val CATALOGUE_LIMIT = 1000
 
         /** Column list used before the variant-grouping migration is applied. */
         const val LEGACY_PRODUCT_SELECT =

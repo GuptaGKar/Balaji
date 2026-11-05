@@ -118,6 +118,13 @@ fun HomeScreen(
     // the free-delivery hint below never disagrees with them.
     LaunchedEffect(address?.postalCode) { cartViewModel.setDeliveryPin(address?.postalCode) }
 
+    // Composed content is re-read whenever Home is entered. The repository decides whether that
+    // is actually a request based on how long ago it last fetched, so coming back from a product
+    // costs nothing - but a section a manager published while the app was open now shows up on
+    // the next visit instead of after a process restart. Without this call nothing ever re-read
+    // the storefront: init() ran once per ViewModel and the ViewModel survives tab changes.
+    LaunchedEffect(Unit) { viewModel.refreshStorefront() }
+
     val categoryIds = groups.map { it.categoryId }.toSet()
     val visibleCategories = categories.filter { it.id in categoryIds }
     val inStockGroups = groups.filter { group -> group.variants.any { it.isInStock } }

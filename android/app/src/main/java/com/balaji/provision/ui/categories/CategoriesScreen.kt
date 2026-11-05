@@ -194,6 +194,10 @@ fun CategoriesScreen(
     // model collapses overlapping requests into one fetch.
     LaunchedEffect(Unit) {
         productViewModel.loadData()
+        // The composed sections need the same treatment or this comment only told half the
+        // truth: the catalogue reloaded, while the manager's layout stayed whatever init()
+        // happened to fetch when this ViewModel was first created.
+        categoriesViewModel.refresh()
     }
 
     BoxWithConstraints(

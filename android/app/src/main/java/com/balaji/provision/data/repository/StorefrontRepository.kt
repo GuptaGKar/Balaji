@@ -7,6 +7,8 @@ import com.balaji.provision.data.network.StorefrontSectionResponse
 import com.balaji.provision.data.network.SupabaseApi
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** A composed section, resolved from the server's ids-only payload. */
 data class StorefrontSection(
@@ -33,13 +35,28 @@ class StorefrontRepository @Inject constructor(
     private val authRepository: AuthRepository
 ) {
 
-    private class Cache(val fetchedAtMillis: Long, val sections: List<StorefrontSection>)
+    private class Cache(
+        val page: String,
+        val fetchedAtMillis: Long,
+        val sections: List<StorefrontSection>
+    )
 
+    /**
+     * Keyed by page. A single slot made Home and Categories evict each other on every tab
+     * switch, so the cache never served either page twice and the five-minute window was
+     * meaningless - the only time it helped was re-entering the same page back to back.
+     * Replaced wholesale rather than mutated, because the two pages can be requested at once.
+     */
     @Volatile
-    private var cache: Cache? = null
+    private var cache: Map<String, Cache> = emptyMap()
 
-    @Volatile
-    private var cachedPage: String? = null
+    /**
+     * Home's first paint and its re-entry refresh can easily overlap - init() reads the page at
+     * the same moment the LaunchedEffect that re-enters it does. Without a single flight the
+     * customer pays for two identical requests, so the second one waits and reads the cache the
+     * first wrote.
+     */
+    private val fetchMutex = Mutex()
 
     /**
      * Sections for [page], or an empty list meaning "use the built-in layout".
@@ -48,46 +65,47 @@ class StorefrontRepository @Inject constructor(
      * the apps must then look exactly as they did before this feature existed. A network error or
      * an un-migrated database also yields empty, so the shelf is never blank because of us.
      */
-    suspend fun sectionsFor(page: String, force: Boolean = false): List<StorefrontSection> {
-        val current = cache
-        if (current != null && isFresh(cachedPage, page, current.fetchedAtMillis, clock(), force)) {
-            return current.sections
+    suspend fun sectionsFor(page: String, force: Boolean = false): List<StorefrontSection> =
+        fetchMutex.withLock {
+            // Re-checked inside the lock: a concurrent call for the same page may have finished
+            // and populated the cache while this one was waiting on it.
+            val current = cache[page]
+            if (current != null && isFresh(current.page, page, current.fetchedAtMillis, clock(), force)) {
+                return@withLock current.sections
+            }
+
+            // Signed in, the request carries the customer's JWT; signed out it carries the anon key.
+            // Either way RLS answers with active sections only, so this cannot expose a draft.
+            val token = runCatching { authRepository.authorizedToken() }.getOrNull()
+                ?: BuildConfig.SUPABASE_ANON_KEY
+
+            val response = try {
+                api.getStorefront(
+                    apiKey = BuildConfig.SUPABASE_ANON_KEY,
+                    auth = "Bearer $token",
+                    body = StorefrontRequest(p_page = page)
+                )
+            } catch (e: Exception) {
+                // No network, no DNS, no parse: keep whatever we last showed rather than clearing it.
+                return@withLock current?.sections.orEmpty()
+            }
+
+            if (!response.isSuccessful) {
+                // 400 here normally means migration 20261105000001 has not been applied to this
+                // database. That is the expected state for an un-migrated store, not an error to
+                // show the customer, so it resolves to the built-in layout.
+                return@withLock current?.sections.orEmpty()
+            }
+
+            val body = response.body().orEmpty()
+            val sections = body.mapNotNull { it.toDomain() }
+            cache = cache + (page to Cache(page, clock(), sections))
+            sections
         }
-
-        // Signed in, the request carries the customer's JWT; signed out it carries the anon key.
-        // Either way RLS answers with active sections only, so this cannot expose a draft.
-        val token = runCatching { authRepository.authorizedToken() }.getOrNull()
-            ?: BuildConfig.SUPABASE_ANON_KEY
-
-        val response = try {
-            api.getStorefront(
-                apiKey = BuildConfig.SUPABASE_ANON_KEY,
-                auth = "Bearer $token",
-                body = StorefrontRequest(p_page = page)
-            )
-        } catch (e: Exception) {
-            // No network, no DNS, no parse: keep whatever we last showed rather than clearing it.
-            return current?.sections.orEmpty()
-        }
-
-        if (!response.isSuccessful) {
-            // 400 here normally means migration 20261105000001 has not been applied to this
-            // database. That is the expected state for an un-migrated store, not an error to
-            // show the customer, so it resolves to the built-in layout.
-            return current?.sections.orEmpty()
-        }
-
-        val body = response.body().orEmpty()
-        val sections = body.mapNotNull { it.toDomain() }
-        cache = Cache(clock(), sections)
-        cachedPage = page
-        return sections
-    }
 
     /** Drops the cache so the next read goes to the server, used when the app is re-entered. */
     fun invalidate() {
-        cache = null
-        cachedPage = null
+        cache = emptyMap()
     }
 
     /** Overridable so the TTL rule is testable without waiting five minutes. */
