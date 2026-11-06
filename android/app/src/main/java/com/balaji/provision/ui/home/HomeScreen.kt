@@ -919,8 +919,13 @@ private fun HomeBrandHeader(
         modifier = modifier
             .fillMaxWidth()
             .background(
+                // Order matters for contrast, not for looks. White on #FF6B00 measures 2.84:1,
+                // which fails WCAG's 3:1 floor for large text; white on #D95400 measures 4.03:1
+                // and passes. The wordmark and the address line are the only text on this fill, so
+                // the deep end of the gradient sits behind them and the brighter #FF6B00 falls away
+                // below, where the opaque glass card covers it.
                 Brush.verticalGradient(
-                    listOf(BalajiDesign.Primary, BalajiDesign.PrimaryDeep)
+                    listOf(BalajiDesign.PrimaryDeep, BalajiDesign.Primary)
                 )
             )
             .padding(
@@ -943,7 +948,9 @@ private fun HomeBrandHeader(
             }
             Surface(
                 shape = CircleShape,
-                color = Color.White.copy(alpha = 0.22f),
+                // Near-white disc with the deep-orange initial: 4.03:1, where white-on-orange
+                // would have been 2.84:1.
+                color = Color.White.copy(alpha = 0.94f),
                 modifier = Modifier
                     .size(44.dp)
                     .clickable(onClick = onOpenAccount)
@@ -955,7 +962,7 @@ private fun HomeBrandHeader(
                     Text(
                         text = initials,
                         style = BalajiText.SectionTitle,
-                        color = Color.White
+                        color = BalajiDesign.PrimaryDeep
                     )
                 }
             }

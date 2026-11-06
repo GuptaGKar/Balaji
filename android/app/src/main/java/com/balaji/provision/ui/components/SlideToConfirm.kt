@@ -136,6 +136,10 @@ fun SlideToConfirm(
     val travelPx = (trackWidthPx - thumbSizePx - insetPx * 2f).coerceAtLeast(0f)
 
     val interactive = enabled && state == SlideConfirmState.Idle && !locked
+    // A caller disables the control while it is working, because "can I act again" is false at
+    // that moment. Rendering that as grey would make a submitted order look broken, so the fill
+    // follows the state as well as the flag: busy and done keep the orange.
+    val filled = enabled || state != SlideConfirmState.Idle
     val progress = slideProgress(offsetPx, travelPx)
 
     // Releasing early, or the action finishing, brings the thumb home. A success leaves it parked
@@ -174,11 +178,11 @@ fun SlideToConfirm(
             .height(SlideToConfirmMetrics.TrackHeight)
             .semantics(mergeDescendants = true) {
                 contentDescription = label
-                if (!enabled) disabled()
+                if (!enabled && state == SlideConfirmState.Idle) disabled()
                 stateDescription = when {
-                    !enabled -> "Not available"
                     state == SlideConfirmState.Submitting -> "Working"
                     state == SlideConfirmState.Success -> "Done"
+                    !enabled -> "Not available"
                     else -> "Slide right, or double-tap to activate"
                 }
                 role = Role.Button
@@ -194,7 +198,7 @@ fun SlideToConfirm(
                 }
             },
         shape = RoundedCornerShape(BalajiDesign.RadiusPill),
-        color = if (enabled) {
+        color = if (filled) {
             MaterialTheme.colorScheme.primary
         } else {
             MaterialTheme.colorScheme.surfaceVariant
@@ -254,7 +258,7 @@ fun SlideToConfirm(
                     text = slideLabelFor(state, label, successLabel),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
-                    color = if (enabled) {
+                    color = if (filled) {
                         MaterialTheme.colorScheme.onPrimary
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
@@ -285,7 +289,7 @@ fun SlideToConfirm(
                     }
                     .size(SlideToConfirmMetrics.ThumbSize)
                     .background(
-                        if (enabled) Color.White else MaterialTheme.colorScheme.surface,
+                        if (filled) Color.White else MaterialTheme.colorScheme.surface,
                         CircleShape
                     ),
                 contentAlignment = Alignment.Center

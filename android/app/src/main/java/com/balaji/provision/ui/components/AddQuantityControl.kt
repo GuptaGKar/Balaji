@@ -119,6 +119,12 @@ fun stepCount(quantityBase: Long, stepQty: Long): Long =
  *   the control collapses back to ADD.
  * @param canIncrease false at the stock or maximum-order ceiling; the plus stays visible and
  *   disabled rather than disappearing, so the control does not change width on a stock edge.
+ *
+ * The two stepper buttons are 48 dp squares, so they meet the touch floor outright. The ADD pill
+ * is 40 dp tall by design - the brief allows 36-44 dp "with expanded hitbox if visually smaller" -
+ * and whether its effective hit box is 40 dp or 48 dp depends on how this Compose version applies
+ * `minimumInteractiveComponentSize` inside a fixed-height parent. That has to be measured on the
+ * device, not asserted here.
  */
 @Composable
 fun AnimatedAddQuantityControl(
