@@ -50,19 +50,25 @@ Postgres functions and RLS; clients only display results.
   `storefront_section_items` at zero too. pgTAP 045–050 (134 assertions) all pass
   against the live schema.
 - **Branch `feature/customer-orange-glass-v3` (2026-11-06):** the orange-glass redesign
-  pass from `Changes/`, two commits, **not merged and not run on a device** — the owner
-  asked for the UI and said they would test it. Tokens, glass surfaces and a semantic
+  pass from `Changes/`, four commits, **not merged and not pushed** — the owner asked for the UI,
+  said they would test it, and chose to keep the branch local for now. `UI_REDESIGN_REPORT.md` is
+  the §18-shaped report for it. The pass covers: tokens, glass surfaces and a semantic
   type scale; `AnimatedAddQuantityControl` and `SlideToConfirm`; the pill at 0.94 with a
   sliding orange capsule; an orange Home header; product cards with one control row and
   no duplicated discount text; slide-to-checkout on the cart and slide-to-place-order on
   the review step; honest closed-store panels; a tracking timeline that stops marking an
   unfinished stage with a green tick. `20261106000001` adds the scheduling *foundation*
   only — default off, `place_order` untouched, and suite 051 proves a closed store still
-  answers `STORE_CLOSED` either way. It is **not applied to the live project**.
-  Both flavours compile and 263 JVM tests pass in each (22 new). **The fonts the brief
-  specifies are not in this build**: no Poppins/Inter/Manrope binaries exist here and
-  downloading them is not permitted, so `BalajiFont` resolves all three roles to the
-  platform sans-serif behind one swap point. See DECISIONS, 2026-11-06.
+  answers `STORE_CLOSED` either way. It is **not applied to the live project**, by the
+  owner's choice, and goes over with the release that uses it.
+  Both flavours compile and 263 JVM tests pass in each (22 new); lint is 0 errors; node 48,
+  python 8 and guards all pass; pgTAP 045–051 pass against a real local Postgres.
+  **Two known accepted gaps.** The fonts the brief specifies are not in this build — no
+  Poppins/Inter/Manrope binaries exist here and downloading them is not permitted, so
+  `BalajiFont` resolves all three roles to the platform sans-serif behind one swap point
+  (BUG-027). And white on the brand orange measures 2.85:1, which fails WCAG AA; the owner
+  was given the three ways out with their ratios and chose to **accept and document** it
+  (BUG-028). Neither is presented as finished.
 - **Device:** a physical Samsung Galaxy A34 (Android 16 / SDK 36) is connected and
   used for every on-device check. On 2026-11-05 it carried the nav-pill pass: the
   pill's geometry, the bottom clearance on every tab, the basket bar stacked above

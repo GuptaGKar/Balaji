@@ -18,8 +18,9 @@ reference and correctness disagree, the disagreement is listed in §11 rather th
 | Branch | `feature/customer-orange-glass-v3` |
 | Base | `0a9573f` (= `master`, = `origin/master` at the time of branching) |
 | Commits | `d4aa305` android UI (16 files), `f8a7a79` db foundation (2 files), `bb09b24` two defects found while writing this report, plus the docs commit |
-| Merged | **No.** Left as a reviewable branch, per AGENTS 11 and the brief's own §17 |
-| Live schema | **Untouched.** `20261106000001` is not applied to the live project |
+| Merged | **No.** Left as a reviewable branch. |
+| Pushed | **No** — the owner chose to keep the branch local for now, so this work exists only on this machine until they say otherwise. |
+| Live schema | **Untouched.** `20261106000001` is not applied to the live project, by the owner's choice; it goes over with the release that uses it. |
 
 ## 2. What was implemented
 
@@ -151,13 +152,15 @@ Six places where the mockup and the software disagree, and the reason each way.
    three roles to the platform sans-serif behind one swap point, and `BalajiText` carries the brief's
    weights and sizes so the hierarchy is real while the typefaces are not. **The app does not read
    like the board's typography.** This is the largest single gap in the pass. (BUG-027)
-2. **White on orange does not meet contrast.** Computed: white on `#FF6B00` = 2.85:1 (fails AA large
-   *and* normal), white on `#D95400` = 4.03:1 (passes large, fails normal). Every orange purchasing
-   control carries a white label at 12–15 sp. The Home header was arranged around this — deep orange
-   behind the wordmark, brighter below the opaque glass card — but a button cannot be fixed locally
-   without changing the theme's single `primary`. Left as an owner decision with the three options
-   and their measured ratios in `QA_LOG.md` (BUG-028). (The brief asks for exactly this combination,
-   which is why it is a decision and not an oversight.)
+2. **White on orange does not meet contrast — and the owner has now decided that.** Computed: white
+   on `#FF6B00` = 2.85:1 (fails AA large *and* normal), white on `#D95400` = 4.03:1 (passes large,
+   fails normal). Every orange purchasing control carries a white label at 12–15 sp, and the brief
+   asks for exactly that in words. The Home header was arranged around it — deep orange behind the
+   wordmark, brighter below the opaque glass card — but a button cannot be fixed locally without
+   changing the theme's single `primary`, which the customer, staff and rider apps share. Asked with
+   the three options and their ratios, the owner chose **accept and document**, so `primary` is
+   unchanged and BUG-028 in `QA_LOG.md` is the record. An accepted exception is not a fixed one: the
+   measurement stays true.
 3. **Four pill tabs, not five.** The board shows Offers and Account; neither is a route. §10 of the
    brief itself says not to add destinations without real routes.
 4. **The stepper got its own row.** A 48 dp stepper and a price do not share a 148 dp card. Shrinking
@@ -179,7 +182,8 @@ Six places where the mockup and the software disagree, and the reason each way.
    closed-store panels with the store actually closed, and whether BUG-013's ADD wrap is gone.
 2. **Fonts** — licensed TTFs into `res/font/` with a licence notice, then three lines in `BalajiFont`,
    then re-check ₹, Devanagari and long place names at 2.0×.
-3. **Contrast decision (BUG-028)** — owner picks: deeper fill, dark labels, or a documented exception.
+3. **Contrast (BUG-028)** — decided: accept and document. Revisit only as a single `primary` change
+   across all three apps, together with a real accessibility pass.
 4. **Scheduling policy** — the owner's answers on windows, capacity, holidays and cut-offs; then the
    dashboard toggle, then the `place_order` branch as its own reviewed change with its own pgTAP
    authorisation suite. Until then `ScheduledOrderingEnabled` stays false and the panels stay honest.
@@ -205,7 +209,7 @@ table records **what is known**, which is not the same thing.
 | Typography | **KNOWN MISS** | correct scale and roles, wrong (default) typefaces |
 | Pill navigation | **not compared** | 0.94 alpha, sliding capsule, four tabs |
 | Motion | **unverified** | implemented and unit-tested at the decision level only |
-| Accessibility | **one known failure** | BUG-028 contrast; semantics coded, not TalkBack-tested |
+| Accessibility | **one accepted exception, one untested** | white-on-orange is 2.85:1 and the owner chose to accept and document it (BUG-028); the slider's TalkBack action and the stepper's merged semantics are coded but no TalkBack pass was run |
 | Performance | **not measured** | §9 |
 
 A blank here means "no evidence", which is the honest answer and not a smaller claim than a number.

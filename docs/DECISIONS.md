@@ -1463,4 +1463,13 @@ on how this Compose version applies `minimumInteractiveComponentSize` inside a f
 which is measurable on the handset and is not measurable from here. The doc comment says so instead
 of asserting 48.
 
+**Outcome (same day).** The owner was asked with the three options and their measured ratios and
+chose **accept and document**. So `primary` and `onPrimary` are unchanged, white-on-orange stays, and
+BUG-028 in `QA_LOG.md` is the written record with the numbers in it. That is a decision, not a
+closure: the 2.85:1 measurement is still true, it is now simply a known and accepted exception rather
+than an undiscovered defect. If an accessibility pass ever happens, it should move `primary` for the
+customer, staff and rider apps in one change - the three share one scheme, and fixing only the
+customer app would leave the same failure in the hands of the people packing the orders.
+
+
 
