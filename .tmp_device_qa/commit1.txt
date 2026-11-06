@@ -1,0 +1,61 @@
+feat(android): orange-glass customer UI from the redesign brief
+
+Applies the Changes/ brief's recommended values across the customer app, on
+a branch, with device verification deliberately left to the owner.
+
+Tokens and surfaces (WP1)
+- ui/theme/BalajiDesign.kt: one source of truth for colour, radius, rhythm,
+  motion timings, the 85% slide threshold and the 48 dp touch floor. The
+  existing Color.kt already matched the brief's hexes; only #FFF4EC was new.
+- ui/components/BalajiGlass.kt: glass surface, peach information card and the
+  single solid-orange purchasing button. No Modifier.blur anywhere: a blur on
+  a scrolling product grid costs frames on the mid-range phone this store
+  runs on, and the reference cards read as flat warm surfaces.
+- ui/theme/Type.kt: semantic scale (Brand/PageTitle/SectionTitle/ProductName/
+  Price/Mrp/Total/Quantity/Body/Cta/Metadata/Nav) mapped onto the Material
+  roles so existing screens inherit it. NOT DONE: the brief asks for Poppins,
+  Inter and Manrope. No licensed binaries exist in this repo or on this
+  machine and downloads are not permitted here, so BalajiFont resolves all
+  three families to the platform sans-serif. The swap point is three lines in
+  one file; the typography is not the reference's typography until that lands.
+
+Motion (WP2)
+- AnimatedAddQuantityControl: ADD morphs to [- n +], the digit slides in the
+  direction of the change, and the mode/digit/slide rules are pure functions
+  with tests. stepQty is honoured so a two-pack line shows "2" and not "1000".
+- SlideToConfirm: 85% threshold, spring-back on early release, one commit per
+  gesture (the track locks until the caller clears Submitting), haptic once,
+  and an accessibility onClick that calls the identical callback - TalkBack
+  and Switch Access are not asked to perform a drag.
+
+Pill navigation (WP6)
+- NavPill rewritten: surface alpha 0.30 -> 0.94, which is the brief's own
+  resolution of BUG-012, plus a solid orange capsule that springs between
+  destinations and a reduce-motion path read from the system animator scale.
+  Reserve constants are unchanged, so every navPillReserve() call site still
+  clears the overlay.
+
+Screens
+- Home: orange brand header with the delivery location and the store's real
+  status on glass, a capability strip built from flags that exist, and the
+  closed-store panel ahead of the banners when the store is shut.
+- Product cards: one control row per card (a 48 dp stepper and a price do not
+  share a 148 dp card), no duplicated discount text, semantic type roles.
+- Cart: "Slide to Checkout" - the gesture navigates, so the label says so.
+- Checkout: "Slide to Place Order" only on the step that calls place_order;
+  the wizard's intermediate steps stay buttons.
+- Product Details: savings stated in money from the two server prices, and the
+  sticky CTA carries the line amount it will create.
+- Tracking: the in-progress node is orange with a dot instead of a green
+  check, and the "shortly" line is gone - nothing knows when a partner is
+  assigned.
+
+Not run / not done: no device pass (owner's instruction), no staff-flavour
+build yet, and the Categories left-rail was not adopted - the current grid is
+the brief's own conditional fallback, and rewriting a working 889-line screen
+to match a mockup is not a change to make blind.
+
+Evidence: :app:compileCustomerDebugKotlin clean; :app:testCustomerDebugUnitTest
+263 tests, 0 failures (22 new). The new tests assert the arithmetic and the
+wording only - no animation, gesture or layout claim is made here, and none of
+this has been looked at on a device.

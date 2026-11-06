@@ -1,0 +1,29 @@
+fix(android): keep the slider orange while it works, and put the wordmark on a fill it reads on
+
+Two defects found while writing the report, both in code committed an hour earlier.
+
+SlideToConfirm went grey mid-submit. The checkout caller disables the control while
+`placeOrder` is in flight, because "can the customer act again" is genuinely false at
+that moment - and `enabled` was also driving the track fill, the label colour and the
+thumb. So the most important gesture in the app turned the disabled colour at exactly
+the instant it was working, which reads as "this broke" rather than "this is running".
+The fill now follows the state as well as the flag: Submitting and Success keep the
+orange, and the `disabled()` accessibility node is withheld for those states too, so
+TalkBack says "Working" instead of "Not available".
+
+The Home header had white text on #FF6B00, which is 2.85:1 - below WCAG AA for large
+text, not just for normal. The brief's own palette causes it, and the brand colour is
+not mine to change, so this fixes only the surface that could be rearranged: the
+gradient now puts #D95400 (white = 4.03:1) behind the wordmark and the address line,
+with the brighter orange falling away below the opaque glass card, and the avatar
+became a near-white disc with a deep-orange initial instead of white-on-translucent.
+The remaining white-on-orange labels on the buttons are logged as BUG-028 with three
+options and their measured ratios, for the owner to choose between.
+
+AddQuantityControl's doc comment no longer claims a 48 dp hit box for the ADD pill.
+The pill is 40 dp tall; whether Compose 1.5.4 expands it to 48 inside a fixed-height
+parent is measurable on the handset and was not measured here, so the comment says
+which is which instead of rounding the uncertainty away.
+
+Both flavours compile after these edits; the customer unit suite is re-run against
+this revision.

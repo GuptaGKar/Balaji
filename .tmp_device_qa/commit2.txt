@@ -1,0 +1,72 @@
+feat(db): delivery-window scheduling foundation, inert by default
+
+WP8 of the redesign brief asks for a Store Closed mode where the customer
+orders now and the store delivers in the next real window. The mockup prints
+"Tomorrow, 7:00 AM - 11:00 AM" as if that were a fact. It is not one yet:
+there is no scheduling column, no slot RPC, no capacity model and no manager
+toggle, and place_order refuses every order while store_open is false.
+
+So this migration builds the parts that can be built without inventing store
+policy, and stops exactly where a decision is the owner's to make.
+
+What lands
+- store_settings.accept_orders_when_closed, default FALSE. Closed-store
+  ordering does not exist for any store until someone sets it.
+- scheduling_min_lead_hours (1..72, default 8) and scheduling_max_days_ahead
+  (1..30, default 7) with CHECK bounds. A zero lead would allow an order into
+  a window that has already started; an unbounded horizon would let a customer
+  pick a date the store has not planned for.
+- delivery_windows: one row per "on this weekday, from this local time, for
+  this long", in the store's own timezone. Starts EMPTY, and empty means
+  unavailable, never unrestricted.
+- get_next_delivery_window(): the earliest window the configuration actually
+  allows, or null with a reason. Never now()+24h, never phone-local, never a
+  hard-coded 7-11 AM.
+- validate_delivery_slot(slot, pincode): lead time, horizon, published window
+  and PIN coverage, re-asked at placement. A client choosing a timestamp must
+  not be able to choose when the store works.
+- update_store_scheduling(...): SECURITY DEFINER, service role only, validates
+  the timezone name before writing it.
+- is_valid_timezone(): a bad zone name does not raise, it silently shifts
+  every window by an hour or half an hour, so it has to be caught by name.
+
+What deliberately does NOT land
+- place_order's closed-store guard is untouched. The order-placement branch
+  that would accept a scheduled order is a behavioural change to money, stock
+  and the order state machine, and it needs the owner's answers on hours,
+  capacity and holiday policy first (AGENTS 6, 11, 18).
+- Slot capacity, holiday/exceptional closures, and the staff queue labelling a
+  scheduled order as future work instead of urgent dispatch.
+- The dashboard toggle. update_store_scheduling is the validated writer it
+  will call; nothing calls it yet.
+
+Evidence, all run
+- Every new function is revoked from PUBLIC and anon and granted back
+  explicitly. This is the third time this project has met the Supabase default
+  that creates functions executable by anon (BUG-011, then suite 050 caught the
+  repeat); S51-07 and S51-08 are the assertions that fail if a revoke is
+  dropped.
+- supabase/tests/051: 27 assertions, num_failed() = 0, run against a real
+  Postgres with the migration applied inside a rolled-back transaction.
+  The window assertions pin the store-local DATE and the store-local HOUR and
+  MINUTE, so a now()+24h implementation, a UTC implementation and a
+  phone-local implementation each fail at least one of them; +05:30 makes the
+  minute assertion matter.
+- Suites 045-050 re-run against the same schema: 0 failures.
+- The eleven migrations after the local stack's recorded state (20261102000009
+  through this file) apply in order to it with ON_ERROR_STOP, so this file is
+  not relying on anything a fresh database would not have.
+- S51-25/26/27 call place_order as a signed-in customer at a closed store and
+  require STORE_CLOSED both with scheduling on and with it off. That is what
+  makes "inert" a measured claim instead of an intention.
+
+Two defects the suite caught before this was committable
+- validate_delivery_slot compared the horizon in instants while
+  get_next_delivery_window enumerates days, so the last permitted day was
+  offered on Home and refused at checkout. Both now count store-local days.
+- The suite's first run died on audit_logs' actor FK: SET LOCAL ROLE does not
+  clear a JWT claim, and store_settings has an audit trigger, so an UPDATE
+  after a role test wrote a non-existent profile id.
+
+NOT APPLIED TO THE LIVE PROJECT. Nothing calls these functions yet, so there
+is no reason to take the risk; it goes over with the release that uses it.

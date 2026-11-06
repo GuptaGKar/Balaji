@@ -1,0 +1,45 @@
+
+> balaji-admin@1.0.0 dev
+> next dev
+
+ ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of /home/linuai/Balaji/package-lock.json as the root directory.
+ To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
+ Detected additional lockfiles: 
+   * /home/linuai/Balaji/web/package-lock.json
+
+   ▲ Next.js 15.5.28
+   - Local:        http://localhost:3000
+   - Network:      http://10.206.65.59:3000
+   - Environments: .env.local
+   - Experiments (use with caution):
+     · serverActions
+
+ ✓ Starting...
+ ✓ Ready in 4s
+ ○ Compiling /middleware ...
+ ✓ Compiled /middleware in 717ms (170 modules)
+ ○ Compiling /storefront ...
+ ✓ Compiled /storefront in 7.7s (894 modules)
+ ✓ Compiled in 1429ms (344 modules)
+ GET /storefront 200 in 10991ms
+ ⚠ Cross origin request detected from 127.0.0.1 to /_next/* resource. In a future major version of Next.js, you will need to explicitly configure "allowedDevOrigins" in next.config to allow this.
+Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+ ✓ Compiled in 2.9s (894 modules)
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET /storefront 200 in 1292ms
+ GET /storefront 200 in 1547ms
+ ✓ Compiled in 1586ms (894 modules)
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET /storefront 200 in 1535ms
+ GET /storefront 200 in 782ms
+ ✓ Compiled in 2.5s (894 modules)
+ GET /storefront 200 in 535ms
+ ✓ Compiled in 1670ms (894 modules)
+ GET /storefront 200 in 1649ms
+ GET /storefront 200 in 958ms
+ ○ Compiling /login ...
+ ✓ Compiled /login in 3.6s (1101 modules)
+ GET /login 200 in 4452ms
+[?25h

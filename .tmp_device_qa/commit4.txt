@@ -1,0 +1,54 @@
+docs: what the redesign pass built, what it did not verify, and one claim I had to correct
+
+Four files, and the point of all four is the same: keep the record of this pass
+separable from the record of what it proved.
+
+UI_REDESIGN_REPORT.md is new, and follows the brief's own §18 template so the
+gaps land in the slots the brief reserved for them rather than in a footnote.
+Sections 4 (screenshots) and 5 (motion clips) are empty because no device pass
+was done - the owner asked for the UI and said they would test it - and section
+13's scorecard says "not compared" per screen instead of inventing a fidelity
+percentage the brief explicitly forbids. Section 9 is "not measured": the two
+performance decisions in this pass (no blur anywhere, 0-3 dp elevation inside
+lazy grids) were taken on expectation, not on a frame trace, and saying
+"smooth" would have been the unsupported claim the brief warns against.
+
+QA_LOG.md gains BUG-026 through BUG-028 and an executed-checks table with the
+command next to every result.
+- BUG-026 is the one real defect the new pgTAP suite caught before commit: two
+  functions that had not shipped yet already disagreed about the horizon - one
+  counted store-local days, the other counted instants - so the last permitted
+  day would have been offered on Home and refused at checkout. Third instance
+  of the BUG-015 / BUG-025 family, first one caught by a test instead of by a
+  screen.
+- BUG-027 is the fonts. Not a code defect: the brief names Poppins, Inter and
+  Manrope, none of them exists here, and downloading is not permitted. Logged
+  as an open gap so "typography done" cannot be read into the pass.
+- BUG-028 came out of writing the header. White on #FF6B00 is 2.85:1, which
+  fails WCAG AA for large text, not only for normal; white on #D95400 is 4.03:1.
+  Every orange purchasing control in the app carries a white label, and the
+  brief asks for exactly that. The header was rearranged around it, but the
+  button fill is one theme value shared by all three apps and is the store's
+  brand, so the three ways out are recorded with their measured ratios and left
+  for the owner rather than decided in a UI commit.
+- BUG-012 moves from OPEN to changed-on-branch: the brief's §10 asks for
+  0.90-0.96 in writing, which is the owner revising the 0.30 instruction, so
+  GlassAlpha is 0.94. It still needs the light-theme pass on the A34 to close.
+
+docs/PROJECT_STATUS.md gets the branch, and one correction I should have made
+long ago. The file claimed suites 001-044 had "still never been run in this
+environment - no Docker socket and no local Postgres". A local Supabase stack
+(`balaji-store`) is running and is reachable with
+`docker exec supabase_db_balaji-store psql`. Whether it was up when that line
+was written I cannot say from here; what is certain is that the sentence is now
+false, it made the verification story look weaker than it is, and it is the
+reason I did not try the local route sooner. It is replaced with what is true
+today and how to do it, because the next person will otherwise repeat the same
+wrong assumption.
+It also records that 20261106000001 is NOT applied to the live project.
+
+docs/DECISIONS.md gets the six places the reference board could not decide -
+fonts, blur, four tabs not five, the stepper's own row, closed means closed,
+and why Categories kept its grid - plus the §11.1 audit of what the closed
+store actually does today and the WP8 line: what is arithmetic shipped, what
+would have been invented did not.
