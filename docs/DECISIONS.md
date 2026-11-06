@@ -1471,5 +1471,44 @@ than an undiscovered defect. If an accessibility pass ever happens, it should mo
 customer, staff and rider apps in one change - the three share one scheme, and fixing only the
 customer app would leave the same failure in the hands of the people packing the orders.
 
+## Liquid glass, drawn rather than blurred (2026-11-06)
+
+The owner asked to "apply liquid glass effect to UI" on top of the finished redesign. Two questions
+were asked before touching code, because the answer changes the whole implementation: **which glass**
+and **when to commit**. The answers were *rim-lit glass, no blur, stock Compose only* and *glass
+first, then commit everything together*.
+
+What was built. `BalajiDesign.LiquidGlass` holds the tokens: a three-stop rim gradient (white 0.90
+at the specular corner, a neutral `#B9B3AD` hairline at 0.70 that keeps a light card defined on a
+light page, the brand orange at 0.35 as a faint warm refraction), a 4 dp specular band at 0.55 alpha
+on the top edge, a 10 dp shade at 0.10 alpha on the bottom edge, a 1.5 dp rim stroke, and
+`fillAlphas(base)` which keeps the chosen alpha at the top and relaxes it 3.5 % at the bottom - from
+`GlassAlpha` 0.94 that is 0.94 to 0.902, inside the brief's 0.90-0.96 band for text-bearing
+surfaces. `Modifier.liquidGlass(shape, fill?)` paints the optional gradient fill, lets the content
+draw, then paints rim, specular and shade over it inside a clip of the shape. Roughly 40 surfaces
+across 17 files moved onto it; the grey `outlineVariant` hairline they carried is gone.
+
+What was deliberately **not** done, and why:
+
+- **No blur.** `Modifier.blur` cannot blur what is behind a surface - it blurs the element's own
+  drawing - so a frosted panel needs a captured backdrop layer or a third-party library, and the
+  brief's own §3.2/§5 keep blur shaders out of scrolling grids. The "liquid" is gradients. The cost
+  per frame is one cached path, two gradients and a stroke, which is the order of cost of the shadow
+  that was already there. That is a judgement, not a measurement: profiling is still NOT RUN.
+- **Semantic borders stay.** The active pack chip, the active control pill, the free-item green
+  selections and both quantity steppers keep their borders - those borders *are* state. Only the
+  decorative grey hairlines were replaced, and the steppers keep their orange tint over the glass.
+- **Purchasing buttons stay solid.** The brief says "simple SOLID orange"; `BalajiOrangeButton`,
+  `AddPill` and the ADD pill are untouched by the glass treatment.
+- **Page bands stay flat.** `StoreTopBar`, `StickyBottomBar` and the Categories header band are
+  full-width chrome with no rounded shape; a rim around them would draw a line across the page
+  rather than lift a card off it.
+
+What the tests pin: rim stops ordered from the specular corner to the warm corner, the fill inside
+the 0.90-0.96 band and relaxing downwards without ever exceeding the chosen alpha, the specular
+band no taller than the tightest content padding it decorates (4 dp), and the shade staying faint
+enough (<= 0.10) that reaching content reads as depth rather than as a smudge. What they cannot pin:
+that it looks right. That is the device pass, recorded in `QA_LOG.md` when it runs.
+
 
 

@@ -290,3 +290,56 @@ that a layout does not clip — those need the handset.
 in one function and in days in the other) and the `audit_logs` actor-FK failure in the suite's own
 setup. Both were fixed inside the same session, and pgTAP 051 assertion 21 is the record of the
 first one.
+
+## Executed checks — device verification pass on the A34 (2026-11-06, 13:18–13:40)
+
+The owner's "will test it later" was superseded by an actual device session: the redesign build
+(release APK, `versionName` 1.12 / code 13, installed `-r` so the session and data were kept) was
+driven on the reference Galaxy A34. Everything below comes from live `uiautomator` dumps and
+screenshots taken in the same frame, not from reading the diff. Scratch harness:
+`.tmp_device_qa/pass_v8.py` and `pass_v9_add.py` (untracked, restores every setting it touches).
+Screenshots contain customer data and are **never committed**.
+
+| Check | Result | What was actually run |
+|---|---|---|
+| Pill geometry on all four tabs | **PASS** | Capsule measured inside the pill on Home, Categories, Orders and Basket — vertically as well as horizontally (the pre-fix build pushed it past the pill's bottom edge, which no unit test could see). Pill ≈ 64 dp, capsule inset on all four sides. Evidence `v9-pill-home.png`, `v8-crop-{home,categories,orders,basket}.png` |
+| Label fit ("Categories" whole) | **PASS** | The text node renders whole — no more `Categ...`. Measured the label's width against the six-character tabs it must differ from, and looked at the crop. Evidence `v8-crop-categories.png` |
+| Home header, normal font | **PASS** | `Store Open` badge present, delivery-window line ellipsised (`Same-day delivery; …`) rather than clipped, TalkBack reads the card as one merged description. Evidence `v8-full-home.png` |
+| Home header at font scale 1.3× | **PASS** | The line that broke last time at 43 characters now wraps (`Delivering to` over two lines) with the badge still on one line and nothing clipped or overlapped. Evidence `v8-header-font13.png`, `v9-head-13b.png` |
+| Home header at font scale 2.0× | **PASS** | Same: wraps, badge intact, no clipping. Evidence `v8-header-font20.png`, `v9-head-20.png` |
+| ADD → stepper morph | **PASS** | Tapping ADD on a browse card swaps the pill for the stepper; `+` moves the quantity (1 → 2 in the shot), returning to zero restores ADD. Evidence `v9-after-add.png`, `v9-after-inc.png`, `v9-restored.png` |
+| Stepper accessibility labels | **PASS** | The dump carries per-button descriptions — "Remove one from …" / "Add one more to …" — not a bare "Decrease"/"Increase", asserted by `pass_v9_add.py` against the live hierarchy after the tap |
+| BUG-013 (ADD label wraps to `A`/`D`) | **not reproduced** | At the session's font scale 1.1 the ADD pill stayed single-line on every card exercised. This does **not** close BUG-013: it is a pre-existing bug whose trigger is a larger font, and only 1.1 was re-checked here |
+| Basket-tab "OVERFLOW" from earlier rounds | **resolved as an artifact** | The clipped edge was the Android system navigation bar drawn over the screen capture, not the app's pill. Visible in every full-screen shot (`v9-*.png` bottom strip) |
+| Closed-store panels | **NOT RUN** | still needs a live `set_store_open` call and the owner's approval; not simulated |
+| Frame timing / scroll profiling | **NOT MEASURED** | no profiling tooling was attached; nothing here claims smoothness |
+| Light-theme pill legibility (BUG-012) | **NOT RE-MEASURED** | the session's screenshots render in the app's light theme (the in-app theme switch, not the system night mode, decides — see the glass pass below), but no contrast measurement was taken; BUG-012 needs its own measurement pass at `GlassAlpha` 0.94 |
+
+Device left as found: font scale 1.1, animations 1.0×, basket emptied (one line removed through
+the app's own stepper, so the server saw a real quantity change).
+
+## Executed checks — liquid glass on the A34 (2026-11-06, 16:10–16:40)
+
+The owner's follow-up was "apply liquid glass effect to UI". The decision (rim-lit glass, no blur,
+stock Compose only) is recorded in `docs/DECISIONS.md`; this section records what was run against
+the result. Same reference hardware, same rules as above: live dumps and screenshots, scratch
+harness in `.tmp_device_qa/` (untracked, PII), every setting restored.
+
+| Check | Result | What was actually run |
+|---|---|---|
+| Kotlin compile, customer | **PASS** | `./gradlew --no-daemon -q :app:compileCustomerDebugKotlin` on the final tree — no errors |
+| JVM unit tests, both flavors | **PASS** | `:app:testCustomerDebugUnitTest` and `:app:testStaffDebugUnitTest` — **272 tests, 0 failures, 0 skipped each** (266 baseline + 6 new `LiquidGlassTokensTest` pinning rim-stop order, fill band 0.90–0.96 relaxing downwards, specular ≤ the 4 dp tightest padding, shade alpha ≤ 0.10) |
+| Android lint, customer | **PASS** | `:app:lintCustomerDebug` — **0 errors, 70 warnings, 5 hints**, identical to the pre-glass baseline |
+| Release build + install | **PASS** | `:app:assembleCustomerRelease`, sha256 `81ef8bddc0cbc9923d7f8455…`, installed `-r` on the A34 (`versionName` 1.12, code 13, session kept) |
+| Glass screenshots, light theme | **CAPTURED** | `glass-light-01-home-top` … `glass-light-06-orders` (Home ×2, Categories, Cart with 2 lines, Checkout review step, Orders). Cart/checkout shot populated — the first two attempts found Home still fetching sections and are superseded |
+| Glass screenshots, dark theme | **CAPTURED** | `glass-dark-01` … `glass-dark-06`, same six screens, true app-dark render. Eyeballed: rim defined on every card, specular does not land on text, nav pill and header card legible |
+| Checkout screenshot discipline | **verified in the script** | only the review step was screenshotted; "Slide to Place Order" was never swiped and no order was placed |
+| App theme ≠ system night mode | **finding** | `ThemeViewModel` (DataStore, default light) overrides `isSystemInDarkTheme()`; `cmd uimode` changes only the status bar. The real dark render requires Profile → Dark mode, reached from the Home header avatar (Home must be scrolled to top). The first two passes' "dark" shots were app-light renders and were re-taken |
+| Theme + settings restore | **PASS** | read back after the pass: system `mNightMode=2 (yes)` (as found), app theme light (as found), font scale 1.1, animations 1.0×, basket emptied through the cart stepper ("Decrease quantity of …", 2 removals) |
+| Rim contrast vs the reference board | **NOT COMPARED** | screenshots exist for both themes but were only eyeballed; WP10 board comparison remains open |
+| Frame timing / scroll profiling | **NOT MEASURED** | the glass adds one cached path and two gradients per surface — that cost claim is a judgement, not a measurement |
+| Closed-store panels with glass | **NOT RUN** | still gated on a live `set_store_open` and the owner's approval |
+| BUG-012 light-theme pill contrast | **NOT RE-MEASURED** | light screenshots now exist (`glass-light-01`); the numeric pass has not been run against them |
+
+Device left as found: system dark, app theme light, font 1.1, animations 1.0×, basket empty.
+Screenshots stay in `.tmp_device_qa/shots/` and are **never committed**.

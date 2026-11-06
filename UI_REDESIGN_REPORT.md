@@ -6,7 +6,9 @@ _Branch `feature/customer-orange-glass-v3`. Prepared 2026-11-06. Follows the rep
 **Read this first.** The instruction was *"apply ditto UI/UX, use recommended things, will test it
 later"*. So this is an implementation report, not a verification report. Every claim below is
 either a command that was run, with its output, or a thing that was **not** run and is labelled as
-such. No screenshot was compared to the reference board, because no device pass was done. Where the
+such. A device pass was run afterwards (2026-11-06, Galaxy A34, recorded in `QA_LOG.md`) and it
+verified geometry and behaviour - pill, header, font scale, the ADD-to-stepper morph - but **no
+screenshot was compared to the reference board**, which is WP10 and remains open. Where the
 reference and correctness disagree, the disagreement is listed in §11 rather than hidden.
 
 ---
@@ -17,7 +19,7 @@ reference and correctness disagree, the disagreement is listed in §11 rather th
 |---|---|
 | Branch | `feature/customer-orange-glass-v3` |
 | Base | `0a9573f` (= `master`, = `origin/master` at the time of branching) |
-| Commits | `d4aa305` android UI (16 files), `f8a7a79` db foundation (2 files), `bb09b24` two defects found while writing this report, plus the docs commit |
+| Commits | `d4aa305` android UI (16 files), `f8a7a79` db foundation (2 files), `bb09b24` two defects found while writing this report, `3523a9a`/`393a0ce` the report's own docs, `309b218` the device-pass fixes (header badge/copy, service tiles, peach page, web PGRST201), `3cad8c1` liquid glass + token tests, plus the docs commit that follows |
 | Merged | **No.** Left as a reviewable branch. |
 | Pushed | **No** — the owner chose to keep the branch local for now, so this work exists only on this machine until they say otherwise. |
 | Live schema | **Untouched.** `20261106000001` is not applied to the live project, by the owner's choice; it goes over with the release that uses it. |
@@ -45,7 +47,9 @@ Nine work packages of the brief's eleven, at different depths.
 - **WP8 foundation only** — settings, `delivery_windows`, window computation and slot validation,
   all inert.
 
-**Not attempted:** WP10 pixel-fidelity and profiling (needs the device), WP11 final regression gate.
+**Not attempted:** WP10 pixel-fidelity (captures exist in both themes from the 2026-11-06 device
+pass, but nothing was compared to the reference board) and profiling (never run), WP11 final
+regression gate.
 
 ## 3. Files
 
@@ -197,17 +201,18 @@ table records **what is known**, which is not the same thing.
 
 | Screen | Score against the reference | Basis |
 |---|---|---|
-| Home | **not compared** | structure and palette implemented; no capture |
-| Categories | **not compared** | unchanged by design (§11.6) |
-| Product list | **not compared** | control row and discount dedup implemented |
-| Product details | **not compared** | savings chip, sticky CTA amount, closed panel implemented |
-| Cart | **not compared** | slider replaces the checkout button |
-| Checkout | **not compared** | slider only on the review step |
-| My Orders | **not compared** | untouched this pass |
-| Tracking | **not compared** | node colours and wording changed |
-| Store Closed | **not compared** | deliberately different copy (§11.5) |
+| Home | **captured, not compared** | light + dark captures on the A34 (`glass-{light,dark}-01-home-top`, `-02-home-cards`); structure and palette implemented; no board comparison |
+| Categories | **captured, not compared** | `glass-{light,dark}-03`; otherwise unchanged by design (§11.6) |
+| Product list | **not captured** | control row and discount dedup implemented; browse rails appear inside the Home captures only |
+| Product details | **not captured** | savings chip, sticky CTA amount, closed panel implemented |
+| Cart | **captured, not compared** | `glass-{light,dark}-04` with 2 lines; slider replaces the checkout button |
+| Checkout | **captured, not compared** | `glass-{light,dark}-05`, review step only — the place-order slider was never swiped |
+| My Orders | **captured, not compared** | `glass-{light,dark}-06` |
+| Tracking | **not captured** | node colours and wording changed |
+| Store Closed | **not run** | deliberately different copy (§11.5); needs a live `set_store_open` and the owner's approval |
 | Typography | **KNOWN MISS** | correct scale and roles, wrong (default) typefaces |
-| Pill navigation | **not compared** | 0.94 alpha, sliding capsule, four tabs |
+| Pill navigation | **geometry verified, not compared** | capsule inside the pill on all four tabs, "Categories" whole (device pass, `QA_LOG.md`); 0.94 alpha, sliding capsule, four tabs; no board comparison |
+| Liquid glass | **captured both themes, not compared** | ~40 surfaces on `Modifier.liquidGlass`; token behaviour pinned by 6 unit tests (272 total, 0 failures); rim/specular eyeballed on light and dark captures only — no board comparison, no profiling |
 | Motion | **unverified** | implemented and unit-tested at the decision level only |
 | Accessibility | **one accepted exception, one untested** | white-on-orange is 2.85:1 and the owner chose to accept and document it (BUG-028); the slider's TalkBack action and the stepper's merged semantics are coded but no TalkBack pass was run |
 | Performance | **not measured** | §9 |

@@ -50,14 +50,23 @@ Postgres functions and RLS; clients only display results.
   `storefront_section_items` at zero too. pgTAP 045–050 (134 assertions) all pass
   against the live schema.
 - **Branch `feature/customer-orange-glass-v3` (2026-11-06):** the orange-glass redesign
-  pass from `Changes/`, four commits, **not merged and not pushed** — the owner asked for the UI,
+  pass from `Changes/`, **not merged and not pushed** — the owner asked for the UI,
   said they would test it, and chose to keep the branch local for now. `UI_REDESIGN_REPORT.md` is
   the §18-shaped report for it. The pass covers: tokens, glass surfaces and a semantic
   type scale; `AnimatedAddQuantityControl` and `SlideToConfirm`; the pill at 0.94 with a
   sliding orange capsule; an orange Home header; product cards with one control row and
   no duplicated discount text; slide-to-checkout on the cart and slide-to-place-order on
   the review step; honest closed-store panels; a tracking timeline that stops marking an
-  unfinished stage with a green tick. `20261106000001` adds the scheduling *foundation*
+  unfinished stage with a green tick. On top of that, the owner's follow-up **liquid-glass**
+  request is implemented as a drawn treatment (`Modifier.liquidGlass`: gradient rim, specular
+  band, bottom shade, layered 0.94→0.902 fill — no blur, stock Compose only) across ~40
+  surfaces in 19 files; decision recorded in `DECISIONS.md`. Gate on the final tree:
+  compile green, **272 unit tests / 0 failures / 0 skipped per flavor** (266 baseline + 6
+  new `LiquidGlassTokensTest`), lint **0 errors / 70 warnings / 5 hints** (baseline-identical),
+  release APK `versionName` 1.12 / code 13 (sha256 `81ef8bdd…`) installed on the A34.
+  A device verification pass (2026-11-06, pill geometry, header at 1.1/1.3/2.0 font scale,
+  ADD→stepper, a11y labels) is recorded in `QA_LOG.md`; screenshots of the glass UI in both
+  themes were captured the same day. WP10 board comparison and WP11 regression gate remain open. `20261106000001` adds the scheduling *foundation*
   only — default off, `place_order` untouched, and suite 051 proves a closed store still
   answers `STORE_CLOSED` either way. It is **not applied to the live project**, by the
   owner's choice, and goes over with the release that uses it.
