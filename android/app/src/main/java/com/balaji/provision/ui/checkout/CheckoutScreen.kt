@@ -56,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -80,6 +81,7 @@ import com.balaji.provision.ui.components.SlideToConfirm
 import com.balaji.provision.ui.components.StatusPill
 import com.balaji.provision.ui.components.StickyBottomBar
 import com.balaji.provision.ui.components.SummaryRow
+import com.balaji.provision.ui.components.liquidGlass
 import com.balaji.provision.ui.home.HomeViewModel
 import com.balaji.provision.ui.theme.appColors
 import kotlinx.coroutines.launch
@@ -235,9 +237,14 @@ fun CheckoutScreen(
     if (placedOrder != null && cart.items.isEmpty()) {
         Dialog(onDismissRequest = { }) {
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .liquidGlass(
+                        shape = RoundedCornerShape(24.dp),
+                        fill = MaterialTheme.colorScheme.surface
+                    ),
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent)
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp),
@@ -274,8 +281,13 @@ fun CheckoutScreen(
 
                     Surface(
                         shape = RoundedCornerShape(14.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        modifier = Modifier.fillMaxWidth()
+                        color = Color.Transparent,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .liquidGlass(
+                                shape = RoundedCornerShape(14.dp),
+                                fill = MaterialTheme.colorScheme.surfaceVariant
+                            )
                     ) {
                         Column(
                             modifier = Modifier.padding(14.dp),
@@ -549,9 +561,14 @@ private fun AddressStep(
     onRetryQuote: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(18.dp),
+                fill = MaterialTheme.colorScheme.surface
+            ),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
@@ -634,9 +651,14 @@ private fun AddressStep(
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(18.dp),
+                fill = MaterialTheme.colorScheme.surface
+            ),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
@@ -692,8 +714,13 @@ private fun AddressStep(
     if (amountToFreeDelivery > 0L) {
         Surface(
             shape = RoundedCornerShape(14.dp),
-            color = MaterialTheme.appColors.warningContainer,
-            modifier = Modifier.fillMaxWidth()
+            color = Color.Transparent,
+            modifier = Modifier
+                .fillMaxWidth()
+                .liquidGlass(
+                    shape = RoundedCornerShape(14.dp),
+                    fill = MaterialTheme.appColors.warningContainer
+                )
         ) {
             Text(
                 text = "Add ${formatPaise(amountToFreeDelivery)} more for FREE delivery.",
@@ -707,9 +734,14 @@ private fun AddressStep(
 
     if (!quotePresent && cartNotEmpty) {
         Card(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .liquidGlass(
+                    shape = RoundedCornerShape(18.dp),
+                    fill = MaterialTheme.colorScheme.errorContainer
+                ),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.errorContainer
+                containerColor = Color.Transparent
             ),
             shape = RoundedCornerShape(18.dp)
         ) {
@@ -741,9 +773,14 @@ private fun PaymentStep(
     quoteFeeNote: String?
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(18.dp),
+                fill = MaterialTheme.colorScheme.surface
+            ),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
@@ -791,8 +828,13 @@ private fun PaymentStep(
 
             Surface(
                 shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier.fillMaxWidth()
+                color = Color.Transparent,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .liquidGlass(
+                        shape = RoundedCornerShape(14.dp),
+                        fill = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
             ) {
                 Row(
                     modifier = Modifier.padding(14.dp),
@@ -832,9 +874,14 @@ private fun PaymentStep(
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(18.dp),
+                fill = MaterialTheme.colorScheme.surface
+            ),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(Modifier.padding(16.dp)) {
@@ -871,9 +918,14 @@ private fun ReviewStep(
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(18.dp),
+                fill = MaterialTheme.colorScheme.surface
+            ),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
@@ -926,9 +978,14 @@ private fun ReviewStep(
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(18.dp),
+                fill = MaterialTheme.colorScheme.surface
+            ),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
@@ -965,10 +1022,15 @@ private fun ReviewStep(
     quote?.let { q ->
         if (q.lines.isNotEmpty()) {
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .liquidGlass(
+                        shape = RoundedCornerShape(18.dp),
+                        fill = MaterialTheme.colorScheme.surface
+                    ),
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+                    containerColor = Color.Transparent
                 ),
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
@@ -1022,9 +1084,14 @@ private fun ReviewStep(
             modifier = Modifier.padding(horizontal = 4.dp)
         )
     } ?: Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(18.dp),
+                fill = MaterialTheme.colorScheme.errorContainer
+            ),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer
+            containerColor = Color.Transparent
         ),
         shape = RoundedCornerShape(18.dp)
     ) {
@@ -1046,9 +1113,14 @@ private fun UnavailableCard(
     unavailableLines: List<com.balaji.provision.domain.model.QuoteBreakdown.Line>
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(18.dp),
+                fill = MaterialTheme.colorScheme.errorContainer
+            ),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer
+            containerColor = Color.Transparent
         ),
         shape = RoundedCornerShape(18.dp)
     ) {
@@ -1091,14 +1163,20 @@ private fun CheckoutAddressOption(
                 selected = selected,
                 role = Role.RadioButton,
                 onClick = onSelect
+            )
+            .liquidGlass(
+                shape = RoundedCornerShape(14.dp),
+                // Selection is carried by the fill and the radio, not by a border, so the
+                // glass rim is decoration here and the tint stays the state signal.
+                fill = if (selected) {
+                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                } else {
+                    MaterialTheme.colorScheme.surface
+                }
             ),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (selected) {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
-            } else {
-                MaterialTheme.colorScheme.surface
-            }
+            containerColor = Color.Transparent
         ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = if (selected) 2.dp else 0.dp
@@ -1166,9 +1244,14 @@ private fun OrderPhotoRow(
     onClear: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(18.dp),
+                fill = MaterialTheme.colorScheme.surface
+            ),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(

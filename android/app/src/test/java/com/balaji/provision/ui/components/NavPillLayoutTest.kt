@@ -60,4 +60,43 @@ class NavPillLayoutTest {
             NAV_PILL_HEIGHT_DP - 2 * NAV_PILL_INNER_VERTICAL_PADDING_DP
         )
     }
+
+    /**
+     * The capsule is sized to the slot, and the label has to fit inside it.
+     *
+     * This is the shape that survived a device pass. The alternative - sizing the capsule to the
+     * selected item's content so the icon and label could sit side by side like the reference
+     * board - truncated "Categories" to "Categ…" at 78 dp per slot on a 360 dp phone. Clipping the
+     * one word that tells you where you are is worse than the mockup's proportions.
+     */
+    @Test
+    fun `the capsule fills its slot minus the inset on each side`() {
+        val row = 312f                      // 360 dp screen - 32 dp margin - 16 dp inner padding
+        val slot = row / 4f
+        val (firstLeft, width) = capsuleGeometryPx(0, row, 4, 11.25f)   // 4 dp at 2.8125 px/dp
+        assertEquals(11.25f, firstLeft, 0.01f)
+        assertEquals(slot - 22.5f, width, 0.01f)
+        assertTrue("capsule must not exceed its slot", width <= slot)
+
+        val (thirdLeft, _) = capsuleGeometryPx(2, row, 4, 11.25f)
+        assertEquals(slot * 2f + 11.25f, thirdLeft, 0.01f)
+    }
+
+    @Test
+    fun `an unmeasured row or an unknown destination produces no capsule`() {
+        // Modifier.width throws on a negative Dp, and the first frame has not measured yet.
+        assertEquals(0f to 0f, capsuleGeometryPx(0, 0f, 4, 11.25f))
+        assertEquals(0f to 0f, capsuleGeometryPx(-1, 312f, 4, 11.25f))
+        assertEquals(0f to 0f, capsuleGeometryPx(0, 312f, 0, 11.25f))
+        // A slot narrower than the inset twice over cannot hold a capsule.
+        assertEquals(0f to 0f, capsuleGeometryPx(0, 20f, 4, 11.25f))
+    }
+
+    @Test
+    fun `a tab label has to fit its slot on the narrowest phone supported`() {
+        // 320 dp is the smallest width this app claims. Four slots over it leave 64 dp each after
+        // the pill's own insets, which is what "Categories" at 12 sp has to live inside.
+        val row = (320f - 32f - 16f) / 4f
+        assertTrue("slot $row dp is too narrow for the longest tab label", row >= 60f)
+    }
 }

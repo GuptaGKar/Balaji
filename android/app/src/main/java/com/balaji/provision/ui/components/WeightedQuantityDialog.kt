@@ -114,9 +114,14 @@ fun WeightedQuantityDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .liquidGlass(
+                    shape = RoundedCornerShape(24.dp),
+                    fill = MaterialTheme.colorScheme.surface
+                ),
             shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            colors = CardDefaults.cardColors(containerColor = Color.Transparent)
         ) {
             Column(
                 modifier = Modifier.padding(20.dp),
@@ -167,8 +172,13 @@ fun WeightedQuantityDialog(
                 // Unit Selection Segmented Control (Grams vs Kilograms)
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier.fillMaxWidth()
+                    color = Color.Transparent,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .liquidGlass(
+                            shape = RoundedCornerShape(12.dp),
+                            fill = MaterialTheme.colorScheme.surfaceVariant
+                        )
                 ) {
                     Row(
                         modifier = Modifier.padding(4.dp),

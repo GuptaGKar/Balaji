@@ -37,6 +37,73 @@ object BalajiDesign {
     /** Outline weight of a glass card. Thin enough to read as a hairline at 450 dpi. */
     val CardBorder = 1.dp
 
+    /**
+     * The liquid-glass treatment: a gradient rim, a top edge highlight and a bottom inner
+     * shade, drawn over a near-opaque tinted fill.
+     *
+     * This is deliberately *not* a backdrop blur. `Modifier.blur` cannot blur what is behind a
+     * surface at all (it blurs the element's own drawing), a real frosted panel needs either a
+     * captured backdrop layer or a third-party library, and the brief's §3.2/§5 tell you to keep
+     * blur shaders out of scrolling grids. So the "liquid" here is drawn with gradients: a rim
+     * that catches light at the top-left and warms towards the brand orange at the bottom-right,
+     * a 4 dp specular band on the top edge, and a faint shade at the bottom edge so the surface
+     * reads as a thickness rather than a flat rectangle. The band stops at the tightest content
+     * padding on any surface it decorates, so no highlight is ever painted over text; the shade
+     * may graze content on that same tightest surface, at an alpha low enough to read as depth
+     * rather than as a smudge (see [ShadeHeight]).
+     */
+    object LiquidGlass {
+
+        /**
+         * Rim gradient stops, top-left to bottom-right.
+         *
+         * The first stop is the specular side (bright, and effectively invisible on a light
+         * surface, which is what a specular highlight does); the middle stop is the neutral
+         * hairline that keeps a light card defined against a light page; the last stop is the
+         * warm refraction, kept faint so it never reads as an orange outline.
+         */
+        val RimStops = listOf(
+            0.00f to Color.White.copy(alpha = 0.90f),
+            0.45f to Color(0xFFB9B3AD).copy(alpha = 0.70f),
+            1.00f to BrandOrange.copy(alpha = 0.35f)
+        )
+
+        /** Alpha of the specular band along the top edge, fading to transparent over [SpecularHeight]. */
+        const val SpecularAlpha = 0.55f
+
+        /**
+         * Height of that band. 4 dp is no more than the tightest content padding on any
+         * surface this decorates (the 4 dp unit-toggle track), so the band fades out at or
+         * before the first line of content and never sits on top of text.
+         */
+        val SpecularHeight = 4.dp
+
+        /** Alpha of the inner shade at the bottom edge, over [ShadeHeight]. */
+        const val ShadeAlpha = 0.10f
+
+        /**
+         * Height of the shade. Taller than the tightest padding (4 dp), so on the tightest
+         * surface it does reach content - but at [ShadeAlpha] that is a vignette, not a
+         * smudge, and it never crosses a legibility decision. Kept faint on purpose: the
+         * shade is what makes the surface read as having thickness, and thickness does not
+         * need to be dark.
+         */
+        val ShadeHeight = 10.dp
+
+        /** Rim stroke weight, drawn centred on the shape so half of it sits inside the edge. */
+        val RimWidth = 1.5.dp
+
+        /**
+         * The fill's top and bottom alpha for a given base alpha.
+         *
+         * The top keeps the base value - that is the value chosen for legibility - and the
+         * bottom relaxes by 3.5 % so the surface reads as layered rather than flat. Starting
+         * from [GlassAlpha] (0.94) this gives 0.94 → 0.902, still inside the brief's
+         * 0.90-0.96 band for a surface that carries text.
+         */
+        fun fillAlphas(base: Float): Pair<Float, Float> = base to (base * 0.965f)
+    }
+
     /** Elevation of a glass card. Kept low: tall shadows on every list row read as mush. */
     val CardElevation = 3.dp
 

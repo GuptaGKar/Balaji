@@ -39,12 +39,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.balaji.provision.ui.components.EmptyState
 import com.balaji.provision.ui.components.ErrorState
 import com.balaji.provision.ui.components.LoadingState
+import com.balaji.provision.ui.components.liquidGlass
 import com.balaji.provision.ui.theme.appColors
 import kotlinx.coroutines.delay
 
@@ -333,9 +335,14 @@ private fun StatusSummaryCard(
 @Composable
 private fun TimelineCard(steps: List<TrackingStep>, status: String) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(18.dp),
+                fill = MaterialTheme.colorScheme.surface
+            ),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {

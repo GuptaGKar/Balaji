@@ -3,8 +3,7 @@ package com.balaji.provision.ui.components
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +45,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.balaji.provision.ui.theme.BalajiDesign
+import com.balaji.provision.ui.theme.BalajiText
 import kotlin.math.roundToInt
 
 /**
@@ -153,21 +154,60 @@ fun selectedNavIndex(currentRoute: String, destinations: List<NavItem>): Int =
     }
 
 /**
- * Horizontal offset, in pixels, of the active capsule's left edge for a given destination.
+ * The tab's icon, with the basket count on the one destination that needs it.
  *
- * Also pure: the capsule must not animate to a position the item is not at, and the arithmetic
- * (equal-weight slots, capsule inset by 4 dp) is exactly the kind of thing that drifts when
- * someone later changes the padding.
+ * Extracted because the selected and unselected forms lay the icon out differently - beside the
+ * label in one, above it in the other - and a badge that only appeared in one of the two would
+ * mean the count disappeared the moment you tapped Basket.
+ *
+ * The icon itself is decorative: the label names the tab, and describing both makes TalkBack say
+ * it twice.
  */
-fun activeCapsuleOffsetPx(
+@Composable
+private fun TabIcon(item: NavItem, tint: Color, cartCount: Int) {
+    if (item.route == "cart" && cartCount > 0) {
+        BadgedBox(
+            badge = {
+                Badge(containerColor = BalajiDesign.Highlight) {
+                    Text(
+                        text = if (cartCount > 99) "99+" else cartCount.toString(),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        ) {
+            Icon(item.icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+        }
+    } else {
+        Icon(item.icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+    }
+}
+
+/**
+ * Horizontal offset and width of the active capsule, in pixels.
+ *
+ * Pure, because this is the arithmetic that decides whether the indicator lands on the right tab.
+ * The capsule is sized to the *slot* - row width divided by the number of destinations, inset by
+ * 4 dp on each side - and that is deliberate: an earlier attempt sized it to the selected item's
+ * content so it could hold the icon and label side by side, and on this app's four destinations a
+ * slot is 78 dp while "Categories" beside its icon needs about 100 dp. The label truncated.
+ *
+ * A negative or unmeasured row returns a zero-width capsule rather than a negative one, because
+ * `Modifier.width` rejects negative dp and the first frame has not measured yet.
+ */
+fun capsuleGeometryPx(
     index: Int,
     rowWidthPx: Float,
     itemCount: Int,
     insetPx: Float
-): Float {
-    if (index < 0 || itemCount <= 0) return 0f
+): Pair<Float, Float> {
+    if (index < 0 || itemCount <= 0 || rowWidthPx <= 0f) return 0f to 0f
     val slot = rowWidthPx / itemCount
-    return slot * index + insetPx
+    val width = slot - insetPx * 2f
+    if (width <= 0f) return 0f to 0f
+    return (slot * index + insetPx) to width
 }
 
 /**
@@ -192,35 +232,45 @@ fun NavPill(
     val reduceMotion = rememberReduceMotion()
     val activeColor = MaterialTheme.colorScheme.primary
     val onActiveColor = MaterialTheme.colorScheme.onPrimary
-    val inactiveColor = MaterialTheme.colorScheme.onSurfaceVariant
+    // Measured on the A34 rather than chosen: at 11sp on the 0.94 surface (luminance 248 of 255),
+    // onSurfaceVariant #757575 comes out at 4.35:1, which is under WCAG AA's 4.5:1 for text this
+    // small. onSurface #252525 is 14.4:1. The reference board's inactive labels are dark, not grey,
+    // so this follows the mockup and the guideline instead of trading one for the other.
+    val inactiveColor = MaterialTheme.colorScheme.onSurface
 
     var rowWidthPx by remember { mutableFloatStateOf(0f) }
     val density = LocalDensity.current
     val insetPx = with(density) { 4.dp.toPx() }
-    val targetOffset = activeCapsuleOffsetPx(selectedIndex, rowWidthPx, destinations.size, insetPx)
+    val (targetLeft, targetWidth) = capsuleGeometryPx(selectedIndex, rowWidthPx, destinations.size, insetPx)
     // A spring rather than a tween: the capsule should settle with a little weight, and when the
     // user taps two tabs quickly it has to interpolate from where it is, not restart. With the
     // system animator scale at zero the capsule jumps instead - the indicator still shows the
     // right destination, which is the only thing it is for.
-    val animatedOffset by animateFloatAsState(
-        targetValue = targetOffset,
+    val animatedLeft by animateFloatAsState(
+        targetValue = targetLeft,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMediumLow
         ),
-        label = "navCapsuleOffset"
+        label = "navCapsuleLeft"
     )
-    val capsuleOffset = if (reduceMotion) targetOffset else animatedOffset
+    val capsuleLeft = if (reduceMotion) targetLeft else animatedLeft
 
+    val pillShape = RoundedCornerShape(BalajiDesign.RadiusPill)
     Surface(
-        shape = RoundedCornerShape(BalajiDesign.RadiusPill),
-        // The single line that decides whether this control is usable in light mode.
-        color = MaterialTheme.colorScheme.surface.copy(alpha = BalajiDesign.GlassAlpha),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        shape = pillShape,
+        // The single line that decides whether this control is usable in light mode. The colour
+        // is painted by liquidGlass rather than by the Surface, so the rim and the top specular
+        // band land on the fill and under the labels in the right order.
+        color = Color.Transparent,
         shadowElevation = 8.dp,
         modifier = modifier
             .padding(horizontal = 16.dp)
             .widthIn(max = 480.dp)
+            .liquidGlass(
+                shape = pillShape,
+                fill = MaterialTheme.colorScheme.surface.copy(alpha = BalajiDesign.GlassAlpha)
+            )
     ) {
         Box(
             modifier = Modifier
@@ -229,21 +279,30 @@ fun NavPill(
                 .padding(horizontal = 8.dp)
                 .onSizeChanged { rowWidthPx = it.width.toFloat() }
         ) {
-            // The sliding indicator sits under the items so its own hit box cannot steal a tap.
-            if (selectedIndex >= 0 && rowWidthPx > 0f) {
-                Box(
-                    modifier = Modifier
-                        .offset {
-                            IntOffset(
-                                capsuleOffset.roundToInt(),
-                                with(density) { NAV_PILL_INNER_VERTICAL_PADDING_DP.dp.roundToPx() }
+            // The indicator is drawn in a layer that cannot influence the pill's size and cannot
+            // escape it: `matchParentSize`, then the vertical inset applied before the background.
+            // The previous version offset the capsule *down* by the inner padding from inside an
+            // already-padded box, which pushed the orange past the pill's bottom edge - visible in
+            // a screenshot, and not visible to any unit test.
+            if (selectedIndex >= 0 && targetWidth > 0f) {
+                Box(modifier = Modifier.matchParentSize()) {
+                    Box(
+                        modifier = Modifier
+                            .offset { IntOffset(capsuleLeft.roundToInt(), 0) }
+                            .width(with(density) { targetWidth.toDp() })
+                            .fillMaxHeight()
+                            .padding(vertical = NAV_PILL_INNER_VERTICAL_PADDING_DP.dp)
+                            // The capsule gets the same treatment as the pill around it: its
+                            // orange is painted as a layered gradient with a light rim, so the
+                            // active tab reads as a piece of the same glass rather than a flat
+                            // sticker on it. It stays orange-on-white text - BUG-028's accepted
+                            // contrast is unchanged by the rim.
+                            .liquidGlass(
+                                shape = RoundedCornerShape(BalajiDesign.RadiusPill),
+                                fill = activeColor
                             )
-                        }
-                        .width(with(density) { (rowWidthPx / destinations.size - insetPx * 2).toDp() })
-                        .fillMaxHeight()
-                        .heightIn(min = 48.dp)
-                        .background(activeColor, RoundedCornerShape(BalajiDesign.RadiusPill))
-                )
+                    )
+                }
             }
 
             Row(
@@ -253,12 +312,20 @@ fun NavPill(
                 destinations.forEachIndexed { index, item ->
                     val selected = index == selectedIndex
                     val tint = if (selected) onActiveColor else inactiveColor
+                    // Icon over label for every destination, selected or not.
+                    //
+                    // The reference board draws the selected tab with the icon beside the label,
+                    // and that form was tried here: it cannot work on this app's four destinations.
+                    // Each slot is (screen - 32 dp margin - 16 dp inner padding) / 4, which is 78 dp
+                    // on a 360 dp phone, and "Categories" next to its icon needs about 100 dp. The
+                    // label ellipsised to "Categ…" - the pill clipped the one word that tells you
+                    // where you are, and the brief's own acceptance list forbids clipped text. A
+                    // wider capsule around a truncated word is not the reference; it is the same
+                    // reference with a defect added.
                     Column(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                            .heightIn(min = 48.dp)
-                            .padding(horizontal = 2.dp, vertical = NAV_PILL_INNER_VERTICAL_PADDING_DP.dp)
                             .clip(RoundedCornerShape(BalajiDesign.RadiusPill))
                             .selectable(
                                 selected = selected,
@@ -268,44 +335,15 @@ fun NavPill(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        if (item.route == "cart" && cartCount > 0) {
-                            BadgedBox(
-                                badge = {
-                                    Badge(containerColor = BalajiDesign.Highlight) {
-                                        Text(
-                                            text = if (cartCount > 99) "99+" else cartCount.toString(),
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                            ) {
-                                Icon(
-                                    item.icon,
-                                    // Decorative: the visible label below already names the tab,
-                                    // and describing both makes TalkBack say it twice.
-                                    contentDescription = null,
-                                    tint = tint,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                        } else {
-                            Icon(
-                                item.icon,
-                                contentDescription = null,
-                                tint = tint,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
+                        TabIcon(item, tint, cartCount)
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = item.label,
                             color = tint,
-                            fontSize = 11.sp,
-                            lineHeight = 14.sp,
+                            style = BalajiText.Nav,
                             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                            maxLines = 1
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }

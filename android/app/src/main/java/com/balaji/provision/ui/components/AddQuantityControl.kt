@@ -36,9 +36,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -153,16 +152,17 @@ fun AnimatedAddQuantityControl(
     }
     val digit = stepCount(quantityBase, stepQty)
 
-    // semantics() on the wrapper is what makes TalkBack announce one control rather than three,
-    // and it is the reason the inner buttons carry no contentDescription of their own.
+    // The wrapper carries what the control is and what it currently holds. It deliberately does NOT
+    // merge its descendants: Compose UI 1.5.4 has no plusAction/minusAction, so a merged node would
+    // leave a screen-reader customer hearing "3 in basket" with no way to change it. Keeping the
+    // buttons in the tree, each with its own label, is the version of this that actually works.
     Box(
         modifier = modifier
             .heightIn(min = BalajiDesign.MinTouchTarget)
             .height(BalajiDesign.ControlHeight)
-            .semantics(mergeDescendants = true) {
+            .semantics {
                 contentDescription = productName
                 stateDescription = stateLabel
-                role = Role.Button
             },
         contentAlignment = Alignment.CenterEnd
     ) {
@@ -219,7 +219,13 @@ fun AnimatedAddQuantityControl(
 
                 AddControlMode.Stepper -> Surface(
                     shape = RoundedCornerShape(BalajiDesign.RadiusPill),
-                    color = MaterialTheme.colorScheme.surface,
+                    color = Color.Transparent,
+                    // The orange hairline marks the stepper as an active control; the fill
+                    // under it is glass so it matches the browse card it sits on.
+                    modifier = Modifier.liquidGlass(
+                        shape = RoundedCornerShape(BalajiDesign.RadiusPill),
+                        fill = MaterialTheme.colorScheme.surface
+                    ),
                     border = BorderStroke(
                         BalajiDesign.CardBorder,
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
@@ -236,7 +242,7 @@ fun AnimatedAddQuantityControl(
                         ) {
                             Icon(
                                 Icons.Default.Remove,
-                                contentDescription = null,
+                                contentDescription = "Remove one from ${productName}",
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(16.dp)
                             )
@@ -284,7 +290,7 @@ fun AnimatedAddQuantityControl(
                         ) {
                             Icon(
                                 Icons.Default.Add,
-                                contentDescription = null,
+                                contentDescription = "Add one more to $productName",
                                 tint = if (canIncrease) {
                                     MaterialTheme.colorScheme.primary
                                 } else {

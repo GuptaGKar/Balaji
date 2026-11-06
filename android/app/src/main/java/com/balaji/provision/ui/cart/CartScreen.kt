@@ -51,6 +51,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -70,6 +71,7 @@ import com.balaji.provision.ui.components.ClosedPanelPlace
 import com.balaji.provision.ui.components.ClosedStorePanel
 import com.balaji.provision.ui.components.EmptyState
 import com.balaji.provision.ui.components.FreeDeliveryProgress
+import com.balaji.provision.ui.components.liquidGlass
 import com.balaji.provision.ui.components.MoneyText
 import com.balaji.provision.ui.components.NAV_PILL_RESERVE_DP
 import com.balaji.provision.ui.components.OutlinedQuantityStepper
@@ -236,20 +238,17 @@ fun CartScreen(
                             val deliveryFree = q.deliveryFeePaise <= 0L
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
-                                color = if (deliveryFree) {
-                                    MaterialTheme.appColors.successContainer
-                                } else {
-                                    MaterialTheme.colorScheme.surface
-                                },
-                                border = if (deliveryFree) {
-                                    null
-                                } else {
-                                    androidx.compose.foundation.BorderStroke(
-                                        1.dp,
-                                        MaterialTheme.colorScheme.outlineVariant
+                                color = Color.Transparent,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .liquidGlass(
+                                        shape = RoundedCornerShape(16.dp),
+                                        fill = if (deliveryFree) {
+                                            MaterialTheme.appColors.successContainer
+                                        } else {
+                                            MaterialTheme.colorScheme.surface
+                                        }
                                     )
-                                },
-                                modifier = Modifier.fillMaxWidth()
                             ) {
                                 FreeDeliveryProgress(
                                     subtotalPaise = q.itemSubtotalPaise,
@@ -346,9 +345,13 @@ fun CartScreen(
                     } ?: item(key = "quote_retry") {
                         Card(
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer
+                                containerColor = Color.Transparent
                             ),
-                            shape = RoundedCornerShape(16.dp)
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.liquidGlass(
+                                shape = RoundedCornerShape(16.dp),
+                                fill = MaterialTheme.colorScheme.errorContainer
+                            )
                         ) {
                             Column(Modifier.padding(16.dp)) {
                                 Text(
@@ -399,8 +402,13 @@ fun CartScreen(
 private fun StoreCard(estimatedWindow: String?, storeOpen: Boolean) {
     Surface(
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.primaryContainer,
-        modifier = Modifier.fillMaxWidth()
+        color = Color.Transparent,
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(16.dp),
+                fill = MaterialTheme.colorScheme.primaryContainer
+            )
     ) {
         Row(
             modifier = Modifier.padding(14.dp),
@@ -465,9 +473,14 @@ fun CartItemRow(
     val step = product?.stepQty ?: 1L
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(16.dp),
+                fill = MaterialTheme.colorScheme.surface
+            ),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
@@ -591,10 +604,15 @@ fun CartItemRow(
 @Composable
 private fun UnavailableItemsCard(unavailableLines: List<QuoteBreakdown.Line>) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(16.dp),
+                fill = MaterialTheme.colorScheme.errorContainer
+            ),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer
+            containerColor = Color.Transparent
         )
     ) {
         Column(
@@ -627,9 +645,14 @@ private fun UnavailableItemsCard(unavailableLines: List<QuoteBreakdown.Line>) {
 fun OrderSummaryCard(quote: QuoteBreakdown) {
     Card(
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(18.dp),
+                fill = MaterialTheme.colorScheme.surface
+            )
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -738,9 +761,14 @@ private fun FreeItemPickerCard(
 ) {
     Card(
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(16.dp),
+                fill = MaterialTheme.colorScheme.surface
+            )
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -943,9 +971,14 @@ private fun CouponCard(
 
     Card(
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(16.dp),
+                fill = MaterialTheme.colorScheme.surface
+            )
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),

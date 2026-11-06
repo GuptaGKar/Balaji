@@ -1,6 +1,5 @@
 package com.balaji.provision.ui.home
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -60,6 +59,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.balaji.provision.ui.components.BalajiGlassSurface
+import com.balaji.provision.ui.components.liquidGlass
 import com.balaji.provision.ui.components.ClosedPanelPlace
 import com.balaji.provision.ui.components.ClosedStorePanel
 import com.balaji.provision.ui.theme.BalajiDesign
@@ -315,10 +315,14 @@ fun HomeScreen(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .liquidGlass(
+                                shape = RoundedCornerShape(16.dp),
+                                fill = MaterialTheme.colorScheme.errorContainer
+                            ),
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer
+                            containerColor = Color.Transparent
                         )
                     ) {
                         ErrorState(
@@ -764,7 +768,9 @@ private fun OfferSlideCard(
             onClick = onClick,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(bannerHeight),
+                .height(bannerHeight)
+                // Rim only: the photograph is the fill, so there is nothing to paint behind it.
+                .liquidGlass(shape),
             shape = shape,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -820,9 +826,10 @@ private fun OfferSlideCard(
             onClick = onClick,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(140.dp),
+                .height(140.dp)
+                .liquidGlass(shape, MaterialTheme.appColors.successContainer),
             shape = shape,
-            color = MaterialTheme.appColors.successContainer
+            color = Color.Transparent
         ) {
             Row(
                 modifier = Modifier
@@ -860,8 +867,9 @@ private fun OfferSlideCard(
 @Composable
 private fun ShopNowPill(containerColor: Color) {
     Surface(
+        modifier = Modifier.liquidGlass(RoundedCornerShape(50), containerColor),
         shape = RoundedCornerShape(50),
-        color = containerColor
+        color = Color.Transparent
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
@@ -1164,10 +1172,14 @@ private fun StoreStrip(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(16.dp),
+                fill = MaterialTheme.colorScheme.surface
+            ),
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        color = Color.Transparent
     ) {
         Column(
             modifier = Modifier.padding(14.dp),

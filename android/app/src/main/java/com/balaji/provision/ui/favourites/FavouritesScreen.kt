@@ -34,6 +34,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -43,6 +44,7 @@ import com.balaji.provision.data.repository.FavouriteProduct
 import com.balaji.provision.data.repository.FavouritesRepository
 import com.balaji.provision.data.repository.RequestOutcome
 import com.balaji.provision.domain.model.formatPaise
+import com.balaji.provision.ui.components.liquidGlass
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -196,10 +198,14 @@ fun FavouritesScreen(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onOpenProduct(item.productId) },
+                            .clickable { onOpenProduct(item.productId) }
+                            .liquidGlass(
+                                shape = RoundedCornerShape(16.dp),
+                                fill = MaterialTheme.colorScheme.surface
+                            ),
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface
+                            containerColor = Color.Transparent
                         )
                     ) {
                         Row(

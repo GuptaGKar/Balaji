@@ -40,6 +40,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.balaji.provision.domain.model.Product
@@ -57,6 +58,7 @@ import com.balaji.provision.ui.components.InlineLoader
 import com.balaji.provision.ui.components.ProductGridCard
 import com.balaji.provision.ui.components.StoreSearchBar
 import com.balaji.provision.ui.components.WeightedQuantityDialog
+import com.balaji.provision.ui.components.liquidGlass
 import com.balaji.provision.ui.theme.appColors
 
 private enum class SortOption(val label: String) {
@@ -508,17 +510,17 @@ private fun ControlPill(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(50),
-        color = if (active) {
-            MaterialTheme.colorScheme.primaryContainer
-        } else {
-            MaterialTheme.colorScheme.surface
-        },
-        border = BorderStroke(
-            1.dp,
-            if (active) {
-                MaterialTheme.colorScheme.primary
+        color = Color.Transparent,
+        // Active keeps its orange outline because that border is state, not decoration; the
+        // inactive pill drops its grey hairline for the liquid rim, which carries the same
+        // definition with a highlight along the top edge.
+        border = if (active) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+        modifier = Modifier.liquidGlass(
+            shape = RoundedCornerShape(50),
+            fill = if (active) {
+                MaterialTheme.colorScheme.primaryContainer
             } else {
-                MaterialTheme.colorScheme.outlineVariant
+                MaterialTheme.colorScheme.surface
             }
         )
     ) {

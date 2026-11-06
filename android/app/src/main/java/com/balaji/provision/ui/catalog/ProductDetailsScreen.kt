@@ -72,6 +72,7 @@ import com.balaji.provision.ui.components.ClosedStorePanel
 import com.balaji.provision.ui.components.StatusPill
 import com.balaji.provision.ui.components.StickyBottomBar
 import com.balaji.provision.ui.components.WeightedQuantityDialog
+import com.balaji.provision.ui.components.liquidGlass
 import com.balaji.provision.ui.theme.BalajiDesign
 import com.balaji.provision.ui.theme.BalajiText
 import com.balaji.provision.ui.theme.appColors
@@ -256,8 +257,13 @@ fun ProductDetailsScreen(
 
                 Surface(
                     shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.fillMaxWidth()
+                    color = Color.Transparent,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .liquidGlass(
+                            shape = RoundedCornerShape(14.dp),
+                            fill = MaterialTheme.colorScheme.primaryContainer
+                        )
                 ) {
                     Column(
                         modifier = Modifier.padding(14.dp),
@@ -494,17 +500,20 @@ private fun PackSelector(
                 Surface(
                     onClick = { onSelected(variant.id) },
                     shape = RoundedCornerShape(12.dp),
-                    color = if (selected) {
-                        MaterialTheme.colorScheme.primaryContainer
+                    color = Color.Transparent,
+                    // The selected pack keeps its orange outline because that border says which
+                    // pack is chosen; the others trade the grey hairline for the liquid rim.
+                    border = if (selected) {
+                        BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
                     } else {
-                        MaterialTheme.colorScheme.surface
+                        null
                     },
-                    border = BorderStroke(
-                        width = if (selected) 1.5.dp else 1.dp,
-                        color = if (selected) {
-                            MaterialTheme.colorScheme.primary
+                    modifier = Modifier.liquidGlass(
+                        shape = RoundedCornerShape(12.dp),
+                        fill = if (selected) {
+                            MaterialTheme.colorScheme.primaryContainer
                         } else {
-                            MaterialTheme.colorScheme.outlineVariant
+                            MaterialTheme.colorScheme.surface
                         }
                     )
                 ) {
@@ -632,9 +641,14 @@ private fun AttributeBlock(product: Product) {
         }
     }
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(12.dp),
+                fill = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+            ),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+            containerColor = Color.Transparent
         ),
         shape = RoundedCornerShape(12.dp)
     ) {

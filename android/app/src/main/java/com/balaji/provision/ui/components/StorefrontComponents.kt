@@ -122,10 +122,13 @@ fun StoreSearchBar(
                 } else {
                     Modifier
                 }
+            )
+            .liquidGlass(
+                shape = RoundedCornerShape(12.dp),
+                fill = MaterialTheme.colorScheme.surface
             ),
         shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        color = Color.Transparent
     ) {
         Row(
             modifier = Modifier
@@ -243,13 +246,18 @@ fun AddPill(
 }
 
 /**
- * The one purchasing control on a product card, and the only place the card decides what its
- * bottom row looks like.
+ * The one purchasing control on a product card.
  *
- * It lives on its own fixed-height row rather than beside the price. A 48 dp stepper and a price
- * do not both fit in a 148 dp rail card, and shrinking the buttons to make them fit would trade a
- * real touch target for a mockup's proportions - the other failure mode is the card growing a
- * row taller the moment something is added, which makes a list jump under the thumb.
+ * Where it sits is decided by the card, not here: the reference board shows ADD to the right of
+ * the price, and it never shows a stepper inside a narrow card - the stepper appears in its wide
+ * list rows. Both of those are possible here, so a card with no basket line puts this control in
+ * the price row and a card that already has one gives it a row of its own. The stepper needs
+ * about 124 dp and the price about 45 dp; a 148 dp rail card has 128 dp of content, and forcing
+ * them together would clip one of them.
+ *
+ * @param narrow true on a rail or grid card, where the weighted item's label has to stay "ADD" -
+ *   "Choose weight" is the honest wording and the details screen uses it, but at 148 dp it
+ *   ellipsises. The picker opens either way, which is the part the customer is relying on.
  */
 @Composable
 private fun ProductPurchaseControl(
@@ -260,7 +268,8 @@ private fun ProductPurchaseControl(
     onIncrease: () -> Unit,
     onDecrease: () -> Unit,
     onWeight: (() -> Unit)?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    narrow: Boolean = false
 ) {
     Box(
         modifier = modifier.height(BalajiDesign.MinTouchTarget),
@@ -270,7 +279,11 @@ private fun ProductPurchaseControl(
             AddPill(
                 onClick = { onWeight?.invoke() ?: onAdd() },
                 enabled = product.isInStock,
-                label = if (cartItem != null) "Edit" else "Choose weight"
+                label = when {
+                    cartItem != null -> "Edit"
+                    narrow -> "ADD"
+                    else -> "Choose weight"
+                }
             )
         } else {
             AnimatedAddQuantityControl(
@@ -307,9 +320,15 @@ fun OutlinedQuantityStepper(
     canIncrease: Boolean = true
 ) {
     Surface(
-        modifier = modifier.height(BalajiDesign.ControlHeight),
+        modifier = modifier
+            .height(BalajiDesign.ControlHeight)
+            .liquidGlass(
+                shape = RoundedCornerShape(BalajiDesign.RadiusPill),
+                fill = MaterialTheme.colorScheme.surface
+            ),
         shape = RoundedCornerShape(BalajiDesign.RadiusPill),
-        color = MaterialTheme.colorScheme.surface,
+        color = Color.Transparent,
+        // The orange hairline says "this is the quantity control"; it stays over the rim.
         border = BorderStroke(
             BalajiDesign.CardBorder,
             MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
@@ -377,10 +396,14 @@ fun ProductGridCard(
 ) {
     val weighted = product.quantityType == QuantityType.WEIGHTED
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(BalajiDesign.RadiusCard),
+                fill = MaterialTheme.colorScheme.surface
+            ),
         shape = RoundedCornerShape(BalajiDesign.RadiusCard),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(10.dp)) {
@@ -466,6 +489,20 @@ fun ProductGridCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                // ADD goes where the reference puts it: on the price line, to the right.
+                if (cartItem == null) {
+                    Spacer(modifier = Modifier.weight(1f))
+                    ProductPurchaseControl(
+                        product = product,
+                        cartItem = cartItem,
+                        weighted = weighted,
+                        onAdd = onAdd,
+                        onIncrease = onIncrease,
+                        onDecrease = onDecrease,
+                        onWeight = onWeight,
+                        narrow = true
+                    )
+                }
             }
 
             if (!product.isInStock) {
@@ -482,18 +519,23 @@ fun ProductGridCard(
                 )
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
-
-            ProductPurchaseControl(
-                product = product,
-                cartItem = cartItem,
-                weighted = weighted,
-                onAdd = onAdd,
-                onIncrease = onIncrease,
-                onDecrease = onDecrease,
-                onWeight = onWeight,
-                modifier = Modifier.fillMaxWidth()
-            )
+            // Once there is a basket line the stepper takes a row of its own: it needs 124 dp and
+            // the price needs 45, and this card has 128 dp of content. The card grows by one row
+            // on the first add and never shrinks again while the item is in the basket.
+            if (cartItem != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                ProductPurchaseControl(
+                    product = product,
+                    cartItem = cartItem,
+                    weighted = weighted,
+                    onAdd = onAdd,
+                    onIncrease = onIncrease,
+                    onDecrease = onDecrease,
+                    onWeight = onWeight,
+                    modifier = Modifier.fillMaxWidth(),
+                    narrow = true
+                )
+            }
         }
     }
 }
@@ -519,10 +561,14 @@ fun HorizontalProductCard(
     val priceLabel = if (wholeRupees) formatRupeesWhole(product.pricePaise) else formatPaise(product.pricePaise)
     val weighted = product.quantityType == QuantityType.WEIGHTED
     Card(
-        modifier = modifier.width(148.dp),
+        modifier = modifier
+            .width(148.dp)
+            .liquidGlass(
+                shape = RoundedCornerShape(BalajiDesign.RadiusCard),
+                fill = MaterialTheme.colorScheme.surface
+            ),
         shape = RoundedCornerShape(BalajiDesign.RadiusCard),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(10.dp)) {
@@ -602,6 +648,19 @@ fun HorizontalProductCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                if (cartItem == null) {
+                    Spacer(modifier = Modifier.weight(1f))
+                    ProductPurchaseControl(
+                        product = product,
+                        cartItem = cartItem,
+                        weighted = weighted,
+                        onAdd = onAdd,
+                        onIncrease = onIncrease,
+                        onDecrease = onDecrease,
+                        onWeight = onWeight,
+                        narrow = true
+                    )
+                }
             }
 
             if (!product.isInStock) {
@@ -612,18 +671,20 @@ fun HorizontalProductCard(
                 )
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
-
-            ProductPurchaseControl(
-                product = product,
-                cartItem = cartItem,
-                weighted = weighted,
-                onAdd = onAdd,
-                onIncrease = onIncrease,
-                onDecrease = onDecrease,
-                onWeight = onWeight,
-                modifier = Modifier.fillMaxWidth()
-            )
+            if (cartItem != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                ProductPurchaseControl(
+                    product = product,
+                    cartItem = cartItem,
+                    weighted = weighted,
+                    onAdd = onAdd,
+                    onIncrease = onIncrease,
+                    onDecrease = onDecrease,
+                    onWeight = onWeight,
+                    modifier = Modifier.fillMaxWidth(),
+                    narrow = true
+                )
+            }
         }
     }
 }
