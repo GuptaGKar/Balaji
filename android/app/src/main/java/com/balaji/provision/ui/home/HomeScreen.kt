@@ -218,16 +218,6 @@ fun HomeScreen(
                 )
             }
 
-            if (composedSections.isEmpty()) {
-                item(key = "service_tiles") {
-                    HomeServiceTiles(
-                        onlinePaymentEnabled = state.onlinePaymentEnabled,
-                        hasDeliveryPin = !address?.postalCode.isNullOrBlank(),
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-                    )
-                }
-            }
-
             item(key = "offer") {
                 // Closed: the status panel leads, because "can I order?" is the only question on
                 // the screen for a customer who has just found the shop shut. The manager's
@@ -263,6 +253,18 @@ fun HomeScreen(
                 )
             }
 
+            // The strip and the category mini-grid are chrome, not shelves, and the reference puts
+            // them under the hero on every Home. A manager composing a product rail has said
+            // nothing about either, so only the two default product rails further down step aside
+            // for composed content - which is what the storefront feature actually promises.
+            item(key = "service_tiles") {
+                HomeServiceTiles(
+                    onlinePaymentEnabled = state.onlinePaymentEnabled,
+                    hasDeliveryPin = !address?.postalCode.isNullOrBlank(),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                )
+            }
+
             if (composedSections.isNotEmpty()) {
                 composedSections.forEach { section ->
                     item(key = "composed_${section.id}") {
@@ -288,7 +290,7 @@ fun HomeScreen(
                 }
             }
 
-            if (composedSections.isEmpty() && visibleCategories.isNotEmpty()) {
+            if (visibleCategories.isNotEmpty()) {
                 item(key = "categories_header") {
                     SectionHeader(
                         title = "Shop by category",
@@ -886,15 +888,25 @@ private fun ShopNowPill(containerColor: Color) {
  * What the header badge says.
  *
  * Pure because every alternative here is a lie waiting to happen: the mockups show "30-60 min
- * Delivery" and "Tomorrow, 7-11 AM", and neither is a Balaji fact. Only the store's own
- * configured window is ever quoted, and only while the store is open; a closed store gets a
- * status, never a promise about the future, because nothing in this build schedules deliveries.
+ * Delivery" and "Tomorrow, 7-11 AM", and neither is a Balaji fact. A closed store gets a status,
+ * never a promise about the future, because nothing in this build schedules deliveries.
+ *
+ * It deliberately does NOT quote the delivery window. The first device pass caught that: this
+ * store's `estimated_window_text` is the sentence "Same-day delivery; confirmed upon acceptance",
+ * and putting 43 characters in a compact pill made the pill 230 dp wide, squeezed the address to
+ * 53 dp and grew the header card to 270 dp. A badge has to be a badge; the sentence belongs on a
+ * line of its own, where it can be ellipsised. See [headerDeliveryLine].
  */
-internal fun storeStatusBadgeLabel(storeOpen: Boolean, estimatedWindow: String?): String = when {
-    !storeOpen -> "Store Closed"
-    !estimatedWindow.isNullOrBlank() -> deliveryWindowLabel(estimatedWindow)
-    else -> "Store Open"
-}
+internal fun storeStatusBadgeLabel(storeOpen: Boolean): String =
+    if (storeOpen) "Store Open" else "Store Closed"
+
+/**
+ * The store's own delivery-window text, for the line under the address. Null while the store is
+ * closed: how long a live order takes is not information a customer can use when no order can be
+ * placed, and quoting it invites them to wait for a delivery that will never be created.
+ */
+internal fun headerDeliveryLine(storeOpen: Boolean, estimatedWindow: String?): String? =
+    if (storeOpen) estimatedWindow?.trim()?.takeIf { it.isNotEmpty() } else null
 
 /**
  * The orange brand header: store identity, the delivery location the order will actually use, and
@@ -974,9 +986,19 @@ private fun HomeBrandHeader(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
-                .clickable(onClick = onOpenAddress),
-            cornerRadius = 14.dp,
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.60f))
+                .clickable(onClick = onOpenAddress)
+                // The device pass found this row unreadable: making the card clickable merges its
+                // descendants into one accessibility node, and the merged node came out with an
+                // empty description - TalkBack had nothing to say about where the order ships to.
+                // Stating it here is explicit rather than relying on the merge to gather the text.
+                .semantics {
+                    contentDescription =
+                        "Delivering to $addressLine. " +
+                        (headerDeliveryLine(storeOpen, estimatedWindow)
+                            ?.let { "$it. " } ?: "") +
+                        "${storeStatusBadgeLabel(storeOpen)}. Change delivery address"
+                },
+            cornerRadius = 14.dp
         ) {
             Row(
                 modifier = Modifier
@@ -1005,6 +1027,18 @@ private fun HomeBrandHeader(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    // The configured window lives here rather than in the badge, and it is
+                    // ellipsised rather than wrapped: one line, so a long store sentence can never
+                    // resize the header under the customer's thumb.
+                    headerDeliveryLine(storeOpen, estimatedWindow)?.let { window ->
+                        Text(
+                            text = window,
+                            style = BalajiText.Metadata,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
                 Icon(
                     Icons.Default.ArrowDropDown,
@@ -1012,7 +1046,7 @@ private fun HomeBrandHeader(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 StatusPill(
-                    text = storeStatusBadgeLabel(storeOpen, estimatedWindow),
+                    text = storeStatusBadgeLabel(storeOpen),
                     icon = if (storeOpen) Icons.Default.CheckCircle else Icons.Default.Store,
                     containerColor = if (storeOpen) {
                         MaterialTheme.appColors.successContainer
@@ -1082,42 +1116,40 @@ private fun HomeServiceTiles(
         horizontalArrangement = Arrangement.spacedBy(BalajiDesign.InnerGap)
     ) {
         tiles.forEachIndexed { index, tile ->
-            BalajiGlassSurface(
+            // The reference tile is an orange outline icon in a peach rounded square with a short
+            // label under it, and nothing else. The detail line was dropped to match: four tiles
+            // across 352 dp leaves 82 dp each, and two lines of small grey text under a label is
+            // how a strip like this turns into mush.
+            Column(
                 modifier = Modifier.weight(1f),
-                cornerRadius = BalajiDesign.RadiusCard,
-                shadowElevation = 0.dp
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Column(
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 10.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                        .size(52.dp)
+                        .background(
+                            BalajiDesign.PeachSurface,
+                            RoundedCornerShape(BalajiDesign.RadiusCard)
+                        ),
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         icons[index],
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text(
-                        text = tile.label,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        text = tile.detail,
-                        style = BalajiText.Metadata,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center
+                        modifier = Modifier.size(24.dp)
                     )
                 }
+                Text(
+                    text = tile.label,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center
+                )
             }
         }
     }

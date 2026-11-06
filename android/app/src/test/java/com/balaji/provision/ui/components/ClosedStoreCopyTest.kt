@@ -1,9 +1,11 @@
 package com.balaji.provision.ui.components
 
+import com.balaji.provision.ui.home.headerDeliveryLine
 import com.balaji.provision.ui.home.homeServiceTiles
 import com.balaji.provision.ui.home.storeStatusBadgeLabel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -65,24 +67,32 @@ class ClosedStoreCopyTest {
     }
 
     @Test
-    fun `the header badge falls back to a status when no window is configured`() {
-        // An empty configuration must not produce a blank pill or a made-up duration.
-        assertEquals("Store Open", storeStatusBadgeLabel(storeOpen = true, estimatedWindow = null))
-        assertEquals("Store Open", storeStatusBadgeLabel(storeOpen = true, estimatedWindow = "  "))
-        assertEquals("Store Closed", storeStatusBadgeLabel(storeOpen = false, estimatedWindow = "30-60 min"))
-        // When a window is configured, it is quoted as the store wrote it, not reworded.
-        assertEquals(
-            "Delivery in 30-60 min",
-            storeStatusBadgeLabel(storeOpen = true, estimatedWindow = "30-60 min")
-        )
+    fun `the header badge is a status and nothing else`() {
+        assertEquals("Store Open", storeStatusBadgeLabel(storeOpen = true))
+        assertEquals("Store Closed", storeStatusBadgeLabel(storeOpen = false))
+        // Both fit a compact pill. That is the whole reason the window moved out of it: the live
+        // store's configured sentence is 43 characters, and the first device pass measured what
+        // that did to the header - badge 230 dp wide, address squeezed to 53 dp, card 270 dp tall.
+        assertTrue(storeStatusBadgeLabel(true).length <= 12)
+        assertTrue(storeStatusBadgeLabel(false).length <= 12)
     }
 
     @Test
-    fun `a closed store never shows a delivery window`() {
-        // The window describes how long a live order takes. Quoting it while the store refuses
-        // orders invites the customer to wait for a delivery that will never be placed.
-        val closed = storeStatusBadgeLabel(storeOpen = false, estimatedWindow = "30-60 min")
-        assertFalse(closed.contains("30-60"))
+    fun `the delivery sentence goes on its own line, and only while open`() {
+        assertEquals(
+            "Same-day delivery; confirmed upon acceptance",
+            headerDeliveryLine(
+                storeOpen = true,
+                estimatedWindow = "Same-day delivery; confirmed upon acceptance"
+            )
+        )
+        // Quoting how long a live order takes is useless when no order can be placed, and it
+        // invites the customer to wait for a delivery the server will refuse.
+        assertNull(headerDeliveryLine(storeOpen = false, estimatedWindow = "30-60 min"))
+        assertNull(headerDeliveryLine(storeOpen = true, estimatedWindow = null))
+        assertNull(headerDeliveryLine(storeOpen = true, estimatedWindow = "   "))
+        // Whitespace is trimmed so a configured value of " " cannot render an empty line.
+        assertEquals("30-60 min", headerDeliveryLine(true, "  30-60 min  "))
     }
 
     @Test
