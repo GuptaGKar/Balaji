@@ -3,6 +3,7 @@ package com.balaji.provision.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.balaji.provision.BuildConfig
+import com.balaji.provision.data.auth.AuthRepository
 import com.balaji.provision.data.network.DeliveryFeeRequest
 import com.balaji.provision.data.network.SupabaseApi
 import com.balaji.provision.data.repository.AccountRepository
@@ -14,6 +15,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -50,6 +53,13 @@ data class HomeUiState(
      * built-in layout rather than a blank screen.
      */
     val sections: List<StorefrontSection> = emptyList(),
+    /**
+     * Product ids from this customer's own recent orders, most recently ordered first.
+     * Empty while signed out, while the customer has never ordered, or if the read fails - the
+     * Home screen then shows no "Buy Again" shelf rather than one that would say the same thing
+     * for everybody.
+     */
+    val orderedProductIds: List<String> = emptyList(),
     val error: String? = null
 )
 
@@ -57,7 +67,8 @@ data class HomeUiState(
 class HomeViewModel @Inject constructor(
     private val api: SupabaseApi,
     private val accountRepository: AccountRepository,
-    private val storefrontRepository: StorefrontRepository
+    private val storefrontRepository: StorefrontRepository,
+    private val authRepository: AuthRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeUiState())
@@ -66,6 +77,56 @@ class HomeViewModel @Inject constructor(
     init {
         loadStoreInfo()
         loadStorefront()
+        // Re-read whenever the signed-in customer changes, not once per process: a sign-in on a
+        // cold start has to populate the shelf too, and a different account must never inherit
+        // the previous one's history. distinctUntilChanged keeps token refreshes from refetching.
+        viewModelScope.launch {
+            authRepository.session
+                .map { session -> session?.userId }
+                .distinctUntilChanged()
+                .collect { userId ->
+                    if (userId != null) {
+                        loadOrderedProductIds(userId)
+                    } else {
+                        _state.value = _state.value.copy(orderedProductIds = emptyList())
+                    }
+                }
+        }
+    }
+
+    /**
+     * Reads the product ids the signed-in customer has actually ordered, newest first, so Home
+     * can offer a "Buy Again" shelf of their own history. RLS scopes `orders` to the caller, so
+     * this returns only this customer's lines; a signed-out or expired session leaves the shelf
+     * off the screen instead of showing a shelf of guesses.
+     *
+     * Removed lines (cancelled before billing) are skipped because they were never bought, and
+     * a line whose product has since left the catalogue cannot be added back from Home - the
+     * screen only keeps ids it can match to a live product.
+     */
+    private fun loadOrderedProductIds(userId: String) {
+        viewModelScope.launch {
+            // authorizedToken() can refresh an expired session, so it is called in here rather
+            // than on the caller's thread.
+            val token = authRepository.authorizedToken() ?: return@launch
+            runCatching {
+                val response = api.getOrders(
+                    apiKey = BuildConfig.SUPABASE_ANON_KEY,
+                    auth = "Bearer $token",
+                    customerId = "eq.$userId"
+                )
+                val orders = response.body()
+                if (!response.isSuccessful || orders == null) return@runCatching
+                val seen = LinkedHashSet<String>()
+                orders.forEach { order ->
+                    order.order_items.orEmpty().forEach { item ->
+                        val id = item.product_id ?: return@forEach
+                        if (item.removed_at.isNullOrBlank()) seen.add(id)
+                    }
+                }
+                _state.value = _state.value.copy(orderedProductIds = seen.toList())
+            }
+        }
     }
 
     /**
@@ -85,6 +146,9 @@ class HomeViewModel @Inject constructor(
      */
     fun refreshStorefront() {
         loadStorefront(force = false)
+        // Home is re-entered on every tab switch; an order placed since the last visit belongs
+        // on the "Buy Again" shelf the next time the customer sees it.
+        authRepository.session.value?.userId?.let { loadOrderedProductIds(it) }
     }
 
     fun loadStoreInfo() {

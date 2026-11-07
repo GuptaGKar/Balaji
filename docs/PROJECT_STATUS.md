@@ -34,8 +34,12 @@ Postgres functions and RLS; clients only display results.
   the 186 products that have a primary category). No section was inserted, so the
   customer app still renders the un-composed fallback.
   `supabase/tests` 045–048 have now been executed against that live database in a
-  rolled-back transaction; the earlier suites (001–044) have still never been run
-  in this environment — no Docker socket and no local Postgres.
+  rolled-back transaction. **Correction (2026-11-06):** the earlier note here said
+  suites 001–044 "have still never been run in this environment — no Docker socket and
+  no local Postgres". That is no longer true: a local Supabase stack (`balaji-store`)
+  is running and reachable through `docker exec supabase_db_balaji-store psql`, and it
+  now carries the whole migration chain. It is the environment every claim below was
+  executed against.
   `20261105000003_storefront_write_privileges.sql` (BUG-011: Supabase had left all
   four storefront write RPCs executable by `anon`) was applied the same day, after
   pgTAP 049 passed against it in a rolled-back dry run.
@@ -45,6 +49,35 @@ Postgres functions and RLS; clients only display results.
   pass were deleted through `delete_storefront_section`, and the cascade left
   `storefront_section_items` at zero too. pgTAP 045–050 (134 assertions) all pass
   against the live schema.
+- **Branch `feature/customer-orange-glass-v3` (2026-11-06):** the orange-glass redesign
+  pass from `Changes/`, **not merged and not pushed** — the owner asked for the UI,
+  said they would test it, and chose to keep the branch local for now. `UI_REDESIGN_REPORT.md` is
+  the §18-shaped report for it. The pass covers: tokens, glass surfaces and a semantic
+  type scale; `AnimatedAddQuantityControl` and `SlideToConfirm`; the pill at 0.94 with a
+  sliding orange capsule; an orange Home header; product cards with one control row and
+  no duplicated discount text; slide-to-checkout on the cart and slide-to-place-order on
+  the review step; honest closed-store panels; a tracking timeline that stops marking an
+  unfinished stage with a green tick. On top of that, the owner's follow-up **liquid-glass**
+  request is implemented as a drawn treatment (`Modifier.liquidGlass`: gradient rim, specular
+  band, bottom shade, layered 0.94→0.902 fill — no blur, stock Compose only) across ~40
+  surfaces in 19 files; decision recorded in `DECISIONS.md`. Gate on the final tree:
+  compile green, **272 unit tests / 0 failures / 0 skipped per flavor** (266 baseline + 6
+  new `LiquidGlassTokensTest`), lint **0 errors / 70 warnings / 5 hints** (baseline-identical),
+  release APK `versionName` 1.12 / code 13 (sha256 `81ef8bdd…`) installed on the A34.
+  A device verification pass (2026-11-06, pill geometry, header at 1.1/1.3/2.0 font scale,
+  ADD→stepper, a11y labels) is recorded in `QA_LOG.md`; screenshots of the glass UI in both
+  themes were captured the same day. WP10 board comparison and WP11 regression gate remain open. `20261106000001` adds the scheduling *foundation*
+  only — default off, `place_order` untouched, and suite 051 proves a closed store still
+  answers `STORE_CLOSED` either way. It is **not applied to the live project**, by the
+  owner's choice, and goes over with the release that uses it.
+  Both flavours compile and 263 JVM tests pass in each (22 new); lint is 0 errors; node 48,
+  python 8 and guards all pass; pgTAP 045–051 pass against a real local Postgres.
+  **Two known accepted gaps.** The fonts the brief specifies are not in this build — no
+  Poppins/Inter/Manrope binaries exist here and downloading them is not permitted, so
+  `BalajiFont` resolves all three roles to the platform sans-serif behind one swap point
+  (BUG-027). And white on the brand orange measures 2.85:1, which fails WCAG AA; the owner
+  was given the three ways out with their ratios and chose to **accept and document** it
+  (BUG-028). Neither is presented as finished.
 - **Device:** a physical Samsung Galaxy A34 (Android 16 / SDK 36) is connected and
   used for every on-device check. On 2026-11-05 it carried the nav-pill pass: the
   pill's geometry, the bottom clearance on every tab, the basket bar stacked above

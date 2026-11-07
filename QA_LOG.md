@@ -35,7 +35,7 @@ Result labels: **PASS** (executed, observed), **FAIL** (executed, broke),
 | BUG-009 | S3 | Release Android | Diagnostic logging absent: all repository `catch` blocks swallowed the exception, hiding BUG-003 | FIXED-VERIFIED — the R8 crash was only found after adding `Log.e` |
 | BUG-010 | S2 | Data / both apps | 52 of the 89 products an anonymous shopper can see load their image from `imgs.search.brave.com/...` (a third-party search-proxy URL carrying a base64-encoded origin), 2 more from `m.media-amazon.com`, 1 from `freshlee.in`, 1 from `www.starquik.com`; only 12 come from our own storage and 14 have none. Every product browse therefore makes a request to a third party that identifies the catalogue item being viewed, and those URLs are not ours to keep alive | OPEN — measured by REST probe 2026-11-05. Not fixed: re-sourcing 52 images is a content decision for the owner (upload to `product-images` storage), not a code change |
 | BUG-011 | S2 | DB | All five new storefront RPCs were executable by `anon`. Supabase creates functions with EXECUTE already granted to PUBLIC and anon, so `GRANT ... TO authenticated` in `20261105000001/2` narrowed nobody. Measured live: `has_function_privilege('anon','save_storefront_section(...)','EXECUTE') = true` for all four writes. Not exploitable — `save_/reorder_/delete_` open with a `current_role()` guard and `set_product_categories` died at `42501 permission denied for table products`, both verified to write nothing — but the intended caller was authenticated-only | FIXED IN `20261105000003` (revokes EXECUTE from PUBLIC and anon, re-grants authenticated + service_role, keeps `get_storefront` open to anon). Verified by pgTAP 049, 22 assertions, `num_failed() = 0` in a rolled-back live dry run. **Applied to the live project 2026-11-05; anon now gets HTTP 401 / `42501 permission denied for function save_storefront_section`, and the anon `get_storefront` read still returns 200 `[]`** |
-| BUG-012 | S3 | Customer Android | The nav pill at the owner-specified 30 % opacity is hard to read in the **light** theme: product names behind it ("9AM Green Chilli - Sauce 180g", "Aashirvaad Atta 5kg") show straight through the tab labels. Dark theme is fine. Screenshot `v2-home-light.png` | OPEN — needs the owner's call: keep 0.30 and accept it, or raise `NAV_PILL_ALPHA` (one constant). Not changed unilaterally because 0.30 was an explicit instruction |
+| BUG-012 | S3 | Customer Android | The nav pill at the owner-specified 30 % opacity is hard to read in the **light** theme: product names behind it ("9AM Green Chilli - Sauce 180g", "Aashirvaad Atta 5kg") show straight through the tab labels. Dark theme is fine. Screenshot `v2-home-light.png` | CHANGED ON BRANCH `feature/customer-orange-glass-v3`, **not re-measured on the device**. The redesign brief's own §10 asks for 0.90–0.96 where text sits on the surface, which is the owner changing the 0.30 instruction in writing, so `BalajiDesign.GlassAlpha = 0.94f`. Needs the A34 light-theme pass to close |
 | BUG-013 | S3 | Customer Android | On a discounted card inside a Home rail the "ADD" pill wraps to two lines ("A" over "D") — the button is narrower than its label at the card's 148 dp width | OPEN — pre-existing, visible in `v2-home-basket.png`; not touched by this work stream and not fixed here |
 | BUG-014 | S2 | Web dashboard | A reorder could never be saved: the reducer renumbered sections on move/drag but marked nothing `dirty`, and Publish was gated on `dirtyCount > 0`. The button stayed disabled after a reorder, so the order was never sent, and leaving the page warned about nothing | FIXED-VERIFIED — `orderDirty` in `SectionState`, gated into Publish and the `beforeunload` guard. Verified on live data: moving "Browse Aisles" above "Daily Essentials" and publishing swapped `sort_order` in the database, and the anon payload came back in the new order. 2 new node tests |
 | BUG-015 | S2 | Web dashboard | The Storefront preview hid the wrong products. `inStock` was derived from `available` alone and the products query never fetched `stock_qty`/`min_qty`, while the app hides an item unless `available AND stockQty >= minQty`. On live data the two disagree for **36 products**: a manager composing 7 items would see 6 in the preview while the app showed 3 | FIXED-VERIFIED — the query fetches `stock_qty, min_qty` and the mapping mirrors the app's predicate. Verified: the same 7-item section now marks 4 as HIDDEN, matching the server-side row-for-row check |
@@ -49,6 +49,9 @@ Result labels: **PASS** (executed, observed), **FAIL** (executed, broke),
 | BUG-023 | S3 | Customer Android | `StorefrontRepository` cached ONE page in a single slot plus a `cachedPage` marker, so Home and Categories evicted each other on every tab switch and the five-minute window never applied across a switch — every switch was a fresh network call | FIXED-VERIFIED — cache keyed by page, plus a mutex for single-flight. 4 new tests: two pages cached independently (2 calls for 3 reads), window holds then expires, `invalidate()` forces a refetch, concurrent reads of one page hit the network once |
 | BUG-024 | S3 | Customer Android | `getProducts` inherited Retrofit's default `limit = 100` and nothing in the app paginates. 89 products are visible to a customer today, so nothing is truncated yet — but past 100 the app silently loses catalogue items, and a product that is not in the catalogue cannot be resolved by the storefront resolver, so a published section would vanish with no error anywhere | PARTIALLY FIXED — raised to a named `CATALOGUE_LIMIT = 1000` with the trap documented. Real fix is paging, which is NOT done |
 | BUG-025 | S2 | Customer Android | **A composed rail card and the product screen it opens can show different prices.** "Diwali Specials" places `SKU-3A6BE174` (1 pc, ₹30000 paise). The card renders ₹300, and tapping it opens Product details showing ₹10.00 — which belongs to `CADBURY-5STAR-SOFTER-20` (40 gm, ₹1000) in the same variant family. `ProductRail` navigates by `group.defaultVariant.id` computed one way, while `MainActivity` re-resolves the group with `findVariantGroup` and `ProductDetailsScreen` picks its default another way. The manager chose a specific pack and the customer lands on a different one | OPEN — found and reproduced on the A34 with the live section, root cause identified, deliberately NOT fixed. Which variant is canonical for a family, and whether a composed rail must open exactly the placed pack, is a product decision that changes money display across the whole app |
+| BUG-026 | S2 | DB (unreleased) | The two new scheduling functions disagreed with each other before either shipped: `get_next_delivery_window()` enumerated whole store-local **days** while `validate_delivery_slot()` compared the horizon as `now() + N days` in **instants**, so on the last permitted day the server would offer a window on Home and refuse the same timestamp at checkout | FIXED-VERIFIED in the same session it was found — pgTAP 051 assertion 21 failed, the horizon was rewritten in store-local days, and 051 now passes 27/27. Never reachable by a customer: the functions are unreleased and scheduling defaults to off. It is the third instance of the BUG-015/BUG-025 family (two code paths answering one question) and the first caught by a test instead of a screen |
+| BUG-027 | S3 | Customer Android | **The brief's typography is not in the build.** Poppins / Inter / Manrope are specified by name and none of them is available here: no TTF in the repository, none in `node_modules`, `fc-list` shows only dejavu/droid/liberation/noto/ubuntu, and downloading assets is not permitted. `BalajiFont` resolves all three semantic roles to `FontFamily.SansSerif` | OPEN — disclosed rather than papered over. The sizes, weights and roles are real (`BalajiText`, mapped onto the Material scale), so the hierarchy changed even though the typefaces did not. Closing it needs licensed files in `android/app/src/main/res/font/` plus a licence notice, then three lines in one object; no screen names a font |
+| BUG-028 | S2 | Customer Android | **White text on the brand orange does not meet contrast, and the reference palette is the reason.** Computed from the sRGB values: white on `#FF6B00` = **2.85:1**, which fails WCAG AA for normal text (4.5:1) *and* for large text (3:1); white on `#D95400` = **4.03:1**, which passes large but not normal. Every orange purchasing control in the app carries a white label — `ADD`, `Add to Cart`, `Slide to Place Order`, the selected pill capsule — at 12–15sp, which is not "large text" by the guideline's own measurement. The Home header was arranged around this (deep orange behind the wordmark, brighter orange below the opaque glass card) but the buttons cannot be fixed locally without breaking the theme's single `primary` colour | **ACCEPTED — owner's decision, 2026-11-06.** Asked with the three options and their measured ratios (darken the fill to ≈`#B84600` for 5.37:1, dark labels on orange, or accept and document); the owner chose **accept and document**, so the brand look stands and this row is the record. It is not closed: a real accessibility pass should revisit `primary`/`onPrimary` across the customer, staff and rider apps together, and the AA failure remains true whether or not anyone acts on it |
 
 ## Executed checks
 
@@ -247,3 +250,96 @@ The A34 was paired and attached, so the above "NOT RUN" is now closed. Same hand
 | CI `android` job | FAIL — pre-existing, not our code | The failing step is `Run android-actions/setup-android@v3`, i.e. SDK provisioning on the runner. It failed at the same step on `9814bdc` and `14f9794`, before this feature existed |
 | CI `web-checks` job | FAIL — pre-existing | Fails at `npm run type-check`, the 11 errors recorded above |
 | CI `db-tests` job | FAIL — cannot be attributed | Fails at `Run supabase test db`, which also failed on `9814bdc`, `14f9794` and every other run in the repository's history — this job has never been green. Without the runner log (the logs API returns 403 unauthenticated and there is no `gh` or token here) it is impossible to say whether 045–048 contributed. What is known: 045–048 pass against the live database, and the same step was already failing on the two preceding commits, which did not contain this code. |
+
+---
+
+## Executed checks — the orange-glass redesign pass (2026-11-06)
+
+Branch `feature/customer-orange-glass-v3`, base `0a9573f`, commits `d4aa305` (android UI),
+`f8a7a79` (db foundation) and `bb09b24` (the slider busy-state and header-contrast fixes found
+while writing the report), plus the documentation commit that follows. The owner asked for the
+brief's UI and said **"will test it later"**, so nothing below was looked at on a device and no line
+below implies that it was.
+
+| Check | Result | What was actually run |
+|---|---|---|
+| Kotlin compile, customer | **PASS** | `./gradlew --no-daemon -q :app:compileCustomerDebugKotlin` — no errors, re-run after the final `bb09b24` edits |
+| Kotlin compile, staff | **PASS** | `:app:compileStaffDebugKotlin`, in the same invocation as its tests |
+| JVM unit tests, customer | **PASS** | `:app:testCustomerDebugUnitTest` — **263 tests, 0 failures, 0 skipped** (241 before this work stream, 22 new) |
+| JVM unit tests, staff | **PASS** | `:app:testStaffDebugUnitTest` — 263 tests, 0 failures. Run at `f8a7a79`; the two later edits in `bb09b24` were re-verified on the customer flavour and by staff *compilation*, not by a second staff test run |
+| Android lint, customer | **PASS (0 errors)** | `:app:lintCustomerDebug` on the final revision: 0 errors, 70 warnings, 5 hints. The 2026-11-05 baseline was 74 issues / 0 errors, so nothing new became an error |
+| Migration applies to a real Postgres | **PASS** | the eleven migrations from `20261102000009` through `20261106000001` applied in version order to the local `balaji-store` database with `ON_ERROR_STOP=1`; no error |
+| pgTAP 051 | **PASS** | 27 assertions planned, `num_failed() = 0`, executed with `docker exec … psql` inside a transaction that ends in `ROLLBACK` |
+| pgTAP 045–050 regression | **PASS** | re-run against the schema *after* the new migration: 0 `not ok` and no error in any of the six (045 30, 046 23, 047 27, 048 20, 049 22, 050 12 result rows) |
+| Live database | **NOT TOUCHED** | `20261106000001` was deliberately not applied to the live project — nothing calls the new functions yet, so there was no reason to take the risk |
+| Device pass on the A34 | **NOT RUN** | by instruction. Unverified on screen: pill legibility at 0.94 (BUG-012), the ADD→stepper morph and digit slide, the slide gesture's feel and its 85 % threshold, the Home header at 1.3–2.0× font scale, the closed-store panels, whether BUG-013's ADD wrap is gone now that the pill is 40 dp tall and single-line |
+| Frame timing / scroll profiling | **NOT MEASURED** | the reason `Modifier.blur` is absent is a judgement about a mid-range phone, not a measurement. Calling the rails "smooth" here would be unsupported |
+| Web dashboard | **NOT TOUCHED** | no scheduling toggle was built; `npm run type-check` still sits at its 11 pre-existing errors |
+| Accessibility of the new controls | **PARTIAL** | TalkBack/Switch Access get a real `onClick` on the slider and merged semantics on the stepper, asserted only by reading the code — no TalkBack pass was run. Contrast was computed, not felt: see BUG-028 |
+
+**What the 22 new tests do and do not prove.** They are all pure-function assertions: the mode a
+quantity selects, the direction a digit slides, the step count a weighted line displays, the slide
+fraction that commits, the label a stage shows, and the wording of every closed-store sentence
+(including "contains no day, no time and no duration"). On the server side they pin the window to
+the store-local date, hour **and minute**, which is what makes a `now()+24h`, a UTC or a
+phone-local implementation fail loudly, and they pin that a closed store still answers
+`STORE_CLOSED`. None of them can show that an animation looks right, that a drag feels right, or
+that a layout does not clip — those need the handset.
+
+**Two defects the tests caught before commit** are logged as BUG-026 (horizon counted in instants
+in one function and in days in the other) and the `audit_logs` actor-FK failure in the suite's own
+setup. Both were fixed inside the same session, and pgTAP 051 assertion 21 is the record of the
+first one.
+
+## Executed checks — device verification pass on the A34 (2026-11-06, 13:18–13:40)
+
+The owner's "will test it later" was superseded by an actual device session: the redesign build
+(release APK, `versionName` 1.12 / code 13, installed `-r` so the session and data were kept) was
+driven on the reference Galaxy A34. Everything below comes from live `uiautomator` dumps and
+screenshots taken in the same frame, not from reading the diff. Scratch harness:
+`.tmp_device_qa/pass_v8.py` and `pass_v9_add.py` (untracked, restores every setting it touches).
+Screenshots contain customer data and are **never committed**.
+
+| Check | Result | What was actually run |
+|---|---|---|
+| Pill geometry on all four tabs | **PASS** | Capsule measured inside the pill on Home, Categories, Orders and Basket — vertically as well as horizontally (the pre-fix build pushed it past the pill's bottom edge, which no unit test could see). Pill ≈ 64 dp, capsule inset on all four sides. Evidence `v9-pill-home.png`, `v8-crop-{home,categories,orders,basket}.png` |
+| Label fit ("Categories" whole) | **PASS** | The text node renders whole — no more `Categ...`. Measured the label's width against the six-character tabs it must differ from, and looked at the crop. Evidence `v8-crop-categories.png` |
+| Home header, normal font | **PASS** | `Store Open` badge present, delivery-window line ellipsised (`Same-day delivery; …`) rather than clipped, TalkBack reads the card as one merged description. Evidence `v8-full-home.png` |
+| Home header at font scale 1.3× | **PASS** | The line that broke last time at 43 characters now wraps (`Delivering to` over two lines) with the badge still on one line and nothing clipped or overlapped. Evidence `v8-header-font13.png`, `v9-head-13b.png` |
+| Home header at font scale 2.0× | **PASS** | Same: wraps, badge intact, no clipping. Evidence `v8-header-font20.png`, `v9-head-20.png` |
+| ADD → stepper morph | **PASS** | Tapping ADD on a browse card swaps the pill for the stepper; `+` moves the quantity (1 → 2 in the shot), returning to zero restores ADD. Evidence `v9-after-add.png`, `v9-after-inc.png`, `v9-restored.png` |
+| Stepper accessibility labels | **PASS** | The dump carries per-button descriptions — "Remove one from …" / "Add one more to …" — not a bare "Decrease"/"Increase", asserted by `pass_v9_add.py` against the live hierarchy after the tap |
+| BUG-013 (ADD label wraps to `A`/`D`) | **not reproduced** | At the session's font scale 1.1 the ADD pill stayed single-line on every card exercised. This does **not** close BUG-013: it is a pre-existing bug whose trigger is a larger font, and only 1.1 was re-checked here |
+| Basket-tab "OVERFLOW" from earlier rounds | **resolved as an artifact** | The clipped edge was the Android system navigation bar drawn over the screen capture, not the app's pill. Visible in every full-screen shot (`v9-*.png` bottom strip) |
+| Closed-store panels | **NOT RUN** | still needs a live `set_store_open` call and the owner's approval; not simulated |
+| Frame timing / scroll profiling | **NOT MEASURED** | no profiling tooling was attached; nothing here claims smoothness |
+| Light-theme pill legibility (BUG-012) | **NOT RE-MEASURED** | the session's screenshots render in the app's light theme (the in-app theme switch, not the system night mode, decides — see the glass pass below), but no contrast measurement was taken; BUG-012 needs its own measurement pass at `GlassAlpha` 0.94 |
+
+Device left as found: font scale 1.1, animations 1.0×, basket emptied (one line removed through
+the app's own stepper, so the server saw a real quantity change).
+
+## Executed checks — liquid glass on the A34 (2026-11-06, 16:10–16:40)
+
+The owner's follow-up was "apply liquid glass effect to UI". The decision (rim-lit glass, no blur,
+stock Compose only) is recorded in `docs/DECISIONS.md`; this section records what was run against
+the result. Same reference hardware, same rules as above: live dumps and screenshots, scratch
+harness in `.tmp_device_qa/` (untracked, PII), every setting restored.
+
+| Check | Result | What was actually run |
+|---|---|---|
+| Kotlin compile, customer | **PASS** | `./gradlew --no-daemon -q :app:compileCustomerDebugKotlin` on the final tree — no errors |
+| JVM unit tests, both flavors | **PASS** | `:app:testCustomerDebugUnitTest` and `:app:testStaffDebugUnitTest` — **272 tests, 0 failures, 0 skipped each** (266 baseline + 6 new `LiquidGlassTokensTest` pinning rim-stop order, fill band 0.90–0.96 relaxing downwards, specular ≤ the 4 dp tightest padding, shade alpha ≤ 0.10) |
+| Android lint, customer | **PASS** | `:app:lintCustomerDebug` — **0 errors, 70 warnings, 5 hints**, identical to the pre-glass baseline |
+| Release build + install | **PASS** | `:app:assembleCustomerRelease`, sha256 `81ef8bddc0cbc9923d7f8455…`, installed `-r` on the A34 (`versionName` 1.12, code 13, session kept) |
+| Glass screenshots, light theme | **CAPTURED** | `glass-light-01-home-top` … `glass-light-06-orders` (Home ×2, Categories, Cart with 2 lines, Checkout review step, Orders). Cart/checkout shot populated — the first two attempts found Home still fetching sections and are superseded |
+| Glass screenshots, dark theme | **CAPTURED** | `glass-dark-01` … `glass-dark-06`, same six screens, true app-dark render. Eyeballed: rim defined on every card, specular does not land on text, nav pill and header card legible |
+| Checkout screenshot discipline | **verified in the script** | only the review step was screenshotted; "Slide to Place Order" was never swiped and no order was placed |
+| App theme ≠ system night mode | **finding** | `ThemeViewModel` (DataStore, default light) overrides `isSystemInDarkTheme()`; `cmd uimode` changes only the status bar. The real dark render requires Profile → Dark mode, reached from the Home header avatar (Home must be scrolled to top). The first two passes' "dark" shots were app-light renders and were re-taken |
+| Theme + settings restore | **PASS** | read back after the pass: system `mNightMode=2 (yes)` (as found), app theme light (as found), font scale 1.1, animations 1.0×, basket emptied through the cart stepper ("Decrease quantity of …", 2 removals) |
+| Rim contrast vs the reference board | **NOT COMPARED** | screenshots exist for both themes but were only eyeballed; WP10 board comparison remains open |
+| Frame timing / scroll profiling | **NOT MEASURED** | the glass adds one cached path and two gradients per surface — that cost claim is a judgement, not a measurement |
+| Closed-store panels with glass | **NOT RUN** | still gated on a live `set_store_open` and the owner's approval |
+| BUG-012 light-theme pill contrast | **NOT RE-MEASURED** | light screenshots now exist (`glass-light-01`); the numeric pass has not been run against them |
+
+Device left as found: system dark, app theme light, font 1.1, animations 1.0×, basket empty.
+Screenshots stay in `.tmp_device_qa/shots/` and are **never committed**.

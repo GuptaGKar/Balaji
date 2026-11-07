@@ -78,7 +78,7 @@ interface SupabaseApi {
         @Header("apikey") apiKey: String,
         @Header("Authorization") auth: String,
         @Query("customer_id") customerId: String? = null,
-        @Query("select") select: String = "id,public_order_number,status,payment_method,payment_status,item_subtotal_paise,delivery_fee_paise,tax_paise,grand_total_paise,created_at,accepted_at,delivered_at,order_items(id,sku_snapshot,name_snapshot,quantity_type_snapshot,unit_label_snapshot,price_basis_qty_snapshot,qty_base,unit_price_paise,line_total_paise,removed_at,removed_reason,products(image_path))",
+        @Query("select") select: String = "id,public_order_number,status,payment_method,payment_status,item_subtotal_paise,delivery_fee_paise,tax_paise,grand_total_paise,created_at,accepted_at,delivered_at,order_items(id,product_id,sku_snapshot,name_snapshot,quantity_type_snapshot,unit_label_snapshot,price_basis_qty_snapshot,qty_base,unit_price_paise,line_total_paise,removed_at,removed_reason,products(image_path))",
         @Query("order") order: String = "created_at.desc",
         @Query("limit") limit: Int = 100
     ): Response<List<OrderResponse>>
@@ -957,6 +957,8 @@ data class OrderItemResponse(
     val name_snapshot: String,
     val qty_base: Long,
     val line_total_paise: Long,
+    /** FK to the catalogue; null on lines whose product was deleted after the order. */
+    val product_id: String? = null,
     val quantity_type_snapshot: String? = null,
     val unit_label_snapshot: String? = null,
     val removed_at: String? = null,

@@ -42,6 +42,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,6 +56,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.balaji.provision.domain.model.Cart
 import com.balaji.provision.domain.model.Product
 import com.balaji.provision.domain.model.ProductVariantGroup
@@ -65,9 +67,14 @@ import com.balaji.provision.domain.model.lineTotalPaise
 import com.balaji.provision.ui.components.MoneyText
 import com.balaji.provision.ui.components.OutlinedQuantityStepper
 import com.balaji.provision.ui.components.ProductThumb
+import com.balaji.provision.ui.components.ClosedPanelPlace
+import com.balaji.provision.ui.components.ClosedStorePanel
 import com.balaji.provision.ui.components.StatusPill
 import com.balaji.provision.ui.components.StickyBottomBar
 import com.balaji.provision.ui.components.WeightedQuantityDialog
+import com.balaji.provision.ui.components.liquidGlass
+import com.balaji.provision.ui.theme.BalajiDesign
+import com.balaji.provision.ui.theme.BalajiText
 import com.balaji.provision.ui.theme.appColors
 
 /**
@@ -94,8 +101,13 @@ fun ProductDetailsScreen(
     onOpenCart: () -> Unit = {},
     onShare: (() -> Unit)? = null,
     favouriteIds: Set<String> = emptySet(),
-    onToggleFavourite: (productId: String) -> Unit = {}
+    onToggleFavourite: (productId: String) -> Unit = {},
+    homeViewModel: com.balaji.provision.ui.home.HomeViewModel =
+        androidx.hilt.navigation.compose.hiltViewModel()
 ) {
+    // Only read so the page can say honestly why checkout is paused. Browsing and adding to the
+    // basket both keep working while the store is closed, which is what the panel below states.
+    val homeState by homeViewModel.state.collectAsState()
     var selectedVariantId by remember(group.groupId) {
         mutableStateOf(group.defaultVariant.id)
     }
@@ -194,6 +206,11 @@ fun ProductDetailsScreen(
 
                 PriceBlock(product = selected)
 
+                ClosedStorePanel(
+                    storeOpen = homeState.storeOpen,
+                    place = ClosedPanelPlace.ProductDetails
+                )
+
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -240,8 +257,13 @@ fun ProductDetailsScreen(
 
                 Surface(
                     shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.fillMaxWidth()
+                    color = Color.Transparent,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .liquidGlass(
+                            shape = RoundedCornerShape(14.dp),
+                            fill = MaterialTheme.colorScheme.primaryContainer
+                        )
                 ) {
                     Column(
                         modifier = Modifier.padding(14.dp),
@@ -363,6 +385,23 @@ private fun ProductImage(product: Product) {
 }
 
 
+/**
+ * The saving, stated in money. "15% OFF" on its own is a ratio a customer has to multiply; the
+ * rupee figure is the thing they care about, and both come from the two server prices rather than
+ * from a promo field. Null when the maths shows no saving, so this chip can never be the reason a
+ * page claims a discount the bill will not honour.
+ *
+ * The percentage truncates, the same way `Product.discountPercent` does. Two surfaces showing 16%
+ * and 17% for one product is the kind of disagreement a customer notices and a store has to
+ * explain on the phone.
+ */
+internal fun savingsChipLabel(mrpPaise: Long?, pricePaise: Long): String? {
+    val list = mrpPaise ?: return null
+    val saved = list - pricePaise
+    if (saved <= 0L || list <= 0L) return null
+    return "Save ${formatPaise(saved)} (${(saved * 100L / list).toInt()}%)"
+}
+
 @Composable
 private fun PriceBlock(product: Product) {
     Row(
@@ -371,28 +410,33 @@ private fun PriceBlock(product: Product) {
     ) {
         MoneyText(
             text = formatPaise(product.pricePaise),
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.primary
+            style = BalajiText.Price.copy(fontSize = 22.sp, lineHeight = 27.sp),
+            color = MaterialTheme.colorScheme.onSurface
         )
         if (product.hasDiscount) {
             Text(
                 text = formatPaise(product.mrpPaise!!),
-                style = MaterialTheme.typography.titleMedium.copy(textDecoration = TextDecoration.LineThrough),
+                style = BalajiText.Mrp.copy(textDecoration = TextDecoration.LineThrough),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 2.dp)
             )
-            Surface(
-                shape = RoundedCornerShape(4.dp),
-                color = MaterialTheme.colorScheme.primaryContainer,
-                modifier = Modifier.padding(bottom = 3.dp)
-            ) {
-                Text(
-                    text = "${product.discountPercent}% OFF",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                )
+            val savings = savingsChipLabel(product.mrpPaise, product.pricePaise)
+            if (savings != null) {
+                // Green, not orange: orange means "press this to buy" in this app, and a saving is
+                // a fact about the price, not an action.
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = MaterialTheme.appColors.successContainer,
+                    modifier = Modifier.padding(bottom = 3.dp)
+                ) {
+                    Text(
+                        text = savings,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.appColors.onSuccessContainer,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
             }
         }
         Text(
@@ -456,17 +500,20 @@ private fun PackSelector(
                 Surface(
                     onClick = { onSelected(variant.id) },
                     shape = RoundedCornerShape(12.dp),
-                    color = if (selected) {
-                        MaterialTheme.colorScheme.primaryContainer
+                    color = Color.Transparent,
+                    // The selected pack keeps its orange outline because that border says which
+                    // pack is chosen; the others trade the grey hairline for the liquid rim.
+                    border = if (selected) {
+                        BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
                     } else {
-                        MaterialTheme.colorScheme.surface
+                        null
                     },
-                    border = BorderStroke(
-                        width = if (selected) 1.5.dp else 1.dp,
-                        color = if (selected) {
-                            MaterialTheme.colorScheme.primary
+                    modifier = Modifier.liquidGlass(
+                        shape = RoundedCornerShape(12.dp),
+                        fill = if (selected) {
+                            MaterialTheme.colorScheme.primaryContainer
                         } else {
-                            MaterialTheme.colorScheme.outlineVariant
+                            MaterialTheme.colorScheme.surface
                         }
                     )
                 ) {
@@ -594,9 +641,14 @@ private fun AttributeBlock(product: Product) {
         }
     }
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(12.dp),
+                fill = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+            ),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+            containerColor = Color.Transparent
         ),
         shape = RoundedCornerShape(12.dp)
     ) {
@@ -714,11 +766,11 @@ private fun PurchaseBar(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(50.dp)
+                        .height(BalajiDesign.PrimaryCtaHeight)
                         .clearAndSetSemantics {
                             contentDescription = "Add ${product.name}, ${product.packLabel}, to cart"
                         },
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(BalajiDesign.RadiusCard),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary
                     )
@@ -729,10 +781,15 @@ private fun PurchaseBar(
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
+                    // The amount on the button is the line the customer is about to create, from
+                    // the same server price the bill will use - never a rounded guess.
                     Text(
-                        "Add to Cart",
+                        text = "Add to Cart · " + formatPaise(
+                            lineTotalPaise(product.pricePaise, product.priceBasisQty, quantity)
+                        ),
                         style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
                     )
                 }
             }

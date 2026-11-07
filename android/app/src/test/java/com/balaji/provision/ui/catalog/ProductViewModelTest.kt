@@ -10,10 +10,13 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.anyInt
@@ -186,6 +189,46 @@ class ProductViewModelTest {
         assertNotNull(viewModel.error.value)
         assertEquals(0, viewModel.products.value.size)
         assertEquals(0, viewModel.categories.value.size)
+    }
+
+    @Test
+    fun `cached refresh exposes progress and keeps the selected search results`() = runTest(dispatcher) {
+        stubApi(
+            categories = listOf(CategoryResponse("cat-1", "Grains", "grains", 1, true)),
+            products = listOf(productResponse("rice", "RICE", "Rice", "cat-1"))
+        )
+        val viewModel = ProductViewModel(mockApi, CatalogRepository())
+        advanceUntilIdle()
+        viewModel.selectCategory("cat-1")
+        viewModel.setSearchQuery("rice")
+        `when`(mockApi.getProducts(anyString(), anyString(), anyString(), anyString(), anyInt()))
+            .thenReturn(Response.error(503, okhttp3.ResponseBody.create(null, "")))
+
+        // The launch starts, then its async API reads are scheduled. Observe the loading
+        // emission without making the mocked response responsible for the assertion.
+        val states = mutableListOf<Boolean>()
+        val collection = backgroundScope.launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.isLoading.collect { states.add(it) }
+        }
+        viewModel.loadData()
+        advanceUntilIdle()
+
+        assertTrue("A cached refresh must expose progress", states.contains(true))
+        assertFalse(viewModel.isLoading.value)
+        assertNotNull(viewModel.error.value)
+        assertEquals("cat-1", viewModel.selectedCategory.value)
+        assertEquals("rice", viewModel.searchQuery.value)
+        assertEquals(listOf("rice"), viewModel.products.value.map { it.id })
+
+        stubApi(
+            categories = listOf(CategoryResponse("cat-1", "Grains", "grains", 1, true)),
+            products = listOf(productResponse("rice", "RICE", "Rice refreshed", "cat-1"))
+        )
+        viewModel.loadData()
+        advanceUntilIdle()
+        assertEquals(null, viewModel.error.value)
+        assertEquals("Rice refreshed", viewModel.products.value.single().name)
+        collection.cancel()
     }
 
     private suspend fun stubApi(categories: List<CategoryResponse>, products: List<ProductResponse>) {

@@ -22,8 +22,10 @@ val BrandGreenDeep = Color(0xFF17662A)
 val BrandGreenContainer = Color(0xFFDCFCE7)
 val BrandGreenOnContainer = Color(0xFF052E16)
 
-// Light neutrals: white background with a soft grey surface.
-val LightBackground = Color(0xFFFFFFFF)
+// Light neutrals: the warm peach page the reference board shows behind everything, with white
+// cards on top of it. `surface` stays white so a card, a sheet or a dialog is still paper-bright;
+// only the page background is tinted. #FFF4EC is brand.softPeach from the brief.
+val LightBackground = Color(0xFFFFF4EC)
 val LightSurface = Color(0xFFF7F7F5)
 val LightSurfaceVariant = Color(0xFFF1F1EE)
 val LightOnSurface = Color(0xFF252525)

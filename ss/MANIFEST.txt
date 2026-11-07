@@ -1,0 +1,54 @@
+ss/ - screenshot collection
+Created: 4 November 2026
+All 27 images verified byte-for-byte identical to their source (27/27) and
+confirmed to open as valid PNGs (0 corrupt). Nothing was moved: the originals
+still exist.
+
+WHAT IS IN HERE
+---------------
+ss/*.png                    15  Balaji customer-app device QA, 4 Nov 2026
+ss/store-assets/*.png        7  Play Store listing art + QR download codes
+ss/vendor/*.png              5  older map-drawing debug captures from .tmp_vendor
+
+DEVICE QA SHOTS (ss/*.png)
+--------------------------
+Captured on Samsung SM-X510 (Android 16, API 36), 1440x2304 @280dpi, running the
+customer debug build v1.12 / versionCode 13 with the Changes/ UX patch applied.
+Each has a matching uiautomator hierarchy dump in .tmp_device_qa/xml/.
+
+FILE                     SIZE        SHOWS / RESULT
+---------------------------------------------------------------------------
+000-launch.png           2304x1440   Fresh install: sign-in / create-account screen
+010-after-login.png      2304x1440   Home after login. "DELIVER TO Home - Saorana",
+                                     "In stock now / From today's catalogue" (patch
+                                     rename confirmed). Landscape - product cards show
+                                     image + name only, price and ADD are below the fold.
+020-home-scrolled.png    1440x2304   Home scrolled; prices, pack counts and ADD visible.
+030-after-add.png        1440x2304   MiniCartBar first appearance: "1 item" + "View basket",
+                                     sitting above the bottom navigation. PASS.
+040-two-items.png        1440x2304   Bar updated live to "2 items" after a second ADD. PASS.
+050-catalog.png          1440x2304   Categories tab landing.
+060-search-milk.png      1440x2304   Query typed; category grid still shown until submitted.
+070-results.png          1440x2304   Submitted: "All products", Sort, Filter, In stock (1).
+                                     MiniCartBar present on Catalog too. PASS.
+080-product.png          1440x2304   Product detail for the single match.
+090-after-back.png       1440x2304   Back from product: query "milk" and results retained.
+                                     Search-restoration test PASS.
+101-probe.png            1440x2304   Hierarchy probe of the search field controls.
+103-nonsense.png         1440x2304   "zzqxq999" -> "No items found" + "Clear search",
+                                     "In stock (0)". No "in this category" wording. PASS.
+110-basket.png           1440x2304   Cart: Item subtotal 108.00 + Delivery 30.00 = 138.00,
+                                     "Proceed to Checkout - 138.00" (server total on button).
+120-after-banner.png     1440x2304   Banner tap with no destination -> catalogue fallback,
+                                     "All products", In stock (36). Fallback branch PASS.
+130-basket-via-bar.png   1440x2304   "View basket" on the bar navigates to My Cart. PASS.
+
+Note: the first two frames are landscape and the rest portrait - the tablet
+rotated during the session, so layout comparisons across them are not like-for-like.
+
+NOT TESTED (could not, without writing to the live backend)
+-----------------------------------------------------------
+- Gift / free-item coupon row wording: the coupons table holds 2 rows, both
+  free_delivery, zero free_item, so there was nothing to apply.
+- Banner pointing at a deleted category: both stored banners have no destination
+  key at all, so only the no-destination fallback could be exercised.

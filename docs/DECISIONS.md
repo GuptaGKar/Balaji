@@ -1354,3 +1354,161 @@ failed with the port open at TCP level. The cause was that `adb kill-server` was
 pairing, and the pairing material lives in the daemon. Pair, then connect without restarting the
 daemon, and the mDNS-advertised port works first try. The pairing code is one-time, so a fresh
 code was needed from the handset.
+
+## The orange-glass pass: six things the reference board could not decide (2026-11-06)
+
+`Changes/Balaji_Provision_Store_Master_UI_UX_Implementation_Prompt.md` is a good brief, and it is
+still a picture. A picture cannot say what happens when the stock ceiling is reached, or whether
+the store schedules deliveries. These are the decisions made away from the mockup, and the one
+thing the machine could not provide.
+
+**Fonts: not in the repo, not downloaded, not faked.** The brief specifies Poppins (headings),
+Inter (body/UI) and Manrope (prices, quantities, CTA labels) with a semantic scale. No TTF for any
+of them exists in this repository, in `node_modules`, or on this system - `fc-list` returns only
+dejavu, droid, liberation, noto and ubuntu - and downloading assets is not permitted here. So
+`BalajiFont` resolves all three roles to `FontFamily.SansSerif` in one place, and `BalajiText`
+carries the brief's weights and sizes so the *hierarchy* is real while the typefaces are not.
+Dropping licensed files into `android/app/src/main/res/font/` and changing three lines finishes it;
+no screen names a font. **This is an open gap, not a done item: the app does not read like the
+board's typography yet.** A fallback family also has to be chosen deliberately, because ₹, Devanagari
+and long Tamil place names must still render.
+
+**No blur, anywhere.** "Glass" in this build is a near-opaque tinted fill with a hairline border.
+`Modifier.blur` on a scrolling product grid costs frames on the Galaxy A34 this store actually
+runs, and the reference cards are flat warm surfaces with a border. The brief agrees: it asks for
+restrained blur and warns against blur modifiers inside large lazy grids.
+
+**The pill is 0.94, and it has four tabs.** Its own section 10 names the 0.30 alpha as the
+legibility defect (BUG-012 here) and asks for 0.90-0.96, so the brief resolves the bug the device
+found. The mockup shows five tabs including Offers and Account; section 10 says not to add
+destinations without real routes, and there are none, so the fourth tab stays. A pill item that
+leads nowhere is worse than a missing one.
+
+**The quantity stepper got its own row.** A 48 dp stepper and a price do not both fit in a 148 dp
+rail card, and shrinking the buttons to make them fit would trade a touch target for a mockup's
+proportions. The other option - letting the card grow a row taller when something is added - makes
+a list jump under the thumb. So the control sits on a fixed-height row of its own, and the mockup's
+32 dp pill and 30 dp buttons were measured and left behind deliberately.
+
+**Closed means closed.** The Store Closed mockup says "Place your order now, we will deliver it
+tomorrow (7:00 AM - 11:00 AM)". None of that is true here: `place_order` refuses an order while
+`store_open` is false (step 3 of `20261028000001_fix_place_order.sql`), there is no scheduling
+column, no slot RPC and no manager toggle. The panel therefore says what is happening - browse and
+keep your basket, checkout opens when the store reopens - and `ClosedStoreCopyTest` asserts that no
+closed-store sentence contains a day, a time or a duration. `closedCopyFor()` is the one place the
+wording changes if scheduling is ever built.
+
+**The slide is never the only way in.** Slide-to-confirm is the right gesture for an order, and it
+is the wrong affordance for a screen reader: TalkBack and Switch Access cannot drag a thumb. The
+control publishes an accessibility `onClick` that calls the *same* callback, so the alternative
+path cannot drift from the gesture path, and the label follows the stage - "Slide to Checkout" on
+the cart, where the gesture navigates, and "Slide to Place Order" only on the step that calls the
+RPC.
+
+**Categories kept its grid.** The brief offers the left rail "if data density and actual screen
+width justify it". On a 384 dp window a rail plus a grid leaves tiles around 90 dp wide, and the
+store has roughly ten categories - the case the conditional excludes. Rewriting a working 889-line
+screen to match a mockup, with no device in hand, is not a trade worth making blind.
+
+## What WP8 needed from the owner, and so did not get invented (2026-11-06)
+
+The audit the brief asks for first (§11.1) came out like this: `store_open` is one boolean on a
+singleton `store_settings` row, flipped by staff through `set_store_open`; `place_order` refuses
+when it is false; `weekly_hours` exists and Home renders it, but nothing computes a next-open
+instant; delivery timing shown to customers is a free-text `estimated_window_text`, not a slot;
+there is no holiday table, no capacity, and no scheduled column on `orders`.
+
+So `20261106000001` adds the parts that are arithmetic rather than policy - the flag (default off),
+bounded lead and horizon settings, a `delivery_windows` table, and functions that compute the next
+real window in the store's own timezone and re-validate a chosen one - and stops at every place a
+number would have to be invented: how many orders a window can take, which days are holidays, when
+the cut-off is, and whether the store even wants closed-store ordering. `place_order`'s guard is
+touched by nothing in that migration, and suite 051 asserts a closed store still answers
+`STORE_CLOSED` with scheduling on *and* off, so "inert" is a measured claim rather than an
+intention. The owner's answers are what the dashboard toggle would then expose.
+
+**Two defects the new suite caught before it was committable.**
+`validate_delivery_slot` compared the horizon as `now() + N days` while `get_next_delivery_window`
+enumerates whole days, so on the last permitted day the server offered a window on Home and refused
+the same instant at checkout - the same family of disagreement as BUG-015 and BUG-025, found by a
+test rather than by a customer. And the suite's first run died on `audit_logs`' actor foreign key:
+`SET LOCAL ROLE` does not clear a JWT claim, and `store_settings` has an audit trigger, so an UPDATE
+after a permission test wrote a profile id that did not exist. Both are in the commit message, not
+buried.
+
+## The brand orange fails contrast, and it is not mine to re-brand (2026-11-06)
+
+Writing the header made the arithmetic unavoidable. White on `#FF6B00` is **2.85:1** - under WCAG AA
+for large text (3:1) and well under it for normal text (4.5:1). White on `#D95400` is **4.03:1**,
+which clears large text and still misses normal. Every purchasing control in this app carries a
+white label on the brighter of those two, at 12-15 sp, and the brief asks for it in words: "white
+Manrope Bold label" on "simple SOLID orange".
+
+What I did: arranged the one surface I could arrange without touching the brand - the Home gradient
+puts the deep end behind the wordmark and the bright end under the opaque glass card, and the avatar
+became a near-white disc with a `#D95400` initial instead of white-on-translucent-orange. Both
+numbers are in the code comments so nobody has to re-derive them.
+
+What I did not do: change `primary`, `onPrimary`, or any button fill. That is a single theme value
+shared by the customer app, the staff app and the rider app, and it is the colour the store's brand
+is. Three options exist and they are the owner's to pick - darken the fill to about `#B84600`
+(white reaches 5.37:1, passes AA normal, and the app stops looking like the board), put dark text on
+orange (fails the reference outright), or accept the exception and write it down. Logged as BUG-028
+with the ratios, because "the accessibility requirement and the brand requirement collide here" is a
+fact the next person should meet in writing rather than discover in a review.
+
+**One thing I refused to claim.** The stepper's two +/- buttons are 48 dp squares and meet the touch
+floor outright. The ADD pill is 40 dp tall, and whether its *effective* hit box is 40 or 48 depends
+on how this Compose version applies `minimumInteractiveComponentSize` inside a fixed-height parent -
+which is measurable on the handset and is not measurable from here. The doc comment says so instead
+of asserting 48.
+
+**Outcome (same day).** The owner was asked with the three options and their measured ratios and
+chose **accept and document**. So `primary` and `onPrimary` are unchanged, white-on-orange stays, and
+BUG-028 in `QA_LOG.md` is the written record with the numbers in it. That is a decision, not a
+closure: the 2.85:1 measurement is still true, it is now simply a known and accepted exception rather
+than an undiscovered defect. If an accessibility pass ever happens, it should move `primary` for the
+customer, staff and rider apps in one change - the three share one scheme, and fixing only the
+customer app would leave the same failure in the hands of the people packing the orders.
+
+## Liquid glass, drawn rather than blurred (2026-11-06)
+
+The owner asked to "apply liquid glass effect to UI" on top of the finished redesign. Two questions
+were asked before touching code, because the answer changes the whole implementation: **which glass**
+and **when to commit**. The answers were *rim-lit glass, no blur, stock Compose only* and *glass
+first, then commit everything together*.
+
+What was built. `BalajiDesign.LiquidGlass` holds the tokens: a three-stop rim gradient (white 0.90
+at the specular corner, a neutral `#B9B3AD` hairline at 0.70 that keeps a light card defined on a
+light page, the brand orange at 0.35 as a faint warm refraction), a 4 dp specular band at 0.55 alpha
+on the top edge, a 10 dp shade at 0.10 alpha on the bottom edge, a 1.5 dp rim stroke, and
+`fillAlphas(base)` which keeps the chosen alpha at the top and relaxes it 3.5 % at the bottom - from
+`GlassAlpha` 0.94 that is 0.94 to 0.902, inside the brief's 0.90-0.96 band for text-bearing
+surfaces. `Modifier.liquidGlass(shape, fill?)` paints the optional gradient fill, lets the content
+draw, then paints rim, specular and shade over it inside a clip of the shape. Roughly 40 surfaces
+across 17 files moved onto it; the grey `outlineVariant` hairline they carried is gone.
+
+What was deliberately **not** done, and why:
+
+- **No blur.** `Modifier.blur` cannot blur what is behind a surface - it blurs the element's own
+  drawing - so a frosted panel needs a captured backdrop layer or a third-party library, and the
+  brief's own §3.2/§5 keep blur shaders out of scrolling grids. The "liquid" is gradients. The cost
+  per frame is one cached path, two gradients and a stroke, which is the order of cost of the shadow
+  that was already there. That is a judgement, not a measurement: profiling is still NOT RUN.
+- **Semantic borders stay.** The active pack chip, the active control pill, the free-item green
+  selections and both quantity steppers keep their borders - those borders *are* state. Only the
+  decorative grey hairlines were replaced, and the steppers keep their orange tint over the glass.
+- **Purchasing buttons stay solid.** The brief says "simple SOLID orange"; `BalajiOrangeButton`,
+  `AddPill` and the ADD pill are untouched by the glass treatment.
+- **Page bands stay flat.** `StoreTopBar`, `StickyBottomBar` and the Categories header band are
+  full-width chrome with no rounded shape; a rim around them would draw a line across the page
+  rather than lift a card off it.
+
+What the tests pin: rim stops ordered from the specular corner to the warm corner, the fill inside
+the 0.90-0.96 band and relaxing downwards without ever exceeding the chosen alpha, the specular
+band no taller than the tightest content padding it decorates (4 dp), and the shade staying faint
+enough (<= 0.10) that reaching content reads as depth rather than as a smudge. What they cannot pin:
+that it looks right. That is the device pass, recorded in `QA_LOG.md` when it runs.
+
+
+

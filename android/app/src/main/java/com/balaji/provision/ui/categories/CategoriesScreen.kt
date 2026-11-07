@@ -7,7 +7,6 @@ import android.speech.RecognizerIntent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
@@ -97,11 +96,12 @@ import com.balaji.provision.ui.home.resolveStorefrontSections
 import com.balaji.provision.ui.home.ungroupedCategoryIds
 import com.balaji.provision.ui.components.categoryColors
 import com.balaji.provision.ui.components.formatRupeesWhole
+import com.balaji.provision.ui.components.liquidGlass
 import com.balaji.provision.ui.components.navPillReserve
 import com.balaji.provision.ui.theme.appColors
 import kotlin.math.roundToInt
 
-private const val SEARCH_PLACEHOLDER = "Search for atta, milk, snacks…"
+private const val SEARCH_PLACEHOLDER = "Search for milk, atta, snacks…"
 
 // The reference tiles are almost square. A wider ratio looked flat once real
 // category images were dropped in.
@@ -315,10 +315,13 @@ private fun CatalogueSearchHeader(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp),
+                    .height(48.dp)
+                    .liquidGlass(
+                        shape = RoundedCornerShape(12.dp),
+                        fill = MaterialTheme.colorScheme.surface
+                    ),
                 shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                color = Color.Transparent
             ) {
                 Row(
                     modifier = Modifier
@@ -685,8 +688,7 @@ private fun CatalogueCategoryTile(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(TILE_ASPECT_RATIO)
-                .clip(RoundedCornerShape(18.dp))
-                .background(containerColor),
+                .liquidGlass(RoundedCornerShape(18.dp), containerColor),
             contentAlignment = Alignment.Center
         ) {
             if (imageUrl != null) {

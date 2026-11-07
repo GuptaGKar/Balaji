@@ -72,6 +72,7 @@ import com.balaji.provision.ui.components.navPillReserve
 import com.balaji.provision.ui.components.ProductThumb
 import com.balaji.provision.ui.components.StatusPill
 import com.balaji.provision.ui.components.StoreTopBar
+import com.balaji.provision.ui.components.liquidGlass
 import com.balaji.provision.ui.theme.appColors
 import kotlinx.coroutines.launch
 
@@ -472,10 +473,16 @@ fun OrderCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onOpen),
+            .clickable(onClick = onOpen)
+            .liquidGlass(
+                shape = RoundedCornerShape(18.dp),
+                fill = MaterialTheme.colorScheme.surface
+            ),
         shape = RoundedCornerShape(18.dp),
+        // The border marks the order currently in flight; it is state, not decoration, so it
+        // stays on top of the rim.
         border = if (isCurrent) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)) else null,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = if (isCurrent) 3.dp else 1.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -520,11 +527,15 @@ fun OrderCard(
 
             if (order.hasRemovedItems) {
                 Surface(
-                    color = MaterialTheme.colorScheme.errorContainer,
+                    color = Color.Transparent,
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 10.dp)
+                        .liquidGlass(
+                            shape = RoundedCornerShape(12.dp),
+                            fill = MaterialTheme.colorScheme.errorContainer
+                        )
                 ) {
                     Text(
                         "Some items were unavailable and removed by the store. Your bill has been updated.",

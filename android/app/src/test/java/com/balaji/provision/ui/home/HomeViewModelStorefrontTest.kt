@@ -10,6 +10,7 @@ import com.balaji.provision.data.repository.AccountResult
 import com.balaji.provision.data.repository.StorefrontRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -57,6 +58,10 @@ class HomeViewModelStorefrontTest {
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         storefrontRepository = StorefrontRepository(api, auth)
+        // HomeViewModel collects the signed-in session to decide whether a "Buy Again" shelf
+        // can be shown; these tests are signed out, so the flow answers with no session and the
+        // shelf stays off the screen. A Mockito default would hand the collector a null flow.
+        whenever(auth.session).thenReturn(MutableStateFlow(null))
     }
 
     @After
@@ -86,7 +91,7 @@ class HomeViewModelStorefrontTest {
     fun `loadStoreInfo keeps the composed sections it did not load`() = runTest(dispatcher) {
         stub(listOf(StoreSettingsResponse(store_open = true)), Response.success(listOf(sectionRow)))
 
-        val viewModel = HomeViewModel(api, accountRepository, storefrontRepository)
+        val viewModel = HomeViewModel(api, accountRepository, storefrontRepository, auth)
         advanceUntilIdle()
         assertEquals("the first read must land at all", 1, viewModel.state.value.sections.size)
 
@@ -110,7 +115,7 @@ class HomeViewModelStorefrontTest {
     @Test
     fun `loadStoreInfo still publishes its own fields while keeping sections`() = runTest(dispatcher) {
         stub(listOf(StoreSettingsResponse(store_open = true)), Response.success(listOf(sectionRow)))
-        val viewModel = HomeViewModel(api, accountRepository, storefrontRepository)
+        val viewModel = HomeViewModel(api, accountRepository, storefrontRepository, auth)
         advanceUntilIdle()
 
         viewModel.loadStoreInfo()
@@ -126,7 +131,7 @@ class HomeViewModelStorefrontTest {
     @Test
     fun `a settings failure does not clear the composed sections either`() = runTest(dispatcher) {
         stub(listOf(StoreSettingsResponse(store_open = true)), Response.success(listOf(sectionRow)))
-        val viewModel = HomeViewModel(api, accountRepository, storefrontRepository)
+        val viewModel = HomeViewModel(api, accountRepository, storefrontRepository, auth)
         advanceUntilIdle()
 
         // Second call answers with nothing, which is the "could not load" branch.
@@ -146,7 +151,7 @@ class HomeViewModelStorefrontTest {
             Response.error(400, "".toResponseBody("application/json".toMediaType()))
         )
 
-        val viewModel = HomeViewModel(api, accountRepository, storefrontRepository)
+        val viewModel = HomeViewModel(api, accountRepository, storefrontRepository, auth)
         advanceUntilIdle()
         viewModel.loadStoreInfo()
         advanceUntilIdle()

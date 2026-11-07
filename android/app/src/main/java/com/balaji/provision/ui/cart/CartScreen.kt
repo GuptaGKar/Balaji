@@ -51,6 +51,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -66,16 +67,21 @@ import com.balaji.provision.domain.model.formatPaise
 import com.balaji.provision.ui.account.AccountViewModel
 import com.balaji.provision.ui.components.deliveryWindowLabel
 import com.balaji.provision.ui.components.BalajiBasketMark
+import com.balaji.provision.ui.components.ClosedPanelPlace
+import com.balaji.provision.ui.components.ClosedStorePanel
 import com.balaji.provision.ui.components.EmptyState
 import com.balaji.provision.ui.components.FreeDeliveryProgress
+import com.balaji.provision.ui.components.liquidGlass
 import com.balaji.provision.ui.components.MoneyText
 import com.balaji.provision.ui.components.NAV_PILL_RESERVE_DP
 import com.balaji.provision.ui.components.OutlinedQuantityStepper
 import com.balaji.provision.ui.components.ProductThumb
+import com.balaji.provision.ui.components.SlideToConfirm
 import com.balaji.provision.ui.components.StickyBottomBar
 import com.balaji.provision.ui.components.SummaryRow
 import com.balaji.provision.ui.components.WeightedQuantityDialog
 import com.balaji.provision.ui.home.HomeViewModel
+import com.balaji.provision.ui.theme.BalajiText
 import com.balaji.provision.ui.theme.appColors
 
 @Composable
@@ -232,20 +238,17 @@ fun CartScreen(
                             val deliveryFree = q.deliveryFeePaise <= 0L
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
-                                color = if (deliveryFree) {
-                                    MaterialTheme.appColors.successContainer
-                                } else {
-                                    MaterialTheme.colorScheme.surface
-                                },
-                                border = if (deliveryFree) {
-                                    null
-                                } else {
-                                    androidx.compose.foundation.BorderStroke(
-                                        1.dp,
-                                        MaterialTheme.colorScheme.outlineVariant
+                                color = Color.Transparent,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .liquidGlass(
+                                        shape = RoundedCornerShape(16.dp),
+                                        fill = if (deliveryFree) {
+                                            MaterialTheme.appColors.successContainer
+                                        } else {
+                                            MaterialTheme.colorScheme.surface
+                                        }
                                     )
-                                },
-                                modifier = Modifier.fillMaxWidth()
                             ) {
                                 FreeDeliveryProgress(
                                     subtotalPaise = q.itemSubtotalPaise,
@@ -342,9 +345,13 @@ fun CartScreen(
                     } ?: item(key = "quote_retry") {
                         Card(
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer
+                                containerColor = Color.Transparent
                             ),
-                            shape = RoundedCornerShape(16.dp)
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.liquidGlass(
+                                shape = RoundedCornerShape(16.dp),
+                                fill = MaterialTheme.colorScheme.errorContainer
+                            )
                         ) {
                             Column(Modifier.padding(16.dp)) {
                                 Text(
@@ -370,20 +377,20 @@ fun CartScreen(
                 // allowed to sit behind it.
                 modifier = Modifier.padding(bottom = NAV_PILL_RESERVE_DP.dp)
             ) {
-                Button(
-                    onClick = onNavigateToCheckout,
-                    enabled = quote != null && unavailableLines.isEmpty(),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    // Show the server total on the action itself so the amount is
-                    // visible without scrolling to the bill.
-                    Text(
-                        text = quote?.let { "Proceed to Checkout · ${formatPaise(it.grandTotalPaise)}" }
-                            ?: "Proceed to Checkout",
-                        style = MaterialTheme.typography.titleSmall
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ClosedStorePanel(
+                        storeOpen = homeState.storeOpen,
+                        place = ClosedPanelPlace.Cart
+                    )
+                    // Slide, not tap: this is the one place a thumb at the bottom of a scrolling
+                    // page can hit an expensive action by accident. It says "Checkout" rather
+                    // than "Place order" because address, payment and review still have to happen
+                    // - the label has to describe the gesture it actually performs.
+                    SlideToConfirm(
+                        label = "Slide to Checkout",
+                        sublabel = quote?.let { formatPaise(it.grandTotalPaise) },
+                        enabled = quote != null && unavailableLines.isEmpty() && homeState.storeOpen,
+                        onConfirm = onNavigateToCheckout
                     )
                 }
             }
@@ -395,8 +402,13 @@ fun CartScreen(
 private fun StoreCard(estimatedWindow: String?, storeOpen: Boolean) {
     Surface(
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.primaryContainer,
-        modifier = Modifier.fillMaxWidth()
+        color = Color.Transparent,
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(16.dp),
+                fill = MaterialTheme.colorScheme.primaryContainer
+            )
     ) {
         Row(
             modifier = Modifier.padding(14.dp),
@@ -417,7 +429,9 @@ private fun StoreCard(estimatedWindow: String?, storeOpen: Boolean) {
                 )
                 Text(
                     text = when {
-                        !storeOpen -> "Store closed — orders will be reviewed later"
+                        // Not "reviewed later": the server refuses an order while the store is
+                        // closed, and a customer who believes a queue exists will wait for it.
+                        !storeOpen -> "Checkout is paused while the store is closed"
                         !estimatedWindow.isNullOrBlank() -> deliveryWindowLabel(estimatedWindow)
                         else -> "Cash on Delivery available"
                     },
@@ -459,10 +473,17 @@ fun CartItemRow(
     val step = product?.stepQty ?: 1L
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(16.dp),
+                fill = MaterialTheme.colorScheme.surface
+            ),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        // Elevation 0: a shadow under this transparent glass card renders as a grey band
+        // around every cart row on device, so the rim alone defines the edge.
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -477,8 +498,7 @@ fun CartItemRow(
             ) {
                 Text(
                     text = name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
+                    style = BalajiText.ProductName,
                     color = if (lineInfo?.available == false) {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     } else {
@@ -523,7 +543,7 @@ fun CartItemRow(
                         text = lineInfo?.let { formatPaise(it.lineTotalPaise) }
                             ?: product?.let { formatPaise(it.pricePaise) }
                             ?: "—",
-                        style = MaterialTheme.typography.titleSmall,
+                        style = BalajiText.Price,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     IconButton(
@@ -586,10 +606,15 @@ fun CartItemRow(
 @Composable
 private fun UnavailableItemsCard(unavailableLines: List<QuoteBreakdown.Line>) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(16.dp),
+                fill = MaterialTheme.colorScheme.errorContainer
+            ),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer
+            containerColor = Color.Transparent
         )
     ) {
         Column(
@@ -622,9 +647,14 @@ private fun UnavailableItemsCard(unavailableLines: List<QuoteBreakdown.Line>) {
 fun OrderSummaryCard(quote: QuoteBreakdown) {
     Card(
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(18.dp),
+                fill = MaterialTheme.colorScheme.surface
+            )
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -733,9 +763,14 @@ private fun FreeItemPickerCard(
 ) {
     Card(
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(16.dp),
+                fill = MaterialTheme.colorScheme.surface
+            )
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -938,9 +973,14 @@ private fun CouponCard(
 
     Card(
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(16.dp),
+                fill = MaterialTheme.colorScheme.surface
+            )
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),

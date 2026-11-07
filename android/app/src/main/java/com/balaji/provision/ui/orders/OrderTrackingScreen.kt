@@ -39,12 +39,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.balaji.provision.ui.components.EmptyState
 import com.balaji.provision.ui.components.ErrorState
 import com.balaji.provision.ui.components.LoadingState
+import com.balaji.provision.ui.components.liquidGlass
 import com.balaji.provision.ui.theme.appColors
 import kotlinx.coroutines.delay
 
@@ -333,9 +335,14 @@ private fun StatusSummaryCard(
 @Composable
 private fun TimelineCard(steps: List<TrackingStep>, status: String) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(18.dp),
+                fill = MaterialTheme.colorScheme.surface
+            ),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -353,21 +360,35 @@ private fun TimelineCard(steps: List<TrackingStep>, status: String) {
                     ) {
                         Surface(
                             shape = CircleShape,
+                            // Green means "the server says this happened". The step in progress is
+                            // orange - the app's action colour - and carries a dot, not a tick,
+                            // because a check on an unfinished stage reads as a completed one.
                             color = when {
                                 step.done -> MaterialTheme.appColors.success
-                                step.current -> MaterialTheme.appColors.success
+                                step.current -> MaterialTheme.colorScheme.primary
                                 else -> MaterialTheme.colorScheme.surfaceVariant
                             },
                             modifier = Modifier.size(22.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                if (step.done || step.current) {
-                                    Icon(
+                                when {
+                                    step.done -> Icon(
                                         Icons.Default.Check,
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.onPrimary,
                                         modifier = Modifier.size(14.dp)
                                     )
+
+                                    step.current -> Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .background(
+                                                MaterialTheme.colorScheme.onPrimary,
+                                                CircleShape
+                                            )
+                                    )
+
+                                    else -> Unit
                                 }
                             }
                         }
@@ -377,9 +398,9 @@ private fun TimelineCard(steps: List<TrackingStep>, status: String) {
                                     .width(2.dp)
                                     .height(30.dp)
                                     .background(
-                                        if (steps.getOrNull(index + 1)?.done == true ||
-                                            steps.getOrNull(index + 1)?.current == true
-                                        ) {
+                                        // The line below a step is finished only when that step is
+                                        // finished; the current stage leaves its line neutral.
+                                        if (step.done) {
                                             MaterialTheme.appColors.success
                                         } else {
                                             MaterialTheme.colorScheme.outlineVariant
@@ -420,8 +441,10 @@ private fun TimelineCard(steps: List<TrackingStep>, status: String) {
                 }
             }
             if (status == "ready_for_dispatch") {
+                // What the status means, not when it will move: nothing in this build knows when a
+                // delivery partner will be assigned, so no timing is stated.
                 Text(
-                    "A delivery partner will pick this up shortly.",
+                    "Waiting for a delivery partner to be assigned.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

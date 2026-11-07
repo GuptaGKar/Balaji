@@ -26,7 +26,6 @@ import { useDropzone, type DropzoneInputProps, type DropzoneRootProps } from "re
 import { Toaster, toast } from "sonner";
 
 type ProductWithCategory = Product & {
-  categories?: { name: string };
   product_categories?: { category_id: string }[];
   category_ids?: string[];
   id: string;
@@ -129,18 +128,22 @@ export default function ProductsTab({ canManage }: { canManage: boolean }) {
     setLoadError(null);
     const supabase = createClient();
 
-    // Prefer the membership embed. A database that has not run 20261105000001 has no
+    // Never embed categories(name) from products: since 20261105000001 there are two FK
+    // paths products -> categories (products.category_id and the product_categories join),
+    // so PostgREST refuses the ambiguous embed (PGRST201 "more than one relationship").
+    // Category names resolve from the `categories` fetch below; ids come from the
+    // unambiguous membership embed. A database that has not run 20261105000001 has no
     // product_categories relation, so the embedded select fails and we retry without it -
     // the same legacy-select fallback the Android client uses, and the reason an un-migrated
     // store can still manage its catalogue.
     let membershipKnown = true;
     let productsRes = await supabase
       .from("products")
-      .select("*, categories(name), product_categories(category_id)")
+      .select("*, product_categories(category_id)")
       .order("name");
     if (productsRes.error) {
       membershipKnown = false;
-      productsRes = await supabase.from("products").select("*, categories(name)").order("name");
+      productsRes = await supabase.from("products").select("*").order("name");
     }
 
     const categoriesRes = await supabase
@@ -662,9 +665,7 @@ export default function ProductsTab({ canManage }: { canManage: boolean }) {
                               // The `categories` state holds active categories only, so a
                               // deactivated membership would otherwise be labelled "General",
                               // which reads like a real category rather than a missing one.
-                              const name = isPrimary
-                                ? prod.categories?.name
-                                : categories.find((c) => c.id === cid)?.name;
+                              const name = categories.find((c) => c.id === cid)?.name;
                               return (
                                 <span
                                   key={cid}
