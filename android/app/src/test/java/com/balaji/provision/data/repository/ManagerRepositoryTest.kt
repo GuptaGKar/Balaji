@@ -14,10 +14,13 @@ import com.balaji.provision.data.network.RemoveOrderItemResponse
 import com.balaji.provision.data.network.RiderProfileResponse
 import com.balaji.provision.data.network.SupabaseApi
 import com.balaji.provision.data.network.TransitionOrderRequest
+import com.balaji.provision.data.network.UpdateProductPriceRpcRequest
+import kotlinx.serialization.json.JsonObject
 import kotlinx.coroutines.test.runTest
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -266,6 +269,35 @@ class ManagerRepositoryTest {
         verify(api).adjustStock(any(), any(), any(), captor.capture())
         assertEquals(10, captor.firstValue.p_delta_qty)
         assertEquals("delivery", captor.firstValue.p_note)
+    }
+
+    @Test
+    fun `update price sends exact paise and MRP`() = runTest {
+        signIn()
+        whenever(api.updateProductPrice(any(), any(), any(), any()))
+            .thenReturn(Response.success(JsonObject(emptyMap())))
+
+        val result = repository.updateProductPrice("product-1", 47500, 49500)
+
+        assertTrue(result is ManagerResult.Success)
+        val captor = argumentCaptor<UpdateProductPriceRpcRequest>()
+        verify(api).updateProductPrice(any(), any(), any(), captor.capture())
+        assertEquals("product-1", captor.firstValue.p_product_id)
+        assertEquals(47500L, captor.firstValue.p_price_paise)
+        assertEquals(49500L, captor.firstValue.p_mrp_paise)
+    }
+
+    @Test
+    fun `clearing MRP sends null rather than zero`() = runTest {
+        signIn()
+        whenever(api.updateProductPrice(any(), any(), any(), any()))
+            .thenReturn(Response.success(JsonObject(emptyMap())))
+
+        repository.updateProductPrice("product-1", 47500, null)
+
+        val captor = argumentCaptor<UpdateProductPriceRpcRequest>()
+        verify(api).updateProductPrice(any(), any(), any(), captor.capture())
+        assertNull(captor.firstValue.p_mrp_paise)
     }
 
     @Test

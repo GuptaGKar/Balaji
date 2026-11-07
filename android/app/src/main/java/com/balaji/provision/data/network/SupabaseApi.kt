@@ -465,7 +465,7 @@ interface SupabaseApi {
         @Header("apikey") apiKey: String,
         @Header("Authorization") auth: String,
         @Query("select") select: String =
-            "product_id,created_at,products(name,price_paise,image_path,unit_label,quantity_type)",
+            "product_id,created_at,products(name,price_paise,mrp_paise,image_path,unit_label,quantity_type)",
         @Query("order") order: String = "created_at.desc"
     ): Response<List<FavouriteResponse>>
 
@@ -491,6 +491,7 @@ interface SupabaseApi {
 data class FavouriteProductResponse(
     val name: String? = null,
     val price_paise: Long? = null,
+    val mrp_paise: Long? = null,
     val image_path: String? = null,
     val unit_label: String? = null,
     val quantity_type: String? = null

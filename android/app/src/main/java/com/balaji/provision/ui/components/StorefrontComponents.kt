@@ -32,11 +32,13 @@ import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Eco
 import androidx.compose.material.icons.filled.Fastfood
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Grain
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LocalCafe
 import androidx.compose.material.icons.filled.LocalDrink
 import androidx.compose.material.icons.filled.LocalShipping
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Search
@@ -197,7 +199,16 @@ fun StoreSearchBar(
                     modifier = Modifier.weight(1f)
                 )
             }
-            trailing?.invoke()
+            if (trailing != null) {
+                trailing()
+            } else {
+                Icon(
+                    Icons.Default.Mic,
+                    contentDescription = "Voice search",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
     }
 }
@@ -431,23 +442,32 @@ fun ProductGridCard(
                     contentScale = ContentScale.Fit,
                     modifier = Modifier.fillMaxSize()
                 )
-                if (product.hasDiscount) {
+                if (product.hasVisibleDiscount) {
                     Surface(
                         modifier = Modifier
                             .align(Alignment.TopStart)
                             .padding(2.dp),
                         shape = RoundedCornerShape(4.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer
+                        color = Color(0xFF16A34A)
                     ) {
                         Text(
                             text = "${product.discountPercent}% OFF",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = Color.White,
                             modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                         )
                     }
                 }
+                Icon(
+                    Icons.Default.FavoriteBorder,
+                    contentDescription = "Favorite ${product.name}",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.60f),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(2.dp)
+                        .size(18.dp)
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -483,37 +503,36 @@ fun ProductGridCard(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(
-                    text = formatPaise(product.pricePaise),
-                    style = BalajiText.Price,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                if (product.hasDiscount) {
-                    // The badge on the photo already says "15% OFF". Repeating it here is the
-                    // duplication the brief calls out; what belongs beside a price is the old
-                    // price, so the saving is legible as a difference rather than as a slogan.
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.weight(1f, fill = false)
+                ) {
                     Text(
-                        text = formatPaise(product.mrpPaise!!),
-                        style = BalajiText.Mrp.copy(textDecoration = TextDecoration.LineThrough),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = formatPaise(product.pricePaise),
+                        style = BalajiText.Price,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
+                    if (product.hasDiscount) {
+                        Text(
+                            text = formatPaise(product.mrpPaise!!),
+                            style = BalajiText.Mrp.copy(textDecoration = TextDecoration.LineThrough),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
-                // ADD goes where the reference puts it: on the price line, to the right.
-                if (cartItem == null) {
-                    Spacer(modifier = Modifier.weight(1f))
-                    ProductPurchaseControl(
-                        product = product,
-                        cartItem = cartItem,
-                        weighted = weighted,
-                        onAdd = onAdd,
-                        onIncrease = onIncrease,
-                        onDecrease = onDecrease,
-                        onWeight = onWeight,
-                        narrow = true
-                    )
-                }
+                ProductPurchaseControl(
+                    product = product,
+                    cartItem = cartItem,
+                    weighted = weighted,
+                    onAdd = onAdd,
+                    onIncrease = onIncrease,
+                    onDecrease = onDecrease,
+                    onWeight = onWeight,
+                    narrow = true
+                )
             }
 
             if (!product.isInStock) {
@@ -527,24 +546,6 @@ fun ProductGridCard(
                     text = "Only a few left",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.appColors.warning
-                )
-            }
-
-            // Once there is a basket line the stepper takes a row of its own: it needs 124 dp and
-            // the price needs 45, and this card has 128 dp of content. The card grows by one row
-            // on the first add and never shrinks again while the item is in the basket.
-            if (cartItem != null) {
-                Spacer(modifier = Modifier.height(4.dp))
-                ProductPurchaseControl(
-                    product = product,
-                    cartItem = cartItem,
-                    weighted = weighted,
-                    onAdd = onAdd,
-                    onIncrease = onIncrease,
-                    onDecrease = onDecrease,
-                    onWeight = onWeight,
-                    modifier = Modifier.fillMaxWidth(),
-                    narrow = true
                 )
             }
         }
@@ -610,23 +611,32 @@ fun HorizontalProductCard(
                     contentScale = ContentScale.Fit,
                     modifier = Modifier.fillMaxSize()
                 )
-                if (product.hasDiscount) {
+                if (product.hasVisibleDiscount) {
                     Surface(
                         modifier = Modifier
                             .align(Alignment.TopStart)
                             .padding(2.dp),
                         shape = RoundedCornerShape(4.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer
+                        color = Color(0xFF16A34A)
                     ) {
                         Text(
                             text = "${product.discountPercent}% OFF",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                         )
                     }
                 }
+                Icon(
+                    Icons.Default.FavoriteBorder,
+                    contentDescription = "Favorite ${product.name}",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.60f),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(2.dp)
+                        .size(18.dp)
+                )
             }
             Spacer(modifier = Modifier.height(6.dp))
             Text(
@@ -684,31 +694,6 @@ fun HorizontalProductCard(
                         )
                     }
                 }
-                if (cartItem == null) {
-                    ProductPurchaseControl(
-                        product = product,
-                        cartItem = cartItem,
-                        weighted = weighted,
-                        onAdd = onAdd,
-                        onIncrease = onIncrease,
-                        onDecrease = onDecrease,
-                        onWeight = onWeight,
-                        modifier = Modifier.align(Alignment.CenterEnd),
-                        narrow = true
-                    )
-                }
-            }
-
-            if (!product.isInStock) {
-                Text(
-                    text = "Out of stock",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
-
-            if (cartItem != null) {
-                Spacer(modifier = Modifier.height(4.dp))
                 ProductPurchaseControl(
                     product = product,
                     cartItem = cartItem,
@@ -717,8 +702,16 @@ fun HorizontalProductCard(
                     onIncrease = onIncrease,
                     onDecrease = onDecrease,
                     onWeight = onWeight,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.align(Alignment.CenterEnd),
                     narrow = true
+                )
+            }
+
+            if (!product.isInStock) {
+                Text(
+                    text = "Out of stock",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error
                 )
             }
         }

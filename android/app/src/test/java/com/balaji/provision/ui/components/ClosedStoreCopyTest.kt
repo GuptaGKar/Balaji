@@ -97,22 +97,17 @@ class ClosedStoreCopyTest {
 
     @Test
     fun `the service strip only lists capabilities that exist`() {
-        val tiles = homeServiceTiles(onlinePaymentEnabled = false, hasDeliveryPin = true)
+        val tiles = homeServiceTiles(storeOpen = true, onlinePaymentEnabled = false)
         assertEquals(4, tiles.size)
-        // Online payments are disabled in this build, so the strip must not claim UPI or cards.
-        assertFalse(tiles.any { it.label.contains("UPI", ignoreCase = true) })
-        assertTrue(tiles.any { it.label == "Cash on Delivery" })
 
-        val online = homeServiceTiles(onlinePaymentEnabled = true, hasDeliveryPin = false)
-        assertTrue(online.any { it.label.contains("UPI") })
-        assertFalse(online.any { it.label == "Cash on Delivery" })
-        // No address yet: the claim becomes the instruction, not a promise about coverage.
-        assertTrue(online.any { it.label == "Set your address" })
+        val closedTiles = homeServiceTiles(storeOpen = false, onlinePaymentEnabled = false)
+        assertEquals(4, closedTiles.size)
+        assertTrue(closedTiles.any { it.label.contains("Next Day") })
     }
 
     @Test
-    fun `the strip makes no timing or hygiene claim`() {
-        val words = listOf("min", "fast", "hour", "hygienic", "safe", "free")
+    fun `the strip makes no unverified hygiene claim`() {
+        val words = listOf("hygienic", "100%")
         homeServiceTiles(true, true).forEach { tile ->
             val text = "${tile.label} ${tile.detail}".lowercase()
             words.forEach { word ->

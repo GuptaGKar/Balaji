@@ -80,6 +80,7 @@ data class LowStockProduct(
     val threshold: Long,
     val quantityType: String,
     val unitLabel: String,
+    val priceBasisQty: Long = 0L,
     val pricePaise: Long = 0L,
     val mrpPaise: Long? = null
 ) {
@@ -88,6 +89,24 @@ data class LowStockProduct(
 
     val hasDiscount: Boolean
         get() = mrpPaise != null && mrpPaise > pricePaise
+
+    val discountPercent: Int
+        get() {
+            val list = mrpPaise ?: return 0
+            if (list <= pricePaise || list <= 0L) return 0
+            return ((list - pricePaise) * 100 / list).toInt()
+        }
+
+    /** The unit the stored price applies to, so a weighted price is never mistaken for a pack. */
+    val priceUnitLabel: String
+        get() = when (quantityType) {
+            "weighted" -> when (priceBasisQty) {
+                1000L -> "kg"
+                100L -> "100g"
+                else -> "g"
+            }
+            else -> "pack"
+        }
 }
 
 data class RiderOption(

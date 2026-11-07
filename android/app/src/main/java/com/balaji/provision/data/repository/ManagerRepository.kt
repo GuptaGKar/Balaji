@@ -381,6 +381,7 @@ private fun LowStockProductResponse.toDomain(): LowStockProduct = LowStockProduc
     threshold = low_stock_threshold,
     quantityType = quantity_type,
     unitLabel = unit_label,
+    priceBasisQty = price_basis_qty,
     pricePaise = price_paise,
     mrpPaise = mrp_paise
 )

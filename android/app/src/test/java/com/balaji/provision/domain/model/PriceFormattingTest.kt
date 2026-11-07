@@ -79,8 +79,15 @@ class PriceFormattingTest {
             available = true
         )
         assertTrue(discountedProduct.hasDiscount)
+        assertTrue(discountedProduct.hasVisibleDiscount)
         assertEquals(16, discountedProduct.discountPercent)
         assertEquals("₹300.00 / pack", discountedProduct.displayMrp)
+        assertEquals("pack", discountedProduct.priceUnitLabel)
+
+        val tinySaving = discountedProduct.copy(pricePaise = 99800, mrpPaise = 99900)
+        assertTrue(tinySaving.hasDiscount)
+        assertEquals(0, tinySaving.discountPercent)
+        assertFalse(tinySaving.hasVisibleDiscount)
 
         val nonDiscountedProduct = discountedProduct.copy(mrpPaise = 25000)
         assertFalse(nonDiscountedProduct.hasDiscount)

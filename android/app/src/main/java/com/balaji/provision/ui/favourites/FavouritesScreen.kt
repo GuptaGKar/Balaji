@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -214,11 +215,38 @@ fun FavouritesScreen(
                         ) {
                             Column(Modifier.weight(1f)) {
                                 Text(item.name, fontWeight = FontWeight.SemiBold)
-                                Text(
-                                    text = "${formatPaise(item.pricePaise)} · ${item.unitLabel}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = formatPaise(item.pricePaise),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    if (item.hasDiscount) {
+                                        Text(
+                                            text = formatPaise(item.mrpPaise!!),
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                textDecoration = TextDecoration.LineThrough
+                                            ),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Text(
+                                        text = item.unitLabel,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                if (item.hasDiscount && item.discountPercent > 0) {
+                                    Text(
+                                        text = "${item.discountPercent}% OFF",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
                             }
                             TextButton(onClick = { viewModel.toggle(item.productId) }) {
                                 Text("Remove")

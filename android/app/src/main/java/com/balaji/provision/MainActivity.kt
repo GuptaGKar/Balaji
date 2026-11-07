@@ -542,7 +542,7 @@ fun AppNavHost(
                         else cartViewModel.updateQuantity(id, qty)
                     },
                     onRemoveFromCart = { id -> cartViewModel.removeItem(id) },
-                    onOpenCart = { navigateToTab(navController, "cart") },
+                    onOpenCart = { navController.navigate("cart") },
                     favouriteIds = favouriteState.ids,
                     onToggleFavourite = { favouritesViewModel.toggle(it) }
                 )

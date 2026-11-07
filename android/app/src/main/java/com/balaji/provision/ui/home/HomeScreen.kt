@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.Wallet
 import androidx.compose.material.icons.filled.VerifiedUser
@@ -285,8 +286,8 @@ fun HomeScreen(
             // for composed content - which is what the storefront feature actually promises.
             item(key = "service_tiles") {
                 HomeServiceTiles(
+                    storeOpen = state.storeOpen,
                     onlinePaymentEnabled = state.onlinePaymentEnabled,
-                    hasDeliveryPin = !address?.postalCode.isNullOrBlank(),
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
                 )
             }
@@ -1093,32 +1094,41 @@ private fun HomeBrandHeader(
                     style = BalajiText.Brand,
                     color = Color.White
                 )
-                // The board sets the second wordmark line in the same heavy display face as the
-                // first, only smaller - not in body text, which is what it was before.
                 Text(
                     text = "Provision Store",
                     style = BalajiText.SectionTitle,
                     color = Color.White
                 )
             }
-            Surface(
-                shape = CircleShape,
-                // Near-white disc with the deep-orange initial: 4.03:1, where white-on-orange
-                // would have been 2.84:1.
-                color = Color.White.copy(alpha = 0.94f),
-                modifier = Modifier
-                    .size(44.dp)
-                    .clickable(onClick = onOpenAccount)
-                    .semantics {
-                        contentDescription = "Your account and saved addresses"
-                    }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = initials,
-                        style = BalajiText.SectionTitle,
-                        color = BalajiDesign.PrimaryDeep
-                    )
+                Icon(
+                    Icons.Default.NotificationsNone,
+                    contentDescription = "Notifications",
+                    tint = Color.White,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clickable(onClick = onOpenAccount)
+                )
+                Surface(
+                    shape = CircleShape,
+                    color = Color.White.copy(alpha = 0.94f),
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clickable(onClick = onOpenAccount)
+                        .semantics {
+                            contentDescription = "Your account and saved addresses"
+                        }
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = initials,
+                            style = BalajiText.SectionTitle,
+                            color = BalajiDesign.PrimaryDeep
+                        )
+                    }
                 }
             }
         }
@@ -1257,50 +1267,40 @@ private fun HomeBrandHeader(
 internal data class ServiceTile(val label: String, val detail: String)
 
 internal fun homeServiceTiles(
-    onlinePaymentEnabled: Boolean,
-    hasDeliveryPin: Boolean
+    storeOpen: Boolean,
+    onlinePaymentEnabled: Boolean
 ): List<ServiceTile> = buildList {
+    add(ServiceTile("Wide\nRange", "Wide catalogue selection"))
     add(
-        if (onlinePaymentEnabled) {
-            ServiceTile("UPI & cards", "Pay online at checkout")
+        if (storeOpen) {
+            ServiceTile("Local\nDelivery", "Fast local delivery")
         } else {
-            ServiceTile("Cash on Delivery", "Pay when it arrives")
+            ServiceTile("Next Day\nDelivery", "Delivered tomorrow")
         }
     )
-    add(
-        if (hasDeliveryPin) {
-            ServiceTile("Delivers here", "Checked against your PIN code")
-        } else {
-            ServiceTile("Set your address", "Charges depend on your PIN")
-        }
-    )
-    add(ServiceTile("Order history", "Every order has a status"))
-    add(ServiceTile("Store-priced", "Prices set by the store, not the app"))
+    add(ServiceTile("Secure\nOrders", "Safe and verified orders"))
+    add(ServiceTile("Easy\nReorder", "Quickly reorder items"))
 }
 
 /** The capability strip under search. Hidden entirely once a manager composes the page. */
 @Composable
 private fun HomeServiceTiles(
+    storeOpen: Boolean,
     onlinePaymentEnabled: Boolean,
-    hasDeliveryPin: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val tiles = homeServiceTiles(onlinePaymentEnabled, hasDeliveryPin)
+    val tiles = homeServiceTiles(storeOpen, onlinePaymentEnabled)
     val icons = listOf(
-        Icons.Default.Wallet,
+        Icons.Default.ShoppingBag,
+        Icons.Default.LocalShipping,
         Icons.Default.VerifiedUser,
-        Icons.Default.History,
-        Icons.Default.Store
+        Icons.Default.History
     )
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(BalajiDesign.InnerGap)
     ) {
         tiles.forEachIndexed { index, tile ->
-            // The reference tile is a near-opaque white card with an orange outline icon on top
-            // and a short label under it, and nothing else. The detail line stays dropped: four
-            // tiles across 352 dp leaves 82 dp each, and two lines of small grey text under a
-            // label is how a strip like this turns into mush.
             Surface(
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(BalajiDesign.RadiusCard),
@@ -1310,20 +1310,20 @@ private fun HomeServiceTiles(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 4.dp, vertical = 12.dp),
+                        .padding(horizontal = 4.dp, vertical = 10.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Icon(
                         icons[index],
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(26.dp)
+                        modifier = Modifier.size(24.dp)
                     )
                     Text(
                         text = tile.label,
                         style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Medium,
+                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,

@@ -116,9 +116,22 @@ data class Product(
         get() = if (hasDiscount) formatPrice(mrpPaise!!, priceBasisQty, quantityType) else null
 
     val discountPercent: Int
-        get() = if (hasDiscount && mrpPaise!! > 0) {
-            (((mrpPaise - pricePaise).toDouble() / mrpPaise) * 100).toInt()
-        } else 0
+        get() {
+            val list = mrpPaise ?: return 0
+            if (list <= pricePaise || list <= 0L) return 0
+            return ((list - pricePaise) * 100 / list).toInt()
+        }
+
+    /**
+     * True only when the discount rounds down to at least one percent. A one-paise saving is a
+     * real struck-through MRP but a "0% OFF" badge reads like a bug, so badges use this while
+     * the detail screen can still state the actual rupee saving.
+     */
+    val hasVisibleDiscount: Boolean
+        get() = discountPercent > 0
+
+    val priceUnitLabel: String
+        get() = priceBasisLabel(quantityType, priceBasisQty)
 
     val displayStep: String
         get() = when (quantityType) {
@@ -293,19 +306,18 @@ fun lineTotalPaise(pricePaise: Long, priceBasisQty: Long, qtyBase: Long): Long {
     return (pricePaise * qtyBase + priceBasisQty / 2) / priceBasisQty
 }
 
-fun formatPrice(pricePaise: Long, priceBasisQty: Long, quantityType: QuantityType): String {
-    return when (quantityType) {
-        QuantityType.PACKED -> formatPaise(pricePaise) + " / pack"
-        QuantityType.WEIGHTED -> {
-            val perUnit = when (priceBasisQty) {
-                1000L -> "kg"
-                100L -> "100g"
-                else -> "g"
-            }
-            formatPaise(pricePaise) + " / $perUnit"
+fun priceBasisLabel(quantityType: QuantityType, priceBasisQty: Long): String =
+    when (quantityType) {
+        QuantityType.PACKED -> "pack"
+        QuantityType.WEIGHTED -> when (priceBasisQty) {
+            1000L -> "kg"
+            100L -> "100g"
+            else -> "g"
         }
     }
-}
+
+fun formatPrice(pricePaise: Long, priceBasisQty: Long, quantityType: QuantityType): String =
+    formatPaise(pricePaise) + " / " + priceBasisLabel(quantityType, priceBasisQty)
 
 /**
  * A base product and its pack-size variants.

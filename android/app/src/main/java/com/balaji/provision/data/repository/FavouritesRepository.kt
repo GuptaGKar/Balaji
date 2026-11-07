@@ -17,8 +17,19 @@ data class FavouriteProduct(
     val name: String,
     val pricePaise: Long,
     val unitLabel: String,
-    val imagePath: String?
-)
+    val imagePath: String?,
+    val mrpPaise: Long? = null
+) {
+    val hasDiscount: Boolean
+        get() = mrpPaise != null && mrpPaise > pricePaise
+
+    val discountPercent: Int
+        get() {
+            val list = mrpPaise ?: return 0
+            if (list <= pricePaise || list <= 0L) return 0
+            return ((list - pricePaise) * 100 / list).toInt()
+        }
+}
 
 interface FavouritesRepository {
     suspend fun load(): RequestOutcome<List<FavouriteProduct>>
@@ -62,7 +73,8 @@ class FavouritesRepositoryImpl @Inject constructor(
                     name = product.name.orEmpty(),
                     pricePaise = product.price_paise ?: 0L,
                     unitLabel = product.unit_label.orEmpty(),
-                    imagePath = product.image_path
+                    imagePath = product.image_path,
+                    mrpPaise = product.mrp_paise
                 )
             }
             RequestOutcome.Success(items)

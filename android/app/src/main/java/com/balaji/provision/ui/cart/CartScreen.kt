@@ -521,13 +521,28 @@ fun CartItemRow(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Text(
-                    text = lineInfo?.let { formatPaise(it.unitPricePaise) }
-                        ?: product?.let { formatPaise(it.pricePaise) }
-                        ?: "",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = lineInfo?.let { formatPaise(it.unitPricePaise) }
+                            ?: product?.let { formatPaise(it.pricePaise) }
+                            ?: "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (product != null && product.hasDiscount) {
+                        // A reference price only; the line total below is the server quote.
+                        Text(
+                            text = formatPaise(product.mrpPaise!!),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                textDecoration = TextDecoration.LineThrough
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
                 if (lineInfo?.available == false) {
                     Text(
                         text = lineInfo.error ?: "Currently unavailable",
@@ -670,33 +685,8 @@ fun OrderSummaryCard(quote: QuoteBreakdown) {
 
             SummaryRow(label = "Item subtotal", value = formatPaise(quote.itemSubtotalPaise))
 
-            when {
-                // Coupon applied — show its code and saving amount
-                quote.couponApplied && quote.couponCode != null -> {
-                    // A gift coupon has no money value either, so a zero discount does
-                    // not mean free delivery. The gift is listed in its own row below.
-                    val hasGift = quote.lines.any { it.isFreeItem }
-                    val isFreeDelivery = quote.discountPaise == 0L && !hasGift
-                    SummaryRow(
-                        label = "Coupon (${quote.couponCode})",
-                        value = when {
-                            quote.discountPaise > 0L -> "-${formatPaise(quote.discountPaise)}"
-                            isFreeDelivery -> "FREE delivery"
-                            else -> "Applied"
-                        },
-                        valueColor = MaterialTheme.appColors.success
-                    )
-                }
-                // No coupon — show generic item discount if any (e.g. future bulk/promo)
-                quote.discountPaise > 0L -> SummaryRow(
-                    label = "Discount",
-                    value = "-${formatPaise(quote.discountPaise)}",
-                    valueColor = MaterialTheme.appColors.success
-                )
-            }
-
             SummaryRow(
-                label = "Delivery",
+                label = "Delivery Charges",
                 value = if (quote.deliveryFeePaise == 0L) "FREE" else formatPaise(quote.deliveryFeePaise),
                 valueColor = if (quote.deliveryFeePaise == 0L) {
                     MaterialTheme.appColors.success
@@ -704,6 +694,35 @@ fun OrderSummaryCard(quote: QuoteBreakdown) {
                     MaterialTheme.colorScheme.onSurface
                 }
             )
+
+            if (quote.discountPaise > 0L) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.appColors.successContainer,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "You Save",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.appColors.onSuccessContainer
+                        )
+                        Text(
+                            text = "-${formatPaise(quote.discountPaise)}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.appColors.onSuccessContainer
+                        )
+                    }
+                }
+            }
 
             // A coupon gift costs nothing, so it is listed rather than discounted.
             if (quote.lines.any { it.isFreeItem }) {

@@ -1510,5 +1510,44 @@ band no taller than the tightest content padding it decorates (4 dp), and the sh
 enough (<= 0.10) that reaching content reads as depth rather than as a smudge. What they cannot pin:
 that it looks right. That is the device pass, recorded in `QA_LOG.md` when it runs.
 
+## MRP and staff price editing use real prices, not invented discounts (2026-11-07)
+
+The customer app now shows the printed MRP, the selling price and the percentage saved, and staff can
+edit both amounts from the staff app. This supersedes the 2026-11-06 "omits MRP" note in the
+browsing-UX entry: that was written before `products.mrp_paise` existed, not as a permanent policy.
+
+- **One selling price.** `products.price_paise` remains the only amount quotes, orders, bills and
+  stock valuation read. `mrp_paise` is a nullable integer-paise display value. Nothing in checkout
+  reads it, so a missing or stale MRP cannot change what a customer pays.
+- **The discount is derived, never stored.** It is `(mrp - price) * 100 / mrp` in integer
+  arithmetic, truncated. Striking through MRP requires only MRP > price; the "% OFF" badge requires
+  the result to be at least 1%. A one-paise saving therefore shows the old price but not a "0% OFF"
+  claim. MRP NULL, zero, or at/below the selling price shows no discount at all.
+- **Staff enter Rupees, the app stores paise.** `MoneyInput.kt` filters the field and parses it with
+  integer arithmetic; `toDouble() * 100` is gone from the price dialogs. A selling price of Rs 0 is
+  rejected in both the edit-price dialog and the adjust-mode price tab.
+- **Adjust mode prefilled MRP from an RPC that did not return it.** `get_low_stock_products()`
+  returned `price_paise` but not `mrp_paise`; saving a price from that dialog would have opened with a
+  blank MRP and cleared the real one. Migration `20261107000001_low_stock_mrp_and_price_hardening.sql`
+  drops and recreates the function with `mrp_paise`. Until it is applied, the app enriches low-stock
+  rows from the loaded catalogue as a fallback.
+- **Server authority.** The same migration replaces `update_product_price(uuid, bigint, bigint)` with
+  a version that rejects a null/zero/negative selling price and a negative MRP, and revokes the
+  default PUBLIC/anon EXECUTE grant from both price RPCs. The staff check inside the function is
+  unchanged.
+- **Surface coverage.** MRP and the derived discount are shown on browse cards, product details, cart
+  lines and favourites. Staff see selling price and MRP in the product list and both price fields in
+  the adjust dialog. MRP is not added to orders or bills because those must use the captured selling
+  price, not a post-sale MRP edit.
+
+Verification (2026-11-07): `:app:testStaffDebugUnitTest` and `:app:testCustomerDebugUnitTest` each
+pass 280/280 tests; `:app:assembleStaffDebug`, `:app:assembleCustomerDebug`, `:app:lintStaffDebug` and
+`:app:lintCustomerDebug` succeed, and lint reports 0 errors and 69 warnings per flavour. Migration
+`20261107000001` is **not applied** to the live project and pgTAP
+`052_low_stock_mrp_and_price_hardening.sql` is **not run** because no service-role key, linked
+Supabase CLI session or Docker daemon is available here. The installed release-signed 1.12 apps
+cannot be updated with the debug-signed builds (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`); the device pass
+uses fresh debug installs and is recorded below once sign-in is complete.
+
 
 

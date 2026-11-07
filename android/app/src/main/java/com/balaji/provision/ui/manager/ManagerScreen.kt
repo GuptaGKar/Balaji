@@ -86,7 +86,10 @@ import com.balaji.provision.domain.model.LowStockProduct
 import com.balaji.provision.domain.model.ManagerOrder
 import com.balaji.provision.domain.model.ManagerOrderAction
 import com.balaji.provision.domain.model.ManagerOrderLine
+import com.balaji.provision.domain.model.filterRupeesInput
 import com.balaji.provision.domain.model.formatPaise
+import com.balaji.provision.domain.model.formatRupeesInput
+import com.balaji.provision.domain.model.parseRupeesToPaise
 import com.balaji.provision.ui.components.LoadingState
 import com.balaji.provision.ui.components.ProductThumb
 import com.balaji.provision.ui.theme.appColors
@@ -848,7 +851,25 @@ private fun StockTab(
                             )
                         }
                         OutlinedButton(
-                            onClick = { onAdjust(product) },
+                            onClick = {
+                                // The low-stock RPC returns MRP on a migrated database. Until the
+                                // follow-up migration is applied, enrich the row from the already
+                                // loaded catalogue so the dialog cannot open with a blank MRP and
+                                // clear it when the manager saves a price.
+                                val catalogueProduct =
+                                    state.products.firstOrNull { it.id == product.id }
+                                onAdjust(
+                                    if (catalogueProduct == null) {
+                                        product
+                                    } else {
+                                        product.copy(
+                                            priceBasisQty = catalogueProduct.priceBasisQty,
+                                            pricePaise = catalogueProduct.pricePaise,
+                                            mrpPaise = catalogueProduct.mrpPaise
+                                        )
+                                    }
+                                )
+                            },
                             enabled = state.adjustingProductId == null
                         ) {
                             Text("Adjust")
@@ -1445,18 +1466,18 @@ private fun AdjustStockDialog(
     val unit = if (product.quantityType == "weighted") "grams" else "packs"
     val newStock = delta?.let { product.stockQty + it }
 
-    // Price state
-    var sellingPriceText by remember { mutableStateOf(if (product.pricePaise > 0) (product.pricePaise / 100.0).toString().removeSuffix(".0") else "") }
-    var mrpText by remember { mutableStateOf(product.mrpPaise?.let { (it / 100.0).toString().removeSuffix(".0") }.orEmpty()) }
+    // Price state. Every conversion is integer paise; the text field never becomes a Double.
+    var sellingPriceText by remember { mutableStateOf(if (product.pricePaise > 0L) formatRupeesInput(product.pricePaise) else "") }
+    var mrpText by remember { mutableStateOf(product.mrpPaise?.takeIf { it > 0L }?.let(::formatRupeesInput).orEmpty()) }
 
-    val sellingPriceRupees = sellingPriceText.toDoubleOrNull()
-    val mrpRupees = mrpText.toDoubleOrNull()
+    val sellingPaise = parseRupeesToPaise(sellingPriceText)
+    val mrpPaise = if (mrpText.isBlank()) null else parseRupeesToPaise(mrpText)
 
-    val validSelling = sellingPriceRupees != null && sellingPriceRupees >= 0
-    val validMrp = mrpText.isBlank() || (mrpRupees != null && mrpRupees >= 0)
-
-    val sellingPaise = sellingPriceRupees?.let { Math.round(it * 100) } ?: 0L
-    val mrpPaise = mrpRupees?.let { Math.round(it * 100) }
+    // ₹0 would make a live product free. Draft rows may legitimately hold 0, so the field is
+    // blank for those and Save stays disabled until the manager types a real price.
+    val validSelling = sellingPaise != null && sellingPaise > 0L
+    val validMrp = mrpText.isBlank() || mrpPaise != null
+    val priceUnit = product.priceUnitLabel
 
     val busy = stockBusy || priceBusy
 
@@ -1525,30 +1546,45 @@ private fun AdjustStockDialog(
                         )
                     }
                 } else {
-                    Text("Enter the new selling price and optional printed MRP in Rupees (₹).")
+                    Text(
+                        "Enter the new selling price and optional printed MRP in Rupees (₹) " +
+                            "for one $priceUnit."
+                    )
                     OutlinedTextField(
                         value = sellingPriceText,
-                        onValueChange = { sellingPriceText = it },
-                        label = { Text("Selling Price (₹) *") },
+                        onValueChange = { sellingPriceText = filterRupeesInput(it) },
+                        label = { Text("Selling Price (₹ per $priceUnit) *") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
                         value = mrpText,
-                        onValueChange = { mrpText = it },
-                        label = { Text("MRP (₹) (Optional)") },
+                        onValueChange = { mrpText = filterRupeesInput(it) },
+                        label = { Text("MRP (₹ per $priceUnit) (Optional)") },
                         singleLine = true,
                         placeholder = { Text("e.g. 100") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.fillMaxWidth()
                     )
-                    if (mrpPaise != null && sellingPaise > 0 && mrpPaise > sellingPaise) {
-                        val discount = (((mrpPaise - sellingPaise).toDouble() / mrpPaise) * 100).toInt()
-                        Text(
-                            "MRP is higher than selling price. Customer app will show $discount% OFF with strikethrough MRP.",
+                    when {
+                        sellingPaise == 0L -> Text(
+                            "A selling price of ₹0 would make this product free. Enter an amount greater than zero.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        mrpPaise != null && sellingPaise != null && mrpPaise > sellingPaise -> {
+                            val discount = ((mrpPaise - sellingPaise) * 100 / mrpPaise).toInt()
+                            Text(
+                                "MRP is higher than selling price. Customer app will show $discount% OFF with strikethrough MRP.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        mrpPaise != null && sellingPaise != null && mrpPaise <= sellingPaise -> Text(
+                            "MRP is not above the selling price, so the customer app will not show a discount.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -1562,7 +1598,7 @@ private fun AdjustStockDialog(
                 ) { Text(if (stockBusy) "Saving..." else "Save Stock") }
             } else {
                 TextButton(
-                    onClick = { onConfirmPrice(sellingPaise, mrpPaise) },
+                    onClick = { sellingPaise?.let { onConfirmPrice(it, mrpPaise) } },
                     enabled = !busy && validSelling && validMrp
                 ) { Text(if (priceBusy) "Saving..." else "Save Price") }
             }
@@ -1580,17 +1616,14 @@ private fun EditPriceDialog(
     onDismiss: () -> Unit,
     onConfirm: (Long, Long?) -> Unit
 ) {
-    var sellingPriceText by remember { mutableStateOf((product.pricePaise / 100.0).toString().removeSuffix(".0")) }
-    var mrpText by remember { mutableStateOf(product.mrpPaise?.let { (it / 100.0).toString().removeSuffix(".0") }.orEmpty()) }
+    var sellingPriceText by remember { mutableStateOf(if (product.pricePaise > 0L) formatRupeesInput(product.pricePaise) else "") }
+    var mrpText by remember { mutableStateOf(product.mrpPaise?.takeIf { it > 0L }?.let(::formatRupeesInput).orEmpty()) }
 
-    val sellingPriceRupees = sellingPriceText.toDoubleOrNull()
-    val mrpRupees = mrpText.toDoubleOrNull()
-
-    val validSelling = sellingPriceRupees != null && sellingPriceRupees >= 0
-    val validMrp = mrpText.isBlank() || (mrpRupees != null && mrpRupees >= 0)
-
-    val sellingPaise = sellingPriceRupees?.let { Math.round(it * 100) } ?: 0L
-    val mrpPaise = mrpRupees?.let { Math.round(it * 100) }
+    val sellingPaise = parseRupeesToPaise(sellingPriceText)
+    val mrpPaise = if (mrpText.isBlank()) null else parseRupeesToPaise(mrpText)
+    val validSelling = sellingPaise != null && sellingPaise > 0L
+    val validMrp = mrpText.isBlank() || mrpPaise != null
+    val priceUnit = product.priceUnitLabel
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1599,38 +1632,50 @@ private fun EditPriceDialog(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     "${product.sku} · ${product.packLabel}\n" +
-                        "Enter the new selling price and optional printed MRP in Rupees (₹)."
+                        "Enter the new selling price and optional printed MRP in Rupees (₹) for one $priceUnit."
                 )
                 OutlinedTextField(
                     value = sellingPriceText,
-                    onValueChange = { sellingPriceText = it },
-                    label = { Text("Selling Price (₹) *") },
+                    onValueChange = { sellingPriceText = filterRupeesInput(it) },
+                    label = { Text("Selling Price (₹ per $priceUnit) *") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = mrpText,
-                    onValueChange = { mrpText = it },
-                    label = { Text("MRP (₹) (Optional)") },
+                    onValueChange = { mrpText = filterRupeesInput(it) },
+                    label = { Text("MRP (₹ per $priceUnit) (Optional)") },
                     singleLine = true,
                     placeholder = { Text("e.g. 100") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
                 )
-                if (mrpPaise != null && sellingPaise > 0 && mrpPaise > sellingPaise) {
-                    val discount = (((mrpPaise - sellingPaise).toDouble() / mrpPaise) * 100).toInt()
-                    Text(
-                        "MRP is higher than selling price. Customer app will show $discount% OFF with strikethrough MRP.",
+                when {
+                    sellingPaise == 0L -> Text(
+                        "A selling price of ₹0 would make this product free. Enter an amount greater than zero.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    mrpPaise != null && sellingPaise != null && mrpPaise > sellingPaise -> {
+                        val discount = ((mrpPaise - sellingPaise) * 100 / mrpPaise).toInt()
+                        Text(
+                            "MRP is higher than selling price. Customer app will show $discount% OFF with strikethrough MRP.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    mrpPaise != null && sellingPaise != null && mrpPaise <= sellingPaise -> Text(
+                        "MRP is not above the selling price, so the customer app will not show a discount.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(sellingPaise, mrpPaise) },
+                onClick = { sellingPaise?.let { onConfirm(it, mrpPaise) } },
                 enabled = !busy && validSelling && validMrp
             ) { Text(if (busy) "Saving..." else "Save") }
         },
