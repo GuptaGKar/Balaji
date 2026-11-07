@@ -25,6 +25,27 @@ object BalajiDesign {
     val White = Color(0xFFFFFFFF)
 
     /**
+     * The brand header's own gradient, sampled off the reference board rather than guessed.
+     *
+     * The board's header runs #FA3B00 at the top-left, #FE7100 through the middle and #FD9D33
+     * where it meets the page low on the right. The deep stop is what the status-bar strip above
+     * the header has to paint with, so the seam between system UI and app is invisible; it is also
+     * the stop the white wordmark sits on, and white on #FA3B00 measures 3.68:1 - past the 3:1
+     * floor for large text, where the older #FF6B00 midpoint (2.84:1) failed.
+     */
+    val HeaderTop = Color(0xFFFA3B00)
+    val HeaderMid = Color(0xFFFE7100)
+    val HeaderBottom = Color(0xFFFD9D33)
+
+    /**
+     * The headline red on the reference board's promotional banner, sampled from the artwork.
+     *
+     * It is a banner text colour, never a state colour: errors keep using the theme's error
+     * tokens, so nothing here can be mistaken for a failure.
+     */
+    val BannerRed = Color(0xFFBE0000)
+
+    /**
      * Opacity of a glass surface that carries text.
      *
      * The reference board's earlier pill used 0.30f and product names behind it read through

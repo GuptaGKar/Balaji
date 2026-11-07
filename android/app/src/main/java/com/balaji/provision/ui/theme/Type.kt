@@ -2,36 +2,55 @@ package com.balaji.provision.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.balaji.provision.R
 
 /**
- * The three families the orange-glass design is specified in, and the one place they are resolved.
+ * The three families the orange-glass design is specified in (brief section 3.3), and the one
+ * place they are resolved. Every screen reads a semantic role from [BalajiText] or
+ * [MaterialTheme.typography] rather than naming a font, so this object is the whole typography
+ * wiring.
  *
- * The brief asks for Poppins (headings), Inter (body and UI) and Manrope (prices, quantities and
- * CTA labels). The binaries are not in this repository, are not installed on this machine and may
- * not be downloaded here, so all three currently resolve to the platform sans-serif. That is a
- * deliberate stand-in, not a claim that the typography matches the reference board.
+ * The binaries are OFL-licensed files from Google Fonts, bundled in
+ * `android/app/src/main/res/font/` under lowercase resource names; the licence text travels with
+ * them in `android/app/FONTS-OFL.txt`. Inter and Manrope ship upstream as variable fonts, so what
+ * is bundled here are static instances pinned to the weights this app actually uses.
  *
- * To finish this properly, drop the licensed TTFs into
- * `android/app/src/main/res/font/` (lowercase names, plus a licence notice), then replace the
- * three `FontFamily.SansSerif` lines below with `FontFamily(R.font.xxx)`. Nothing else in the app
- * needs to change, because every screen reads a semantic role from [BalajiText] or
- * [MaterialTheme.typography] rather than naming a font.
- *
- * The fallback chain matters more than it looks: ₹, Devanagari and long Tamil place names have to
- * render, so whatever replaces these must list a fallback family rather than a single TTF.
+ * Glyph fallback is the platform's, not a second family listed here: a `FontFamily` in Compose
+ * 1.5 is a flat list of weighted fonts, and Android's text stack falls through to the system fonts
+ * for any glyph the family does not carry - which matters, because Inter and Manrope carry no
+ * Devanagari and a long Hindi or Tamil place name still has to render. ₹ (U+20B9) is present in all
+ * three bundled families, which is what prices need.
  */
 object BalajiFont {
     /** Display headings: branding, page titles, section titles, product names. */
-    val Display: FontFamily = FontFamily.SansSerif
+    val Display: FontFamily = FontFamily(
+        Font(R.font.poppins_regular, FontWeight.Normal),
+        Font(R.font.poppins_medium, FontWeight.Medium),
+        Font(R.font.poppins_semibold, FontWeight.SemiBold),
+        Font(R.font.poppins_bold, FontWeight.Bold)
+    )
 
     /** Body copy, addresses, search text, navigation labels, metadata. */
-    val Body: FontFamily = FontFamily.SansSerif
+    val Body: FontFamily = FontFamily(
+        Font(R.font.inter_regular, FontWeight.Normal),
+        Font(R.font.inter_medium, FontWeight.Medium),
+        Font(R.font.inter_semibold, FontWeight.SemiBold)
+    )
 
-    /** Numerals: prices, totals, discounts, quantities, CTA labels. */
-    val Numeric: FontFamily = FontFamily.SansSerif
+    /**
+     * Numerals: prices, totals, discounts, quantities, CTA labels. Manrope starts at Medium, so a
+     * `FontWeight.Normal` request picks Medium rather than rendering at the wrong weight.
+     */
+    val Numeric: FontFamily = FontFamily(
+        Font(R.font.manrope_medium, FontWeight.Medium),
+        Font(R.font.manrope_semibold, FontWeight.SemiBold),
+        Font(R.font.manrope_bold, FontWeight.Bold),
+        Font(R.font.manrope_extrabold, FontWeight.ExtraBold)
+    )
 }
 
 /**

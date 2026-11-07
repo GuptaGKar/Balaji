@@ -481,7 +481,9 @@ fun CartItemRow(
             ),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        // Elevation 0: a shadow under this transparent glass card renders as a grey band
+        // around every cart row on device, so the rim alone defines the edge.
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier.padding(12.dp),

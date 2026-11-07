@@ -74,7 +74,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.balaji.provision.domain.model.CartItem
 import com.balaji.provision.domain.model.Category
 import com.balaji.provision.domain.model.Product
@@ -100,7 +102,7 @@ fun StoreSearchBar(
     query: String? = null,
     onQueryChange: ((String) -> Unit)? = null,
     onClick: (() -> Unit)? = null,
-    placeholder: String = "Search for atta, milk, snacks…",
+    placeholder: String = "Search for milk, atta, snacks…",
     autoFocus: Boolean = false,
     trailing: @Composable (() -> Unit)? = null
 ) {
@@ -214,7 +216,9 @@ fun AddPill(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    label: String = "ADD"
+    label: String = "ADD",
+    /** Horizontal inset behind the label; narrow cards pass less so price and pill share a line. */
+    inset: Dp = 16.dp
 ) {
     Button(
         onClick = onClick,
@@ -222,7 +226,7 @@ fun AddPill(
         modifier = modifier.height(BalajiDesign.ControlHeight),
         shape = RoundedCornerShape(BalajiDesign.RadiusPill),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            horizontal = 16.dp,
+            horizontal = inset,
             vertical = 0.dp
         ),
         colors = ButtonDefaults.buttonColors(
@@ -271,6 +275,11 @@ private fun ProductPurchaseControl(
     modifier: Modifier = Modifier,
     narrow: Boolean = false
 ) {
+    // A narrow card's line is 128 dp wide; at the default 18 dp inset the ADD pill measured
+    // 63 dp and left a seven-glyph price nowhere to stand. The inset shrinks only here, so the
+    // pill still reads as a pill (20 dp of padding around the label) without stealing the price's
+    // half of the row. Touch size is unaffected: the outer box keeps [BalajiDesign.MinTouchTarget].
+    val pillInset = if (narrow) 10.dp else 18.dp
     Box(
         modifier = modifier.height(BalajiDesign.MinTouchTarget),
         contentAlignment = Alignment.CenterEnd
@@ -283,7 +292,8 @@ private fun ProductPurchaseControl(
                     cartItem != null -> "Edit"
                     narrow -> "ADD"
                     else -> "Choose weight"
-                }
+                },
+                inset = pillInset
             )
         } else {
             AnimatedAddQuantityControl(
@@ -294,7 +304,8 @@ private fun ProductPurchaseControl(
                 onDecrement = onDecrease,
                 productName = product.name,
                 enabled = product.isInStock,
-                canIncrease = (cartItem?.qtyBase ?: 0L) + product.stepQty <= product.maxOrderQty
+                canIncrease = (cartItem?.qtyBase ?: 0L) + product.stepQty <= product.maxOrderQty,
+                inset = pillInset
             )
         }
     }
@@ -540,6 +551,20 @@ fun ProductGridCard(
     }
 }
 
+/**
+ * The price size on a narrow browse card.
+ *
+ * The card puts the price and the ADD pill on one 128 dp line, and a seven-glyph price
+ * ("₹249.99") already takes about 74 dp of it at 17 sp. Past that the two collide, so the price
+ * steps down a size rather than being ellipsised - hiding a digit of the amount the customer is
+ * asked to pay is not an option. Amounts at or below seven glyphs keep the standard [BalajiText.Price].
+ */
+private fun priceStyleFor(priceLabel: String): TextStyle = when {
+    priceLabel.length > 9 -> BalajiText.Price.copy(fontSize = 13.sp, lineHeight = 17.sp)
+    priceLabel.length > 7 -> BalajiText.Price.copy(fontSize = 15.sp, lineHeight = 19.sp)
+    else -> BalajiText.Price
+}
+
 /** Compact horizontal card used in the Home carousels. */
 @Composable
 fun HorizontalProductCard(
@@ -628,28 +653,38 @@ fun HorizontalProductCard(
                 )
             }
             Spacer(modifier = Modifier.height(4.dp))
-            Row(
+            // Price and ADD share one line, so both children get the card's full width to
+            // measure against instead of splitting a Row's leftover space. A Row measured the
+            // price first and handed the control whatever was left, which was 30 dp on a
+            // ₹249.99 card - the pill came out as "AD". Neither side is allowed to be truncated:
+            // the price is never ellipsised (it would hide digits the customer is agreeing to
+            // pay) and the pill keeps its whole label, so a long price steps down a size instead
+            // of pushing the control off the card.
+            Box(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                contentAlignment = Alignment.CenterStart
             ) {
-                Text(
-                    text = priceLabel,
-                    style = BalajiText.Price,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                if (product.hasDiscount) {
-                    // One discount statement per card: the badge on the photo says the percent,
-                    // this says what it was before. Both would be noise.
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                     Text(
-                        text = if (wholeRupees) formatRupeesWhole(product.mrpPaise)
-                        else formatPaise(product.mrpPaise!!),
-                        style = BalajiText.Mrp.copy(textDecoration = TextDecoration.LineThrough),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = priceLabel,
+                        style = priceStyleFor(priceLabel),
+                        color = MaterialTheme.colorScheme.onSurface
                     )
+                    if (product.hasDiscount) {
+                        // One discount statement per card: the badge on the photo says the percent,
+                        // this says what it was before. Both would be noise.
+                        Text(
+                            text = if (wholeRupees) formatRupeesWhole(product.mrpPaise)
+                            else formatPaise(product.mrpPaise!!),
+                            style = BalajiText.Mrp.copy(textDecoration = TextDecoration.LineThrough),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 if (cartItem == null) {
-                    Spacer(modifier = Modifier.weight(1f))
                     ProductPurchaseControl(
                         product = product,
                         cartItem = cartItem,
@@ -658,6 +693,7 @@ fun HorizontalProductCard(
                         onIncrease = onIncrease,
                         onDecrease = onDecrease,
                         onWeight = onWeight,
+                        modifier = Modifier.align(Alignment.CenterEnd),
                         narrow = true
                     )
                 }
@@ -689,7 +725,14 @@ fun HorizontalProductCard(
     }
 }
 
-/** Circular category shortcut for the Home screen. */
+/**
+ * Category shortcut for the Home screen.
+ *
+ * The reference board draws these as near-opaque white cards - artwork on top, the category name
+ * under it inside the card - rather than as bare circles on the page, which is what this was
+ * before. The pastel [containerColor] still tints the artwork itself, so categories stay
+ * distinguishable; the card is the frame, matching section 3.2's 0.90-0.96 white band.
+ */
 @Composable
 fun CategoryShortcut(
     category: Category,
@@ -698,27 +741,36 @@ fun CategoryShortcut(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier
-            .clickable(onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        color = Color.White.copy(alpha = 0.96f),
+        shadowElevation = 2.dp
     ) {
-        CategoryArtwork(
-            category = category,
-            size = 56.dp,
-            iconSize = 26.dp,
-            containerColor = containerColor,
-            contentColor = contentColor
-        )
-        Text(
-            text = category.name,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            CategoryArtwork(
+                category = category,
+                size = 52.dp,
+                iconSize = 24.dp,
+                containerColor = containerColor,
+                contentColor = contentColor
+            )
+            Text(
+                text = category.name,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 

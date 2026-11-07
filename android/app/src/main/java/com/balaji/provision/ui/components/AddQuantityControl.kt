@@ -135,7 +135,12 @@ fun AnimatedAddQuantityControl(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     canIncrease: Boolean = true,
-    stepQty: Long = 1L
+    stepQty: Long = 1L,
+    /**
+     * Horizontal inset behind the ADD label. Narrow browse cards pass a smaller value so the
+     * pill fits on the same 128 dp line as the price; wide rows keep the default.
+     */
+    inset: androidx.compose.ui.unit.Dp = 18.dp
 ) {
     val reduceMotion = rememberReduceMotion()
     val mode = addControlModeFor(quantityBase)
@@ -195,7 +200,7 @@ fun AnimatedAddQuantityControl(
                     modifier = Modifier.height(BalajiDesign.ControlHeight),
                     shape = RoundedCornerShape(BalajiDesign.RadiusPill),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        horizontal = 18.dp,
+                        horizontal = inset,
                         vertical = 0.dp
                     ),
                     colors = ButtonDefaults.buttonColors(

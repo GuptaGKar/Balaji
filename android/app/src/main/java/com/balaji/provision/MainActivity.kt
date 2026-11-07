@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -80,6 +82,7 @@ import com.balaji.provision.ui.profile.ProfileScreen
 import com.balaji.provision.ui.requests.ProductRequestsScreen
 import com.balaji.provision.ui.splash.SplashScreen
 import com.balaji.provision.ui.staff.StaffApp
+import com.balaji.provision.ui.theme.BalajiDesign
 import com.balaji.provision.ui.theme.BalajiTheme
 import com.balaji.provision.ui.theme.ThemeViewModel
 import com.balaji.provision.ui.update.UpdateSurface
@@ -131,7 +134,13 @@ fun MainAppScreen(
         splashVisible = false
     }
 
-    ApplySystemBarAppearance()
+    // The Home header paints its brand orange behind the status bar, the way the reference board
+    // does. The status-bar strip above the inset content therefore has to be painted with the
+    // header rather than left showing the page background, and the bar's icons have to flip to
+    // white while it is showing. Only Home asks for this; every other route keeps the old look.
+    var brandStatusBar by remember { mutableStateOf(false) }
+
+    ApplySystemBarAppearance(brandStatusBar)
 
     // Play handles updates for Play-distributed builds; direct builds provide their own prompt.
     UpdateSurface()
@@ -143,6 +152,20 @@ fun MainAppScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
+        // The status-bar strip that continues the Home header upwards. It is the header's own top
+        // stop (see [BalajiDesign.HeaderTop]), so the seam between the strip and the header is one
+        // colour and does not read as a line. Drawn before the content box, which starts below the
+        // bar, so it is only ever visible in the bar itself.
+        if (brandStatusBar) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .fillMaxWidth()
+                    .windowInsetsTopHeight(WindowInsets.statusBars)
+                    .background(BalajiDesign.HeaderTop)
+            )
+        }
+
         // The app content stays inside the system bars, while the splash paints
         // over the whole window (including the bar areas) so launch is edge to
         // edge instead of letterboxed. The shell's Scaffold explicitly opts out
@@ -158,7 +181,8 @@ fun MainAppScreen(
             } else {
                 CustomerApp(
                     isDarkTheme = isDarkTheme,
-                    onToggleTheme = onToggleTheme
+                    onToggleTheme = onToggleTheme,
+                    onBrandStatusBarChange = { brandStatusBar = it }
                 )
             }
         }
@@ -176,11 +200,16 @@ fun MainAppScreen(
  * Keep the status/navigation bar icons legible when the in-app theme does not
  * match the system theme. [enableEdgeToEdge] only reads the system setting at
  * launch; the customer app can switch theme independently.
+ *
+ * [brandStatusBar] is true while the Home header is painting the status-bar strip orange. Orange
+ * is a mid-tone, so the bar's clock and battery icons have to go white there even in light theme,
+ * which is what the reference board shows.
  */
 @Composable
-private fun ApplySystemBarAppearance() {
+private fun ApplySystemBarAppearance(brandStatusBar: Boolean) {
     val view = LocalView.current
-    val darkIcons = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    val darkIcons = !brandStatusBar &&
+        MaterialTheme.colorScheme.background.luminance() > 0.5f
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as? Activity)?.window ?: return@SideEffect
@@ -195,13 +224,27 @@ private fun ApplySystemBarAppearance() {
 @Composable
 private fun CustomerApp(
     isDarkTheme: Boolean,
-    onToggleTheme: (Boolean) -> Unit
+    onToggleTheme: (Boolean) -> Unit,
+    onBrandStatusBarChange: (Boolean) -> Unit = {}
 ) {
     val authViewModel: AuthViewModel = hiltViewModel()
     val accountViewModel: AccountViewModel = hiltViewModel()
     val authState by authViewModel.state.collectAsState()
     val accountState by accountViewModel.state.collectAsState()
     val profile = accountState.profile
+
+    // Every branch below the shell draws on the page background, so the orange status-bar strip
+    // has to be taken back down whenever the shell is not what is on screen - sign-out, the
+    // first-run details form, an error screen - or the bar would stay orange over them.
+    val inShell = authState.session != null &&
+        accountState.hasLoaded &&
+        profile != null &&
+        profile.role == "customer" &&
+        !profile.displayName.isNullOrBlank() &&
+        accountState.addresses.isNotEmpty()
+    LaunchedEffect(inShell) {
+        if (!inShell) onBrandStatusBarChange(false)
+    }
 
     when {
         authState.session == null -> LoginScreen(viewModel = authViewModel)
@@ -243,7 +286,8 @@ private fun CustomerApp(
         else -> CustomerShell(
             accountViewModel = accountViewModel,
             isDarkTheme = isDarkTheme,
-            onToggleTheme = onToggleTheme
+            onToggleTheme = onToggleTheme,
+            onBrandStatusBarChange = onBrandStatusBarChange
         )
     }
 }
@@ -306,7 +350,8 @@ private fun CustomerAccountErrorScreen(
 private fun CustomerShell(
     accountViewModel: AccountViewModel,
     isDarkTheme: Boolean,
-    onToggleTheme: (Boolean) -> Unit
+    onToggleTheme: (Boolean) -> Unit,
+    onBrandStatusBarChange: (Boolean) -> Unit = {}
 ) {
     val navController = rememberNavController()
     val cartViewModel: CartViewModel = hiltViewModel()
@@ -315,6 +360,13 @@ private fun CustomerShell(
     val cart by cartViewModel.cart.collectAsState()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route.orEmpty()
+
+    // Home is the only route whose header runs behind the status bar, so it is the only one that
+    // asks the shell for the orange strip and the white bar icons. Re-run on every destination
+    // change, including the moment the graph first resolves.
+    LaunchedEffect(currentRoute) {
+        onBrandStatusBarChange(currentRoute == "home")
+    }
     // The pill is drawn over the page rather than reserving a strip, so it only appears on the
     // screens that were built to clear it: the four tabs and the product listing they lead to.
     // Full-screen flows (product details, checkout, account, order tracking, requests,

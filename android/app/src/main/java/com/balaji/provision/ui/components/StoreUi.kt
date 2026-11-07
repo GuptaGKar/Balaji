@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
@@ -147,6 +148,13 @@ fun SectionHeader(
         if (actionLabel != null && onAction != null) {
             TextButton(onClick = onAction) {
                 Text(actionLabel, style = MaterialTheme.typography.labelLarge)
+                // The board's section action reads "See All >" - the chevron is part of the
+                // affordance, and it is the only hint that the row is tappable.
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
             }
         }
     }

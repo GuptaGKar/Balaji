@@ -70,7 +70,12 @@ class ProductViewModel @Inject constructor(
         // in-flight fetch instead of duplicating the two catalogue requests.
         if (loadJob?.isActive == true) return
         loadJob = viewModelScope.launch {
-            _isLoading.value = _allProducts.value.isEmpty()
+            // A refresh always reports progress, cached content or not: the screens decide what
+            // to show for it (skeleton only while there is nothing on screen yet - each caller
+            // gates on its own `...isEmpty()`), and a caller watching the flow cannot tell an
+            // in-flight refresh apart from an idle one if the flag stays false just because a
+            // previous catalogue is still visible.
+            _isLoading.value = true
             _error.value = null
             try {
                 val anonKey = BuildConfig.SUPABASE_ANON_KEY

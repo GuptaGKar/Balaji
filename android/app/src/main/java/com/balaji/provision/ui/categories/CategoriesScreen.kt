@@ -101,7 +101,7 @@ import com.balaji.provision.ui.components.navPillReserve
 import com.balaji.provision.ui.theme.appColors
 import kotlin.math.roundToInt
 
-private const val SEARCH_PLACEHOLDER = "Search for atta, milk, snacks…"
+private const val SEARCH_PLACEHOLDER = "Search for milk, atta, snacks…"
 
 // The reference tiles are almost square. A wider ratio looked flat once real
 // category images were dropped in.
