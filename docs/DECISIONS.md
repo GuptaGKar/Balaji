@@ -1766,3 +1766,14 @@ Restored: `ProductDetailsScreen`'s flat hero (image on a `surfaceVariant` wash, 
 image constants and `managedImagePath`, and the previous `scripts/tests` set. No database, storage
 bucket, policy, price, stock, order or authorization rule was ever changed by the feature, so
 nothing server-side is reverted. No uploaded cutout objects were created by this work.
+## 2026-11-13 - The basket opens with the address
+
+Asked for on device: "shift delivery address & delivery instructions on top page". The basket now
+renders, in order: delivery address, delivery instructions, the item rows, the coupon (and its
+free-gift cards), any unavailable-line warning, the payment method, then the bill and the
+place-order slide. Only the two `LazyColumn` entries moved - the address and instruction cards
+themselves, their state, the quote, the slide gate and the server-side pricing are untouched, so
+nothing about the fee, the address used for the quote or the order changes.
+
+The earlier "address on top" pass had put the two cards after the items because the item list was
+already there; the owner wanted them at the very top, above the items, which is what this does.

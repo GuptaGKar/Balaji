@@ -315,6 +315,32 @@ fun CartScreen(
                     ),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    // Asked for on device: the delivery address opens the page, with the note
+                    // that belongs with it directly below, above the items. Payment stays at the
+                    // bottom and the bill still closes the list next to the slide.
+                    item(key = "delivery_address") {
+                        DeliveryAddressCard(
+                            isLoading = accountState.isLoading,
+                            addresses = accountState.addresses,
+                            selectedAddress = selectedAddress,
+                            error = accountState.error,
+                            isSaving = accountState.isSaving,
+                            onSelectAddress = { selectedAddressId = it },
+                            onAddAddress = {
+                                addressDialogError = null
+                                showAddressEditor = true
+                            },
+                            onRetry = { accountViewModel.refresh() }
+                        )
+                    }
+
+                    item(key = "delivery_instructions") {
+                        DeliveryInstructionsCard(
+                            note = customerNote,
+                            onNoteChange = { customerNote = it }
+                        )
+                    }
+
                     items(cart.items, key = { it.productId }) { item ->
                         val lineInfo = quote?.lines?.find { it.productId == item.productId }
                         val product = viewModel.findProduct(item.productId)
@@ -332,8 +358,8 @@ fun CartScreen(
                         )
                     }
 
-                    // The reference puts the coupon between the lines and the bill: it is part
-                    // of the basket, not a promotion banner above it.
+                    // The reference puts the coupon after the lines: it is part of the basket,
+                    // not a promotion banner above it.
                     item(key = "coupon") {
                         CouponCard(
                             couponInput = couponInput,
@@ -382,32 +408,8 @@ fun CartScreen(
                         }
                     }
 
-                    // The checkout sections live here now, in the order they were asked for:
-                    // address, the note that belongs with it, then the payment method. The bill
-                    // closes the list so the total sits next to the place-order slide.
-                    item(key = "delivery_address") {
-                        DeliveryAddressCard(
-                            isLoading = accountState.isLoading,
-                            addresses = accountState.addresses,
-                            selectedAddress = selectedAddress,
-                            error = accountState.error,
-                            isSaving = accountState.isSaving,
-                            onSelectAddress = { selectedAddressId = it },
-                            onAddAddress = {
-                                addressDialogError = null
-                                showAddressEditor = true
-                            },
-                            onRetry = { accountViewModel.refresh() }
-                        )
-                    }
-
-                    item(key = "delivery_instructions") {
-                        DeliveryInstructionsCard(
-                            note = customerNote,
-                            onNoteChange = { customerNote = it }
-                        )
-                    }
-
+                    // Payment closes the page and the bill follows it, so the total sits next to
+                    // the place-order slide.
                     item(key = "payment_method") {
                         PaymentMethodCard()
                     }
