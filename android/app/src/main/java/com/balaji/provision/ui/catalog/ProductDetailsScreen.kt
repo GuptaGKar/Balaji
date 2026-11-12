@@ -361,11 +361,27 @@ fun ProductDetailsLoading(onBack: () -> Unit) {
 
 @Composable
 private fun ProductImage(product: Product) {
-    com.balaji.provision.ui.components.ProductShowcasePodium(
-        imageUrl = product.imagePath,
-        productName = product.name,
-        modifier = Modifier.fillMaxWidth().aspectRatio(1.25f)
-    )
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+            .aspectRatio(1.25f),
+        contentAlignment = Alignment.Center
+    ) {
+        ProductThumb(
+            name = product.name,
+            imageUrl = product.imagePath,
+            contentScale = ContentScale.Fit,
+            shape = RoundedCornerShape(0.dp),
+            backgroundColor = Color.Transparent,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+                .clearAndSetSemantics {
+                    contentDescription = "Image of ${product.name}"
+                }
+        )
+    }
 }
 
 

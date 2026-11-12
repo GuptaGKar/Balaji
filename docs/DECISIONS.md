@@ -1753,23 +1753,16 @@ earlier pending items - weighted cart Edit/Remove, the coupon "You Save" band, m
 order and the Pansari Sooji price restore - are unchanged and still open.
 
 
-## 2026-11-13 — Independent product podium and bulk image approval
+## 2026-11-13 - Product podium and bulk image approval reverted
 
-Owner requested implementation and a pull first. Pulled master to 72edff5, preserving local release/CI edits; resolved the DECISIONS autostash append conflict by retaining both entries. No Bulk Product Image Manager existed, so added an approval queue to Catalogue Products alongside existing uploads. No DB migration: only existing products.image_path is updated after explicit approval, using existing Supabase storage/RLS. No production credentials, upload or deployment used.
+The podium hero, the web bulk image approval queue, the browser cutout pipeline and the alpha-trim
+transformation were removed at the owner's request, undoing `0370567` and the follow-up review
+`3a2dd6d`. Reason: every catalogue image is a JPEG with a white background, the trim is a no-op
+without alpha, so the details hero showed a white rectangle standing on the platform - worse than
+the flat thumbnail it replaced - and the feature was not wanted.
 
-Product-only PNG preparation normalizes the visible bounds onto a transparent square. Optional conservative border-connected near-white removal preserves enclosed labels but can remove connected white packaging; original/processed/light/dark previews and keep-background control are mandatory safeguards. Complex backgrounds need externally prepared cutouts. Preview podium is independent CSS; Android details uses independent Canvas layers and cached display-only alpha trimming. Cards, cart, orders and categories retain their clean existing image rendering. No animation or blur passes. Unknown catalogue-save outcomes retain the uploaded object to avoid deleting a potentially referenced image; an orphan can remain for later cleanup.
-
-Executed: web formatting passed; web regression suite 51/51; full lint completed with existing warnings and final feature-module lint had no warnings/errors. Full typecheck remains blocked by 11 existing Hook Form/Zod errors in CategoriesTab, ProductsTab, service areas and settings. Compared compiler diagnostics to pulled ProductsTab baseline: zero additions/removals (the comparison API also emits an identical incremental-options diagnostic in both runs). Android compileCustomerDebugKotlin, lintCustomerDebug and testCustomerDebugUnitTest: BUILD SUCCESSFUL; 283 tests, zero failures/errors, including new eight-shape alpha bounds tests. git diff --check passed.
-
-Not run: screenshots from running Android app, real eight-product appearance comparison, device CPU/GPU/frame measurements and authenticated local Supabase approval/upload integration. adb devices returned no device. No real branded local test catalogue/session configured for this run. The supplied reference board was inspected, but visual/performance acceptance remains open. See docs/PRODUCT_PODIUM_QA.md for the complete modified file list, limits and follow-up matrix.
-
-## 2026-11-13 - Podium review: hero semantics and the replaced upload
-
-Reviewing the podium commit found two defects, both fixed without changing any price, stock, order or policy rule:
-
-- The hero lost its accessible name. `ProductImage` used to wrap the thumbnail in `clearAndSetSemantics { contentDescription = "Image of ${product.name}" }`; the podium passed only `productName`, so the name was announced twice and the loading/error text leaked into the tree. The stage now sets one `clearAndSetSemantics` with `"Image of $productName"` and the image child is unlabelled.
-- Approval leaked the replaced object. `approve()` uploaded a new `products/<id>/<uuid>.png` and updated `products.image_path` without deleting the old object, while the product form already does. A confirmed save now removes it best-effort, guarded to our own bucket and to paths no other pack references; a failed cleanup logs and never turns a successful approval into an error. The bucket/limit constants and `managedImagePath` moved to `web/src/lib/product-image-url.ts` so the form and the queue cannot drift.
-
-Device pass on the Galaxy A34 (customer account, 9AM Green Chilli - Sauce 180g): the details hero draws the platform, rim, glow and shadow with the package resting on it, in both themes (the app has its own dark-mode toggle in Profile, so the system night mode is irrelevant). The hero exposes exactly one accessibility node, `Image of 9AM Green Chilli - Sauce 180g`, across the hero bounds. `:app:assembleCustomerDebug`, both unit-test variants (283/283 each) and `:app:lintCustomerDebug` (0 errors) pass on the merged commit plus these changes.
-
-Open, not decided here: the catalogue images are JPEGs with white backgrounds, and the trim transformation is a no-op without alpha, so the hero shows a white rectangle standing on the platform - glaring in dark mode, a seam in light mode. The podium only reads correctly for images produced by the bulk queue, so the catalogue needs those cutouts or the podium must be limited to processed PNGs. Web gates (`npm test`, lint, type-check, prettier) could not run here: `web/node_modules` is absent, so the web changes were hand-reviewed and only parsed with a standalone `tsc --noResolve` pass.
+Restored: `ProductDetailsScreen`'s flat hero (image on a `surfaceVariant` wash, with the
+`clearAndSetSemantics { contentDescription = "Image of ..." }` label), the product form's own
+image constants and `managedImagePath`, and the previous `scripts/tests` set. No database, storage
+bucket, policy, price, stock, order or authorization rule was ever changed by the feature, so
+nothing server-side is reverted. No uploaded cutout objects were created by this work.

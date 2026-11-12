@@ -7,13 +7,7 @@ import { useForm, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { cn } from "@/lib/utils";
 import { SafeImage } from "@/components/SafeImage";
-import { BulkProductImageManager } from "@/components/BulkProductImageManager";
 import { createUuid } from "@/lib/uuid";
-import {
-  PRODUCT_IMAGE_BUCKET,
-  PRODUCT_IMAGE_MAX_BYTES,
-  managedImagePath,
-} from "@/lib/product-image-url";
 import {
   Plus,
   Edit,
@@ -36,6 +30,15 @@ type ProductWithCategory = Product & {
   category_ids?: string[];
   id: string;
 };
+
+const PRODUCT_IMAGE_BUCKET = "product-images";
+const PRODUCT_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
+const PRODUCT_IMAGE_URL_PREFIX = `${(process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "")}/storage/v1/object/public/${PRODUCT_IMAGE_BUCKET}/`;
+
+function managedImagePath(url: string | null | undefined): string | null {
+  if (!url || !url.startsWith(PRODUCT_IMAGE_URL_PREFIX)) return null;
+  return decodeURIComponent(url.slice(PRODUCT_IMAGE_URL_PREFIX.length).split("?")[0]);
+}
 
 function describeProductSaveError(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err ?? "");
@@ -492,7 +495,6 @@ export default function ProductsTab({ canManage }: { canManage: boolean }) {
 
   return (
     <div className="w-full space-y-6">
-      {canManage && <BulkProductImageManager products={products} onSaved={fetchData} />}
       {/* Search & Action Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
         <div className="relative flex-1 max-w-md">
