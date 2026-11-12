@@ -1633,3 +1633,62 @@ COD order writes live data and needs explicit approval); migration
 (no service-role key and no Docker here). Staff catalogue order under the 68 low-stock cards and
 the Pansari Sooji price restore (3600 to 3500 paise) remain open; staff UI work is paused by
 instruction.
+
+## Customer debug round: tab stacks, glass elevation, first-run location (2026-11-12, later session)
+
+Three defects reported from the device. Presentation and navigation only; no price, fee, stock,
+order, billing or authorization rule changed.
+
+- **Tabs were stacks.** `navigateToTab` popped with `saveState = true` and navigated with
+  `restoreState = true`, so every screen opened from a tab was saved *as part of that tab*.
+  Leaving the empty basket through "Start shopping" pushed `listing/all`; tapping Basket then
+  restored the saved catalogue on top of the basket, so the tap looked ignored and only Back
+  revealed the basket underneath. A tab is now a root: pop to the graph's start destination
+  without saving, then `navigate(route)` with `launchSingleTop = true` and `restoreState = false`.
+  A tab's data lives in its ViewModel, so only scroll position is dropped. Verified on device:
+  empty cart -> Start shopping -> All products -> Basket opens the empty cart immediately, and
+  product details -> Back -> Basket behaves the same.
+- **Profile cards were boxed.** The four glass cards in `ProfileScreen` and `SavedAddressCard`
+  still had 2 dp and 1 dp elevation. The fill is transparent (the glass is drawn by
+  `liquidGlass`), so the shadow showed through as a grey rounded outline. Both are now elevation 0,
+  like the rest of the glass surfaces.
+- **First sign-in asked for an address but not for the place.** `CustomerDetailsScreen` now asks
+  for location once, immediately after the name is saved and while no address exists:
+  - The permission request is launched automatically, once per screen instance (`autoAsked` is
+    `rememberSaveable`, so a rotation does not re-prompt). If the grant already exists, the fix is
+    fetched straight away.
+  - When the fix and its reverse-geocoded place arrive, the address editor opens by itself,
+    prefilled with recipient, phone, street, area, city, state and PIN, with lat/lng attached and
+    the delivery map already open and centred on the fix. `prefill` only fills blank fields, so a
+    later fix never overwrites what the customer typed.
+  - "Add delivery address" remains the manual path (blank form); "Use my current location" on the
+    card retries and opens the same prefilled form. Permission denial and GPS failure show their
+    message in the card and leave the manual path working.
+  - `AddressEditorDialog` gained `prefill` and `startWithMap`; a fix arriving while the map is open
+    now moves the camera (`openAt`) as well as the fields. `startWithMap` is re-applied in the
+    reset effect, which runs after first composition and had been closing the map the flow asked
+    to open - found on device, where the first-run dialog opened with the button reading "Choose
+    the exact spot on a map" instead of "Hide the map".
+
+Verification (2026-11-12): `:app:assembleCustomerDebug` builds; `:app:testCustomerDebugUnitTest`
+and `:app:testStaffDebugUnitTest` run 560/560 with zero failures/skips; `:app:lintCustomerDebug`
+and `:app:lintStaffDebug` report 0 errors, 69 warnings and 5 hints each. No formatter is configured
+in this project, so formatting was kept to the surrounding style by hand.
+
+Device pass on the Galaxy A34, using a brand-new customer account the owner signed in on the
+device (917302921610, display name "Customer", no address): launching that account showed the
+system location prompt automatically; "While using the app" produced the prefilled editor with the
+map already open, pin at 30.00267, 77.44413, "We deliver here - ?30.00 delivery", street
+2C2V+XJG, area Saorana, Uttar Pradesh 247232. Saving it moved straight into the shell, with Home
+showing "Deliver to Home / Saorana". Profile (new account), product details and the four tabs were
+re-checked for overlap after the navigation change. The map does render - a road is visible once
+the map is scrolled into view; the first screenshot looked blank only because the visible frame
+was empty land at that rural zoom.
+
+Not run, with reasons: a *second, different* fix arriving while the map is already open (the
+re-centre effect is in place, but on device only the initial prefill was exercised - the fix does
+not move when refetched standing still); any automated UI test for the onboarding flow (the project
+has no instrumented Compose test target). The earlier pending items - weighted cart Edit/Remove, the
+coupon "You Save" band, slide submit/success with a real order, migration
+`20261107000001_low_stock_mrp_and_price_hardening.sql`, pgTAP `052`, the staff low-stock card
+order and the Pansari Sooji price restore - are unchanged and still open.

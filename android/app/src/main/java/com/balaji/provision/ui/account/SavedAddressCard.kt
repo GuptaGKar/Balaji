@@ -44,7 +44,9 @@ fun SavedAddressCard(
             ),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        // The glass fill is transparent, so any shadow shows through it as a grey box around the
+        // card. Elevation 0 keeps the address card in the same flat material as the rest.
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier.padding(14.dp),

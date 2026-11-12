@@ -66,12 +66,19 @@ fun AddressEditorDialog(
     serverError: String?,
     onDismiss: () -> Unit,
     onSave: (AddressDraft) -> Unit,
+    /**
+     * Values fetched before the form opened - the first-run location fix fills the street, area,
+     * city, state and PIN so the customer edits a real address instead of retyping it.
+     */
+    prefill: AddressDraft? = null,
+    /** Open with the delivery map already showing, centred on [prefill]'s point. */
+    startWithMap: Boolean = false,
     locationViewModel: AddressLocationViewModel = hiltViewModel(),
     mapPickerViewModel: AddressMapPickerViewModel = hiltViewModel(),
     suggestionViewModel: AreaSuggestionViewModel = hiltViewModel()
 ) {
-    val startingDraft = remember(initial?.id) {
-        initial?.toDraft() ?: AddressDraft(
+    val startingDraft = remember(initial?.id, prefill) {
+        initial?.toDraft() ?: prefill ?: AddressDraft(
             recipientName = defaultName.orEmpty(),
             phone = defaultPhone.orEmpty()
         )
@@ -89,7 +96,9 @@ fun AddressEditorDialog(
     var lat by remember(startingDraft) { mutableStateOf(startingDraft.lat) }
     var lng by remember(startingDraft) { mutableStateOf(startingDraft.lng) }
     var localError by remember { mutableStateOf<String?>(null) }
-    var showMapPicker by remember { mutableStateOf(false) }
+    // First-run flow opens straight onto the map: the fix is already known and showing the pin
+    // is the quickest way to confirm "this is my building" before saving.
+    var showMapPicker by remember { mutableStateOf(startWithMap) }
 
     val locationState by locationViewModel.state.collectAsState()
     val suggestionState by suggestionViewModel.state.collectAsState()
@@ -149,19 +158,31 @@ fun AddressEditorDialog(
     LaunchedEffect(initial?.id) {
         locationViewModel.reset()
         mapPickerViewModel.reset()
-        showMapPicker = false
+        // Re-apply the caller's choice: this effect runs after the first composition and would
+        // otherwise close a map the first-run flow asked to open.
+        showMapPicker = startWithMap
     }
 
     LaunchedEffect(locationState.fix, locationState.place) {
         val fix = locationState.fix ?: return@LaunchedEffect
         lat = fix.latitude
         lng = fix.longitude
-        val place = locationState.place ?: return@LaunchedEffect
-        if (addressLines.isBlank()) addressLines = place.addressLine.orEmpty()
-        if (area.isBlank()) area = place.area.orEmpty()
-        if (city.isBlank()) city = place.city.orEmpty()
-        if (state.isBlank()) state = place.state.orEmpty()
-        if (postalCode.isBlank()) postalCode = place.postalCode.orEmpty()
+        val place = locationState.place
+        if (place != null) {
+            if (addressLines.isBlank()) addressLines = place.addressLine.orEmpty()
+            if (area.isBlank()) area = place.area.orEmpty()
+            if (city.isBlank()) city = place.city.orEmpty()
+            if (state.isBlank()) state = place.state.orEmpty()
+            if (postalCode.isBlank()) postalCode = place.postalCode.orEmpty()
+        }
+        // A fix that arrives while the map is open has to move the pin, not just the text
+        // fields - otherwise "Use my current location" leaves the camera where it was.
+        if (showMapPicker) {
+            mapPickerViewModel.openAt(
+                point = GeoPoint(fix.latitude, fix.longitude),
+                pin = place?.postalCode.orEmpty().ifBlank { postalCode }
+            )
+        }
     }
 
     fun hasLocationPermission(): Boolean {

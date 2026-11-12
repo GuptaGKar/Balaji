@@ -430,12 +430,17 @@ private fun CustomerShell(
 }
 
 fun navigateToTab(navController: NavHostController, route: String) {
+    // A tab is a starting point, not a stack. This used to pop with `saveState = true` and
+    // navigate with `restoreState = true`, which saved every screen opened *from* a tab as part
+    // of that tab and put them back on top of it. The visible result was that leaving the empty
+    // basket through "Start shopping" and then tapping Basket kept the catalogue on screen, and
+    // only Back revealed the basket that had been restored underneath. The tab's own data lives
+    // in its ViewModel, so dropping the saved composition loses nothing but scroll position.
+    val startId = navController.graph.findStartDestination().id
+    navController.popBackStack(startId, inclusive = false)
     navController.navigate(route) {
-        popUpTo(navController.graph.findStartDestination().id) {
-            saveState = true
-        }
         launchSingleTop = true
-        restoreState = true
+        restoreState = false
     }
 }
 

@@ -393,7 +393,9 @@ fun ProfileScreen(
                     ),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                // Elevation 0: the fill is transparent glass, and a shadow under it renders as a grey
+                // outline on device - the profile cards looked boxed rather than lifted.
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Row(
                     modifier = Modifier
@@ -439,7 +441,9 @@ fun ProfileScreen(
                     ),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                // Elevation 0: the fill is transparent glass, and a shadow under it renders as a grey
+                // outline on device - the profile cards looked boxed rather than lifted.
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -537,7 +541,9 @@ fun ProfileScreen(
                 colors = CardDefaults.cardColors(
                     containerColor = Color.Transparent
                 ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                // Elevation 0: the fill is transparent glass, and a shadow under it renders as a grey
+                // outline on device - the profile cards looked boxed rather than lifted.
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(Modifier.padding(16.dp)) {
                     Text(
@@ -597,7 +603,9 @@ fun ProfileScreen(
                 colors = CardDefaults.cardColors(
                     containerColor = Color.Transparent
                 ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                // Elevation 0: the fill is transparent glass, and a shadow under it renders as a grey
+                // outline on device - the profile cards looked boxed rather than lifted.
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(Modifier.padding(16.dp)) {
                     Row(
