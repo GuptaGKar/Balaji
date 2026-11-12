@@ -1692,3 +1692,14 @@ has no instrumented Compose test target). The earlier pending items - weighted c
 coupon "You Save" band, slide submit/success with a real order, migration
 `20261107000001_low_stock_mrp_and_price_hardening.sql`, pgTAP `052`, the staff low-stock card
 order and the Pansari Sooji price restore - are unchanged and still open.
+
+
+## 2026-11-13 — Independent product podium and bulk image approval
+
+Owner requested implementation and a pull first. Pulled master to 72edff5, preserving local release/CI edits; resolved the DECISIONS autostash append conflict by retaining both entries. No Bulk Product Image Manager existed, so added an approval queue to Catalogue Products alongside existing uploads. No DB migration: only existing products.image_path is updated after explicit approval, using existing Supabase storage/RLS. No production credentials, upload or deployment used.
+
+Product-only PNG preparation normalizes the visible bounds onto a transparent square. Optional conservative border-connected near-white removal preserves enclosed labels but can remove connected white packaging; original/processed/light/dark previews and keep-background control are mandatory safeguards. Complex backgrounds need externally prepared cutouts. Preview podium is independent CSS; Android details uses independent Canvas layers and cached display-only alpha trimming. Cards, cart, orders and categories retain their clean existing image rendering. No animation or blur passes. Unknown catalogue-save outcomes retain the uploaded object to avoid deleting a potentially referenced image; an orphan can remain for later cleanup.
+
+Executed: web formatting passed; web regression suite 51/51; full lint completed with existing warnings and final feature-module lint had no warnings/errors. Full typecheck remains blocked by 11 existing Hook Form/Zod errors in CategoriesTab, ProductsTab, service areas and settings. Compared compiler diagnostics to pulled ProductsTab baseline: zero additions/removals (the comparison API also emits an identical incremental-options diagnostic in both runs). Android compileCustomerDebugKotlin, lintCustomerDebug and testCustomerDebugUnitTest: BUILD SUCCESSFUL; 283 tests, zero failures/errors, including new eight-shape alpha bounds tests. git diff --check passed.
+
+Not run: screenshots from running Android app, real eight-product appearance comparison, device CPU/GPU/frame measurements and authenticated local Supabase approval/upload integration. adb devices returned no device. No real branded local test catalogue/session configured for this run. The supplied reference board was inspected, but visual/performance acceptance remains open. See docs/PRODUCT_PODIUM_QA.md for the complete modified file list, limits and follow-up matrix.

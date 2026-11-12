@@ -7,6 +7,7 @@ import { useForm, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { cn } from "@/lib/utils";
 import { SafeImage } from "@/components/SafeImage";
+import { BulkProductImageManager } from "@/components/BulkProductImageManager";
 import { createUuid } from "@/lib/uuid";
 import {
   Plus,
@@ -495,6 +496,7 @@ export default function ProductsTab({ canManage }: { canManage: boolean }) {
 
   return (
     <div className="w-full space-y-6">
+      {canManage && <BulkProductImageManager products={products} onSaved={fetchData} />}
       {/* Search & Action Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
         <div className="relative flex-1 max-w-md">
