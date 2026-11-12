@@ -3,6 +3,7 @@ package com.balaji.provision.ui.orders
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,11 +12,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -73,6 +76,7 @@ import com.balaji.provision.ui.components.ProductThumb
 import com.balaji.provision.ui.components.StatusPill
 import com.balaji.provision.ui.components.StoreTopBar
 import com.balaji.provision.ui.components.liquidGlass
+import com.balaji.provision.ui.theme.BalajiDesign
 import com.balaji.provision.ui.theme.appColors
 import kotlinx.coroutines.launch
 
@@ -180,17 +184,19 @@ fun OrdersScreen(
                 }
 
                 else -> {
-                    // Filter Chips Bar
+                    // Filter Chips Bar. Horizontally scrollable: at a 1.1x font scale
+                    // "Previous (10)" wrapped onto two lines inside an equal-width row.
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
                             .padding(horizontal = 16.dp, vertical = 6.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         FilterChip(
                             selected = selectedTab == OrdersTab.ALL,
                             onClick = { selectedTab = OrdersTab.ALL },
-                            label = { Text("All (${orders.size})") },
+                            label = { Text("All (${orders.size})", maxLines = 1) },
                             shape = RoundedCornerShape(20.dp),
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = MaterialTheme.colorScheme.primary,
@@ -218,7 +224,7 @@ fun OrdersScreen(
                                                 )
                                         )
                                     }
-                                    Text("Current (${currentOrders.size})")
+                                    Text("Current (${currentOrders.size})", maxLines = 1)
                                 }
                             },
                             shape = RoundedCornerShape(20.dp),
@@ -230,7 +236,7 @@ fun OrdersScreen(
                         FilterChip(
                             selected = selectedTab == OrdersTab.PREVIOUS,
                             onClick = { selectedTab = OrdersTab.PREVIOUS },
-                            label = { Text("Previous (${previousOrders.size})") },
+                            label = { Text("Previous (${previousOrders.size})", maxLines = 1) },
                             shape = RoundedCornerShape(20.dp),
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = MaterialTheme.colorScheme.primary,
@@ -483,7 +489,9 @@ fun OrderCard(
         // stays on top of the rim.
         border = if (isCurrent) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)) else null,
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isCurrent) 3.dp else 1.dp)
+        // A shadow under a transparent glass fill renders as a grey band on device; the
+        // stronger border and the live dot already say which order is in flight.
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -613,14 +621,14 @@ fun OrderCard(
             ) {
                 Column {
                     Text(
-                        "Grand total",
+                        "Total",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     MoneyText(
                         text = formatPaise(order.grandTotalPaise),
                         style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
 
@@ -641,8 +649,11 @@ fun OrderCard(
                 if (order.canCancel) {
                     OutlinedButton(
                         onClick = onCancel,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp)
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp),
+                        shape = RoundedCornerShape(BalajiDesign.RadiusPill),
+                        contentPadding = PaddingValues(horizontal = 12.dp)
                     ) {
                         Text("Cancel", style = MaterialTheme.typography.labelMedium)
                     }
@@ -652,9 +663,12 @@ fun OrderCard(
                     onReview != null
                 ) {
                     OutlinedButton(
-                        onClick = { onReview?.invoke() },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp)
+                        onClick = { onReview.invoke() },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp),
+                        shape = RoundedCornerShape(BalajiDesign.RadiusPill),
+                        contentPadding = PaddingValues(horizontal = 12.dp)
                     ) {
                         Text("Rate order", style = MaterialTheme.typography.labelMedium)
                     }
@@ -662,8 +676,11 @@ fun OrderCard(
 
                 Button(
                     onClick = onOpen,
-                    modifier = Modifier.weight(if (order.canCancel) 1.5f else 1f),
-                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .weight(if (order.canCancel) 1.5f else 1f)
+                        .height(44.dp),
+                    shape = RoundedCornerShape(BalajiDesign.RadiusPill),
+                    contentPadding = PaddingValues(horizontal = 14.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (isCurrent)
                             MaterialTheme.colorScheme.primary
@@ -715,7 +732,7 @@ fun OrdersSectionHeader(
         }
         Text(
             text = "$title ($count)",
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             color = if (isLive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
         )

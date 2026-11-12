@@ -76,6 +76,7 @@ import com.balaji.provision.ui.components.CheckoutStepIndicator
 import com.balaji.provision.ui.components.ClosedPanelPlace
 import com.balaji.provision.ui.components.ClosedStorePanel
 import com.balaji.provision.ui.components.EmptyState
+import com.balaji.provision.ui.components.MoneyText
 import com.balaji.provision.ui.components.SlideConfirmState
 import com.balaji.provision.ui.components.SlideToConfirm
 import com.balaji.provision.ui.components.StatusPill
@@ -83,6 +84,8 @@ import com.balaji.provision.ui.components.StickyBottomBar
 import com.balaji.provision.ui.components.SummaryRow
 import com.balaji.provision.ui.components.liquidGlass
 import com.balaji.provision.ui.home.HomeViewModel
+import com.balaji.provision.ui.theme.BalajiDesign
+import com.balaji.provision.ui.theme.BalajiText
 import com.balaji.provision.ui.theme.appColors
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
@@ -268,8 +271,9 @@ fun CheckoutScreen(
 
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            "Order placed successfully",
-                            style = MaterialTheme.typography.titleLarge,
+                            "Order placed!",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
@@ -306,15 +310,16 @@ fun CheckoutScreen(
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(50.dp),
-                        shape = RoundedCornerShape(14.dp),
+                            .height(BalajiDesign.PrimaryCtaHeight),
+                        shape = RoundedCornerShape(BalajiDesign.RadiusPill),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary
                         )
                     ) {
                         Text(
-                            "Track order in My Orders",
-                            style = MaterialTheme.typography.titleSmall
+                            "Track your order",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
@@ -340,7 +345,8 @@ fun CheckoutScreen(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "Checkout",
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
@@ -350,10 +356,9 @@ fun CheckoutScreen(
                     )
                 }
                 if (quote != null) {
-                    Text(
+                    MoneyText(
                         text = formatPaise(quote?.grandTotalPaise ?: 0L),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
+                        style = BalajiText.Price,
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
@@ -409,13 +414,13 @@ fun CheckoutScreen(
                             estimatedWindow = homeState.estimatedWindow,
                             deliveryFeePaise = quote?.deliveryFeePaise,
                             amountToFreeDelivery = quote?.amountToFreeDelivery ?: 0L,
+                            feeRuleNote = quote?.feeRuleNote,
                             onRetryQuote = { cartViewModel.refreshQuote() }
                         )
 
                         2 -> PaymentStep(
                             customerNote = customerNote,
-                            onCustomerNoteChange = { customerNote = it },
-                            quoteFeeNote = quote?.feeRuleNote
+                            onCustomerNoteChange = { customerNote = it }
                         )
 
                         else -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -472,22 +477,25 @@ fun CheckoutScreen(
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(50.dp),
-                                shape = RoundedCornerShape(14.dp),
+                                    .height(BalajiDesign.PrimaryCtaHeight),
+                                shape = RoundedCornerShape(BalajiDesign.RadiusPill),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.primary
                                 )
                             ) {
                                 Text(
                                     text = if (step == 1) "Continue to payment" else "Review order",
-                                    style = MaterialTheme.typography.titleSmall
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         } else {
                             SlideToConfirm(
                                 label = "Slide to Place Order",
                                 successLabel = "Order placed",
-                                sublabel = quote?.let { formatPaise(it.grandTotalPaise) },
+                                // The total is in the header; repeating it in the slide label
+                                // crowded the text and the reference has no amount here.
+                                sublabel = null,
                                 state = when (placement) {
                                     is OrderPlacementState.Placing -> SlideConfirmState.Submitting
                                     is OrderPlacementState.Placed -> SlideConfirmState.Success
@@ -558,6 +566,7 @@ private fun AddressStep(
     estimatedWindow: String?,
     deliveryFeePaise: Long?,
     amountToFreeDelivery: Long,
+    feeRuleNote: String?,
     onRetryQuote: () -> Unit
 ) {
     Card(
@@ -569,7 +578,9 @@ private fun AddressStep(
             ),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        // Elevation 0: under a transparent glass fill the shadow renders as a grey halo
+        // around every card on device, which is what made checkout look dirty.
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -582,7 +593,7 @@ private fun AddressStep(
             ) {
                 Text(
                     text = "Delivery address",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = BalajiText.SectionTitle,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 if (sessionPresent) {
@@ -659,7 +670,9 @@ private fun AddressStep(
             ),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        // Elevation 0: under a transparent glass fill the shadow renders as a grey halo
+        // around every card on device, which is what made checkout look dirty.
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -667,7 +680,7 @@ private fun AddressStep(
         ) {
             Text(
                 "Delivery option",
-                style = MaterialTheme.typography.titleMedium,
+                style = BalajiText.SectionTitle,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Row(
@@ -687,8 +700,10 @@ private fun AddressStep(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = estimatedWindow?.let { "Within $it" }
-                            ?: "Timing confirmed by the store",
+                        // `estimatedWindow` is already a full phrase from the server
+                        // ("Same-day delivery; confirmed upon acceptance."). Prefixing
+                        // "Within" produced "Within Same-day delivery; ...".
+                        text = estimatedWindow ?: "Timing confirmed by the store",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -708,27 +723,23 @@ private fun AddressStep(
                     }
                 )
             }
-        }
-    }
-
-    if (amountToFreeDelivery > 0L) {
-        Surface(
-            shape = RoundedCornerShape(14.dp),
-            color = Color.Transparent,
-            modifier = Modifier
-                .fillMaxWidth()
-                .liquidGlass(
-                    shape = RoundedCornerShape(14.dp),
-                    fill = MaterialTheme.appColors.warningContainer
+            if (amountToFreeDelivery > 0L) {
+                Text(
+                    text = "Add ${formatPaise(amountToFreeDelivery)} more for FREE delivery.",
+                    style = BalajiText.Metadata,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.appColors.success
                 )
-        ) {
-            Text(
-                text = "Add ${formatPaise(amountToFreeDelivery)} more for FREE delivery.",
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.appColors.onWarningContainer,
-                modifier = Modifier.padding(14.dp)
-            )
+            }
+            // The rule that produced the fee belongs under the fee, not floating between
+            // cards on the payment step.
+            if (!feeRuleNote.isNullOrBlank()) {
+                Text(
+                    text = feeRuleNote,
+                    style = BalajiText.Metadata,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 
@@ -769,8 +780,7 @@ private fun AddressStep(
 @Composable
 private fun PaymentStep(
     customerNote: String,
-    onCustomerNoteChange: (String) -> Unit,
-    quoteFeeNote: String?
+    onCustomerNoteChange: (String) -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -781,7 +791,9 @@ private fun PaymentStep(
             ),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        // Elevation 0: under a transparent glass fill the shadow renders as a grey halo
+        // around every card on device, which is what made checkout look dirty.
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -789,7 +801,7 @@ private fun PaymentStep(
         ) {
             Text(
                 text = "Payment method",
-                style = MaterialTheme.typography.titleMedium,
+                style = BalajiText.SectionTitle,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Divider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -864,15 +876,6 @@ private fun PaymentStep(
         }
     }
 
-    if (!quoteFeeNote.isNullOrBlank()) {
-        Text(
-            text = quoteFeeNote,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 4.dp)
-        )
-    }
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -882,12 +885,14 @@ private fun PaymentStep(
             ),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        // Elevation 0: under a transparent glass fill the shadow renders as a grey halo
+        // around every card on device, which is what made checkout look dirty.
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(Modifier.padding(16.dp)) {
             Text(
                 "Delivery instructions (optional)",
-                style = MaterialTheme.typography.titleMedium,
+                style = BalajiText.SectionTitle,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(10.dp))
@@ -926,7 +931,9 @@ private fun ReviewStep(
             ),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        // Elevation 0: under a transparent glass fill the shadow renders as a grey halo
+        // around every card on device, which is what made checkout look dirty.
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -939,7 +946,7 @@ private fun ReviewStep(
             ) {
                 Text(
                     "Deliver to",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = BalajiText.SectionTitle,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 TextButton(onClick = onEditAddress) { Text("Change") }
@@ -986,7 +993,9 @@ private fun ReviewStep(
             ),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        // Elevation 0: under a transparent glass fill the shadow renders as a grey halo
+        // around every card on device, which is what made checkout look dirty.
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -999,7 +1008,7 @@ private fun ReviewStep(
             ) {
                 Text(
                     "Payment & instructions",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = BalajiText.SectionTitle,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 TextButton(onClick = onEditPayment) { Text("Change") }
@@ -1032,7 +1041,9 @@ private fun ReviewStep(
                 colors = CardDefaults.cardColors(
                     containerColor = Color.Transparent
                 ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                // Elevation 0: under a transparent glass fill the shadow renders as a grey halo
+        // around every card on device, which is what made checkout look dirty.
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -1040,7 +1051,7 @@ private fun ReviewStep(
                 ) {
                     Text(
                         "Your items (${q.lines.size})",
-                        style = MaterialTheme.typography.titleMedium,
+                        style = BalajiText.SectionTitle,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Divider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -1178,9 +1189,9 @@ private fun CheckoutAddressOption(
         colors = CardDefaults.cardColors(
             containerColor = Color.Transparent
         ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (selected) 2.dp else 0.dp
-        )
+        // Selection is the fill and the radio; a shadow here drew a grey ring around the
+        // chosen address on device.
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier.padding(10.dp),
@@ -1252,7 +1263,9 @@ private fun OrderPhotoRow(
             ),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        // Elevation 0: under a transparent glass fill the shadow renders as a grey halo
+        // around every card on device, which is what made checkout look dirty.
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),

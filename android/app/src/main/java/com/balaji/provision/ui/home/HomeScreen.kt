@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -851,39 +852,55 @@ private fun OfferSlideCard(
                     modifier = Modifier.fillMaxSize()
                 )
                 if (slide.overlay) {
+                    // A full-bleed black scrim with raw white text used to sit on top of the
+                    // creative. On a poster that already carries its own headline the two texts
+                    // collided and neither was readable. A glass caption panel keeps the copy
+                    // legible on any photograph and matches the app's own material.
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .background(
                                 Brush.verticalGradient(
                                     listOf(
-                                        Color.Black.copy(alpha = 0.10f),
-                                        Color.Black.copy(alpha = 0.65f)
+                                        Color.Transparent,
+                                        Color.Black.copy(alpha = 0.25f)
                                     )
                                 )
                             )
                     )
-                    Column(
+                    Row(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .padding(14.dp),
-                        verticalArrangement = Arrangement.Bottom
-                    ) {
-                        Text(
-                            slide.title,
-                            style = MaterialTheme.typography.titleSmall,
-                            color = Color.White,
-                            maxLines = 2
-                        )
-                        if (slide.subtitle.isNotBlank()) {
-                            Text(
-                                slide.subtitle,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.White.copy(alpha = 0.9f),
-                                maxLines = 2
+                            .align(Alignment.BottomStart)
+                            .padding(10.dp)
+                            .fillMaxWidth()
+                            .liquidGlass(
+                                shape = RoundedCornerShape(12.dp),
+                                fill = Color.Black.copy(alpha = 0.40f)
                             )
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                slide.title,
+                                style = MaterialTheme.typography.titleSmall,
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (slide.subtitle.isNotBlank()) {
+                                Text(
+                                    slide.subtitle,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.White.copy(alpha = 0.9f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
-                        Spacer(Modifier.height(8.dp))
+                        // One compact bar, not a three-storey panel: the caption used to cover
+                        // most of a 150 dp banner and hid the creative it was describing.
                         ShopNowPill(containerColor = Color.White)
                     }
                 }
@@ -899,7 +916,9 @@ private fun OfferSlideCard(
             onClick = onClick,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(140.dp)
+                // min, not fixed: at a 1.1x font scale the copy plus the arrow needs more than
+                // 140 dp, and a fixed height squeezed the 40 dp arrow circle into a 3 dp line.
+                .heightIn(min = 140.dp)
                 .liquidGlass(shape, Color(0xFFFFF7F0)),
             shape = shape,
             color = Color.Transparent
@@ -925,7 +944,7 @@ private fun OfferSlideCard(
                         text = slide.subtitle,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
-                        maxLines = 2,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Spacer(Modifier.height(10.dp))

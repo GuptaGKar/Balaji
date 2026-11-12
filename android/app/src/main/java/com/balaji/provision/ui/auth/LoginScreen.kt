@@ -45,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -52,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.balaji.provision.ui.profile.LegalPage
 import com.balaji.provision.ui.profile.LegalScreen
+import com.balaji.provision.ui.components.liquidGlass
 
 private enum class AuthMode {
     CHOOSE,
@@ -162,8 +164,16 @@ fun LoginScreen(
             }
 
             Card(
+                // Glass like the rest of the customer surfaces: the tinted fill is painted by
+                // the rim pass so the card reads as the same material as the store cards.
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .liquidGlass(
+                        shape = RoundedCornerShape(16.dp),
+                        fill = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                    ),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                    containerColor = Color.Transparent
                 ),
                 shape = RoundedCornerShape(16.dp)
             ) {

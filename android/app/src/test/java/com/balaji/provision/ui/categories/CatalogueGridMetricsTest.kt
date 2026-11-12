@@ -45,7 +45,9 @@ class CatalogueGridMetricsTest {
         assertEquals(24, tablet.horizontalPaddingDp)
         assertEquals(32, wide.horizontalPaddingDp)
 
-        assertEquals(13, phone.labelFontSizeSp)
+        // 12, not 13: at a 1.1x font scale "Chocolates" in a four-column phone cell broke
+        // mid-word at 13 sp, and ellipsising a category name is worse than one point smaller.
+        assertEquals(12, phone.labelFontSizeSp)
         assertEquals(14, tablet.labelFontSizeSp)
         assertEquals(14, wide.labelFontSizeSp)
     }

@@ -2,13 +2,19 @@ package com.balaji.provision.ui.catalog
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -51,6 +57,7 @@ import com.balaji.provision.ui.components.NAV_PILL_RESERVE_DP
 import com.balaji.provision.ui.components.navPillReserve
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import com.balaji.provision.ui.cart.CartViewModel
 import com.balaji.provision.ui.components.EmptyState
 import com.balaji.provision.ui.components.ErrorState
@@ -341,6 +348,10 @@ fun CatalogScreen(
             }
         }
 
+        // Read once, above the content switch: the empty state shrinks itself when the keyboard
+        // steals half the screen, and it cannot see this value from inside the `when` arms.
+        val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+
         Box(modifier = Modifier.weight(1f)) {
             when {
                 isLoading && groups.isEmpty() -> InlineLoader()
@@ -350,39 +361,59 @@ fun CatalogScreen(
                     onAction = { viewModel.loadData() }
                 )
 
-                visibleGroups.isEmpty() -> Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+                visibleGroups.isEmpty() -> BoxWithConstraints(
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    EmptyState(
-                        icon = Icons.Default.SearchOff,
-                        title = "No items found",
-                        message = when {
-                            searchQuery.isNotBlank() && entryCategory == null && onRequestItem != null ->
-                                "We could not find \"$searchQuery\". Check the spelling, or ask us to stock it."
-                            searchQuery.isNotBlank() && entryCategory == null ->
-                                "We could not find \"$searchQuery\" in the store."
-                            searchQuery.isNotBlank() ->
-                                "We could not find \"$searchQuery\" in this category."
-                            inStockOnly ->
-                                "Everything in this category is out of stock right now."
-                            else -> "There are no items in this category right now."
-                        },
-                        actionLabel = when {
-                            searchQuery.isNotBlank() && entryCategory == null && onRequestItem != null ->
-                                "Request this item"
-                            searchQuery.isNotBlank() -> "Clear search"
-                            else -> null
-                        },
-                        onAction = when {
-                            searchQuery.isNotBlank() && entryCategory == null && onRequestItem != null ->
-                                onRequestItem
-                            searchQuery.isNotBlank() -> {
-                                { updateQuery("") }
-                            }
-                            else -> null
-                        }
-                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            // Scrollable and centred: with the keyboard open the content area is
+                            // shorter than this block. A centred Box clipped it to its middle and
+                            // the customer saw an icon with no explanation. heightIn(min = the
+                            // viewport) lets Arrangement.Center work on a short screen while the
+                            // scroll keeps a tall block reachable.
+                            .verticalScroll(rememberScrollState())
+                            .heightIn(min = maxHeight)
+                            // The navigation pill floats over the window; without this reserve it
+                            // covered the "Clear search" button. The pill is hidden while the
+                            // keyboard is up, and reserving 84 dp in a 200 dp content area only
+                            // pushed the button back under the keyboard.
+                            .padding(bottom = if (imeVisible) 0.dp else navPillReserve())
+                            .padding(vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        EmptyState(
+                            icon = Icons.Default.SearchOff,
+                            title = "No items found",
+                            message = when {
+                                searchQuery.isNotBlank() && entryCategory == null && onRequestItem != null ->
+                                    "We could not find \"$searchQuery\". Check the spelling, or ask us to stock it."
+                                searchQuery.isNotBlank() && entryCategory == null ->
+                                    "We could not find \"$searchQuery\" in the store."
+                                searchQuery.isNotBlank() ->
+                                    "We could not find \"$searchQuery\" in this category."
+                                inStockOnly ->
+                                    "Everything in this category is out of stock right now."
+                                else -> "There are no items in this category right now."
+                            },
+                            actionLabel = when {
+                                searchQuery.isNotBlank() && entryCategory == null && onRequestItem != null ->
+                                    "Request this item"
+                                searchQuery.isNotBlank() -> "Clear search"
+                                else -> null
+                            },
+                            onAction = when {
+                                searchQuery.isNotBlank() && entryCategory == null && onRequestItem != null ->
+                                    onRequestItem
+                                searchQuery.isNotBlank() -> {
+                                    { updateQuery("") }
+                                }
+                                else -> null
+                            },
+                            compact = imeVisible
+                        )
+                    }
                 }
 
                 else -> LazyVerticalGrid(
@@ -397,8 +428,8 @@ fun CatalogScreen(
                         top = 4.dp,
                         // The basket bar is laid out in the column below this grid, so only the
                         // floating pill can cover the last row - and only while the basket is
-                        // empty and the bar is not being drawn at all.
-                        bottom = if (cart.items.isEmpty()) navPillReserve() else 24.dp
+                        // empty, the bar is not being drawn, and the pill itself is visible.
+                        bottom = if (cart.items.isEmpty() && !imeVisible) navPillReserve() else 24.dp
                     ),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -439,14 +470,19 @@ fun CatalogScreen(
                     else -> null
                 }
             }
-        MiniCartBar(
-            itemCount = cart.items.size,
-            detail = basketHint,
-            onClick = onNavigateToCart,
-            // Lifted clear of the floating pill, which is drawn over the whole window and would
-            // otherwise cover the running total.
-            modifier = Modifier.padding(bottom = NAV_PILL_RESERVE_DP.dp)
-        )
+        // The bar takes layout height, not overlay space. With the keyboard open the catalogue
+        // area collapsed to about 80 dp - less than the empty state - so the customer saw an
+        // icon and nothing else. Typing is not the moment for a basket shortcut.
+        if (!imeVisible) {
+            MiniCartBar(
+                itemCount = cart.items.size,
+                detail = basketHint,
+                onClick = onNavigateToCart,
+                // Lifted clear of the floating pill, which is drawn over the whole window and would
+                // otherwise cover the running total.
+                modifier = Modifier.padding(bottom = NAV_PILL_RESERVE_DP.dp)
+            )
+        }
     }
 }
 

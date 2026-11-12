@@ -100,7 +100,8 @@ fun StoreTopBar(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 if (!subtitle.isNullOrBlank()) {
@@ -205,19 +206,25 @@ fun EmptyState(
     message: String,
     modifier: Modifier = Modifier,
     actionLabel: String? = null,
-    onAction: (() -> Unit)? = null
+    onAction: (() -> Unit)? = null,
+    // Compact keeps the whole block inside the short content area left by an open keyboard;
+    // the full-size version needs about 250 dp and was clipped down to its icon at 216 dp.
+    compact: Boolean = false
 ) {
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 32.dp, vertical = 24.dp),
+            .padding(
+                horizontal = 32.dp,
+                vertical = if (compact) 12.dp else 24.dp
+            ),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 10.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(72.dp)
-                .clip(RoundedCornerShape(24.dp))
+                .size(if (compact) 48.dp else 72.dp)
+                .clip(RoundedCornerShape(if (compact) 16.dp else 24.dp))
                 .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)),
             contentAlignment = Alignment.Center
         ) {
@@ -225,23 +232,24 @@ fun EmptyState(
                 imageVector = icon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.size(34.dp)
+                modifier = Modifier.size(if (compact) 24.dp else 34.dp)
             )
         }
         Text(
             text = title,
-            style = MaterialTheme.typography.titleMedium,
+            style = if (compact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
+            fontWeight = if (compact) FontWeight.SemiBold else null,
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center
         )
         Text(
             text = message,
-            style = MaterialTheme.typography.bodyMedium,
+            style = if (compact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
         if (actionLabel != null && onAction != null) {
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(if (compact) 0.dp else 2.dp))
             Button(onClick = onAction) {
                 Text(actionLabel)
             }
@@ -309,9 +317,11 @@ fun StickyBottomBar(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 6.dp,
-        shadowElevation = 8.dp
+        // The reference board lets the action sit on the page rather than on a slab. A solid
+        // surface plus an 8 dp shadow drew a grey band under the slide control on device.
+        color = Color.Transparent,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
     ) {
         Row(
             modifier = Modifier

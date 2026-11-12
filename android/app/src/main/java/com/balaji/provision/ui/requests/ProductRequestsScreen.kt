@@ -45,6 +45,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.balaji.provision.data.repository.ProductRequest
+import com.balaji.provision.ui.components.liquidGlass
 
 /**
  * Customer-facing "ask the store to stock this" screen. A request is not an order:
@@ -103,8 +104,14 @@ fun ProductRequestsScreen(
 
             item(key = "form") {
                 Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .liquidGlass(
+                            shape = RoundedCornerShape(18.dp),
+                            fill = MaterialTheme.colorScheme.surface
+                        ),
                     shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    colors = CardDefaults.cardColors(containerColor = Color.Transparent)
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp),
@@ -218,8 +225,14 @@ fun ProductRequestsScreen(
 @Composable
 private fun RequestCard(request: ProductRequest) {
     Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(16.dp),
+                fill = MaterialTheme.colorScheme.surfaceVariant
+            ),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
         Column(
             modifier = Modifier.padding(14.dp),

@@ -39,10 +39,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.balaji.provision.domain.model.AddressDraft
 import com.balaji.provision.ui.account.AddressEditorDialog
+import com.balaji.provision.ui.components.liquidGlass
 
 @Composable
 fun CustomerDetailsScreen(
@@ -146,8 +148,14 @@ fun CustomerDetailsScreen(
             )
 
             Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .liquidGlass(
+                        shape = RoundedCornerShape(16.dp),
+                        fill = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                    ),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                    containerColor = Color.Transparent
                 ),
                 shape = RoundedCornerShape(16.dp)
             ) {
@@ -210,8 +218,14 @@ fun CustomerDetailsScreen(
             }
 
             Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .liquidGlass(
+                        shape = RoundedCornerShape(16.dp),
+                        fill = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                    ),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                    containerColor = Color.Transparent
                 ),
                 shape = RoundedCornerShape(16.dp)
             ) {

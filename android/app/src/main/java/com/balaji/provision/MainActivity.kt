@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -46,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -406,7 +408,13 @@ private fun CustomerShell(
             //
             // This shell is customer-only (MainAppScreen routes staff to StaffApp, which owns
             // its own navigation), so there is no staff variant of the bar to keep in sync.
-            if (showBottomBar) {
+            //
+            // Hidden while the keyboard is up. The window shrinks to the space above the IME,
+            // which parks the pill across the middle of whatever the customer is typing into -
+            // measured on the empty catalogue, where it covered the "Clear search" button. Back
+            // dismisses the keyboard first, so the pill comes straight back.
+            val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+            if (showBottomBar && !imeVisible) {
                 NavPill(
                     navController = navController,
                     cartCount = cart.items.size,

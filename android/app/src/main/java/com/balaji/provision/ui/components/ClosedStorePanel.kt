@@ -97,14 +97,17 @@ fun ClosedStorePanel(
     if (storeOpen) return
     val copy = closedCopyFor(place, schedulingEnabled)
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(BalajiDesign.RadiusHero),
+                fill = MaterialTheme.colorScheme.errorContainer
+            ),
         shape = RoundedCornerShape(BalajiDesign.RadiusHero),
-        color = BalajiDesign.PeachBackground,
-        border = BorderStroke(
-            BalajiDesign.CardBorder,
-            MaterialTheme.colorScheme.error.copy(alpha = 0.28f)
-        ),
-        shadowElevation = BalajiDesign.CardElevation
+        // Glass fill, no shadow: the closed state is informational, and a shadow under a
+        // transparent surface reads as a grey halo on device.
+        color = Color.Transparent,
+        shadowElevation = 0.dp
     ) {
         Row(
             modifier = Modifier.padding(14.dp),

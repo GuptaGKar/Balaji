@@ -505,21 +505,24 @@ fun ProductGridCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier.weight(1f, fill = false)
-                ) {
+                // The struck MRP sits under the selling price rather than beside it. Three
+                // things on one 150 dp line - price, MRP and the ADD pill - squeezed the pill to
+                // a few dp wide and the customer was left with an unreadable control. The
+                // percentage is already on the badge over the photo, so the MRP can have a line
+                // of its own and the price keeps the full size.
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = formatPaise(product.pricePaise),
                         style = BalajiText.Price,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1
                     )
                     if (product.hasDiscount) {
                         Text(
                             text = formatPaise(product.mrpPaise!!),
                             style = BalajiText.Mrp.copy(textDecoration = TextDecoration.LineThrough),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
                         )
                     }
                 }
@@ -663,34 +666,33 @@ fun HorizontalProductCard(
                 )
             }
             Spacer(modifier = Modifier.height(4.dp))
-            // Price and ADD share one line, so both children get the card's full width to
-            // measure against instead of splitting a Row's leftover space. A Row measured the
-            // price first and handed the control whatever was left, which was 30 dp on a
-            // ₹249.99 card - the pill came out as "AD". Neither side is allowed to be truncated:
-            // the price is never ellipsised (it would hide digits the customer is agreeing to
-            // pay) and the pill keeps its whole label, so a long price steps down a size instead
-            // of pushing the control off the card.
-            Box(
+            // The price and the control share one line; the struck MRP does not. A 148 dp rail
+            // card has 128 dp of content, and price + MRP + pill is more than that, so the MRP
+            // used to push the control off the card and the pill came out as a sliver. The MRP
+            // now sits on its own line under the price, which leaves the price and the pill
+            // their full widths: the price is never ellipsised (it would hide digits the
+            // customer is agreeing to pay) and the pill keeps its whole label.
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.CenterStart
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = priceLabel,
                         style = priceStyleFor(priceLabel),
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1
                     )
                     if (product.hasDiscount) {
-                        // One discount statement per card: the badge on the photo says the percent,
-                        // this says what it was before. Both would be noise.
+                        // One discount statement per card: the badge on the photo says the
+                        // percent, this says what it was before. Both would be noise.
                         Text(
                             text = if (wholeRupees) formatRupeesWhole(product.mrpPaise)
                             else formatPaise(product.mrpPaise!!),
                             style = BalajiText.Mrp.copy(textDecoration = TextDecoration.LineThrough),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
                         )
                     }
                 }
@@ -702,7 +704,6 @@ fun HorizontalProductCard(
                     onIncrease = onIncrease,
                     onDecrease = onDecrease,
                     onWeight = onWeight,
-                    modifier = Modifier.align(Alignment.CenterEnd),
                     narrow = true
                 )
             }

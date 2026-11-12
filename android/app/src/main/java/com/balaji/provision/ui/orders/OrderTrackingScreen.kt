@@ -343,7 +343,8 @@ private fun TimelineCard(steps: List<TrackingStep>, status: String) {
             ),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        // Same grey-halo problem as the other glass cards: keep the shadow off.
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(

@@ -38,9 +38,15 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BakeryDining
+import androidx.compose.material.icons.outlined.Cake
 import androidx.compose.material.icons.outlined.CleaningServices
+import androidx.compose.material.icons.outlined.Egg
 import androidx.compose.material.icons.outlined.Fastfood
 import androidx.compose.material.icons.outlined.Grain
+import androidx.compose.material.icons.outlined.Liquor
+import androidx.compose.material.icons.outlined.LocalDining
+import androidx.compose.material.icons.outlined.LocalDrink
+import androidx.compose.material.icons.outlined.Opacity
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.ShoppingBasket
 import androidx.compose.material.icons.outlined.Spa
@@ -140,8 +146,10 @@ internal fun catalogueGridMetrics(widthDp: Int): CatalogueGridMetrics = when {
         horizontalPaddingDp = 16,
         gapDp = 12,
         rowGapDp = 16,
-        labelFontSizeSp = 13,
-        labelLineHeightSp = 17
+        // 12, not 13: at a 1.1x font scale "Chocolates" in a 75 dp cell broke mid-word
+        // ("Chocolate" / "s") and an ellipsis would have cut it to "Chocolat…".
+        labelFontSizeSp = 12,
+        labelLineHeightSp = 16
     )
 
     widthDp < 840 -> CatalogueGridMetrics(
@@ -305,7 +313,9 @@ private fun CatalogueSearchHeader(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface
+        // Transparent, not white: the search field is the glass surface here. A solid white
+        // strip behind it broke the peach glass page into a chrome bar.
+        color = Color.Transparent
     ) {
         Column(
             modifier = Modifier
@@ -714,8 +724,9 @@ private fun CatalogueCategoryTile(
             text = category.name,
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 34.dp)
-                .padding(horizontal = 2.dp),
+                .heightIn(min = 34.dp),
+            // No horizontal padding: the label already sits inside a 75 dp cell, and the 2 dp
+            // inset was the difference between "Chocolates" fitting and breaking mid-word.
             color = MaterialTheme.colorScheme.onSurface,
             fontSize = labelFontSize,
             lineHeight = labelLineHeight,
@@ -748,12 +759,20 @@ private fun CatalogueCategoryFallback(slug: String, contentColor: Color) {
 
 private fun catalogueCategoryIcon(slug: String): ImageVector {
     return when (slug.lowercase()) {
-        "dvxbxd", "daal", "grains-staples" -> Icons.Outlined.Grain
+        "dvxbxd", "daal", "grains-staples", "pulses" -> Icons.Outlined.Grain
         "atta", "flour", "bakery-biscuits" -> Icons.Outlined.BakeryDining
-        "spices-masalas", "oils-ghee" -> Icons.Outlined.Restaurant
+        "spices-masalas" -> Icons.Outlined.Restaurant
+        "oil-ghee", "oils-ghee" -> Icons.Outlined.Opacity
         "snacks-namkeen", "chips-namkeen", "fastfood" -> Icons.Outlined.Fastfood
         "personal-care", "bath-body", "beauty", "grooming-hygiene" -> Icons.Outlined.Spa
         "household", "cleaning-essentials" -> Icons.Outlined.CleaningServices
+        // Real slugs from the live catalogue. Without these, five of its twelve categories
+        // fell back to the same basket glyph and the grid read as a placeholder.
+        "dairy" -> Icons.Outlined.Egg
+        "choco" -> Icons.Outlined.Cake
+        "soft-drinks-and-juices" -> Icons.Outlined.LocalDrink
+        "pickles-chutneys-and-papad" -> Icons.Outlined.LocalDining
+        "sauces-ketchup" -> Icons.Outlined.Liquor
         else -> Icons.Outlined.ShoppingBasket
     }
 }
@@ -766,9 +785,13 @@ private fun CatalogueRefreshBanner(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 4.dp),
+            .padding(bottom = 4.dp)
+            .liquidGlass(
+                shape = RoundedCornerShape(12.dp),
+                fill = MaterialTheme.colorScheme.surfaceVariant
+            ),
         shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant
+        color = Color.Transparent
     ) {
         Row(
             modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),

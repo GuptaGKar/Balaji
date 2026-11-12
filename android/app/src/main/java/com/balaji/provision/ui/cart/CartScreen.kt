@@ -3,6 +3,8 @@ package com.balaji.provision.ui.cart
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,7 +26,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Scale
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -48,11 +51,16 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
@@ -64,13 +72,12 @@ import com.balaji.provision.domain.model.Product
 import com.balaji.provision.domain.model.QuantityType
 import com.balaji.provision.domain.model.QuoteBreakdown
 import com.balaji.provision.domain.model.formatPaise
+import com.balaji.provision.domain.model.formatWeightGrams
+import com.balaji.provision.domain.model.lineTotalPaise
 import com.balaji.provision.ui.account.AccountViewModel
-import com.balaji.provision.ui.components.deliveryWindowLabel
-import com.balaji.provision.ui.components.BalajiBasketMark
 import com.balaji.provision.ui.components.ClosedPanelPlace
 import com.balaji.provision.ui.components.ClosedStorePanel
 import com.balaji.provision.ui.components.EmptyState
-import com.balaji.provision.ui.components.FreeDeliveryProgress
 import com.balaji.provision.ui.components.liquidGlass
 import com.balaji.provision.ui.components.MoneyText
 import com.balaji.provision.ui.components.NAV_PILL_RESERVE_DP
@@ -78,9 +85,9 @@ import com.balaji.provision.ui.components.OutlinedQuantityStepper
 import com.balaji.provision.ui.components.ProductThumb
 import com.balaji.provision.ui.components.SlideToConfirm
 import com.balaji.provision.ui.components.StickyBottomBar
-import com.balaji.provision.ui.components.SummaryRow
 import com.balaji.provision.ui.components.WeightedQuantityDialog
 import com.balaji.provision.ui.home.HomeViewModel
+import com.balaji.provision.ui.theme.BalajiDesign
 import com.balaji.provision.ui.theme.BalajiText
 import com.balaji.provision.ui.theme.appColors
 
@@ -158,33 +165,33 @@ fun CartScreen(
             IconButton(onClick = onBack) {
                 Icon(Icons.Default.ArrowBack, contentDescription = "Back")
             }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "My Cart",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = if (cart.items.isEmpty()) {
-                        "Your basket is empty"
-                    } else {
-                        "${cart.items.size} ${if (cart.items.size == 1) "item" else "items"}"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            IconButton(
+            // The reference cart names the count in the title and puts the destructive action in
+            // words on the right ("Clear"); a lone red bin read as an icon to guess at, and the
+            // separate "3 items" line was a second place to look for the same number.
+            Text(
+                text = if (cart.items.isEmpty()) {
+                    "Your Cart"
+                } else {
+                    "Your Cart (${cart.items.size})"
+                },
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 4.dp)
+            )
+            TextButton(
                 onClick = { showClearDialog = true },
                 enabled = cart.items.isNotEmpty()
             ) {
-                Icon(
-                    Icons.Default.Delete,
-                    contentDescription = "Clear cart",
-                    tint = if (cart.items.isEmpty()) {
+                Text(
+                    text = "Clear",
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (cart.items.isEmpty()) {
                         MaterialTheme.colorScheme.outline
                     } else {
-                        MaterialTheme.colorScheme.error
+                        MaterialTheme.colorScheme.primary
                     }
                 )
             }
@@ -220,46 +227,32 @@ fun CartScreen(
                         start = 16.dp,
                         end = 16.dp,
                         top = 4.dp,
-                        bottom = 112.dp
+                        // The action bar is a sibling below the list, not an overlay, so only a
+                        // breathing gap is needed here; 112 dp left a dead white band under the
+                        // bill on device.
+                        bottom = 16.dp
                     ),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    item(key = "store") {
-                        StoreCard(
-                            estimatedWindow = homeState.estimatedWindow,
-                            storeOpen = homeState.storeOpen
+                    items(cart.items, key = { it.productId }) { item ->
+                        val lineInfo = quote?.lines?.find { it.productId == item.productId }
+                        val product = viewModel.findProduct(item.productId)
+                        CartItemRow(
+                            item = item,
+                            lineInfo = lineInfo,
+                            product = product,
+                            onEditWeight = { prod ->
+                                weightedProductDialog = Pair(prod, item.qtyBase)
+                            },
+                            onQuantityChange = { newQty ->
+                                viewModel.updateQuantity(item.productId, newQty)
+                            },
+                            onRemove = { viewModel.removeItem(item.productId) }
                         )
                     }
 
-                    quote?.let { q ->
-                        item(key = "free_delivery") {
-                            // The delivery line is only "free" when the fee is zero,
-                            // not merely when no free-delivery target is configured.
-                            val deliveryFree = q.deliveryFeePaise <= 0L
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = Color.Transparent,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .liquidGlass(
-                                        shape = RoundedCornerShape(16.dp),
-                                        fill = if (deliveryFree) {
-                                            MaterialTheme.appColors.successContainer
-                                        } else {
-                                            MaterialTheme.colorScheme.surface
-                                        }
-                                    )
-                            ) {
-                                FreeDeliveryProgress(
-                                    subtotalPaise = q.itemSubtotalPaise,
-                                    amountToFreePaise = q.amountToFreeDelivery,
-                                    deliveryFeePaise = q.deliveryFeePaise,
-                                    modifier = Modifier.padding(14.dp)
-                                )
-                            }
-                        }
-                    }
-
+                    // The reference puts the coupon between the lines and the bill: it is part
+                    // of the basket, not a promotion banner above it.
                     item(key = "coupon") {
                         CouponCard(
                             couponInput = couponInput,
@@ -287,23 +280,6 @@ fun CartScreen(
                         }
                     }
 
-                    items(cart.items, key = { it.productId }) { item ->
-                        val lineInfo = quote?.lines?.find { it.productId == item.productId }
-                        val product = viewModel.findProduct(item.productId)
-                        CartItemRow(
-                            item = item,
-                            lineInfo = lineInfo,
-                            product = product,
-                            onEditWeight = { prod ->
-                                weightedProductDialog = Pair(prod, item.qtyBase)
-                            },
-                            onQuantityChange = { newQty ->
-                                viewModel.updateQuantity(item.productId, newQty)
-                            },
-                            onRemove = { viewModel.removeItem(item.productId) }
-                        )
-                    }
-
                     // The coupon gift is server-added, so it is not a cart item.
                     quote?.let { q ->
                         q.lines.firstOrNull { it.isFreeItem }?.let { freeLine ->
@@ -316,19 +292,6 @@ fun CartScreen(
                                     regularPricePaise = gift?.regularPricePaise ?: 0L
                                 )
                             }
-                        }
-                    }
-
-                    item(key = "add_more") {
-                        TextButton(
-                            onClick = onNavigateToCatalog,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                "+ Add more items",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.primary
-                            )
                         }
                     }
 
@@ -388,72 +351,13 @@ fun CartScreen(
                     // - the label has to describe the gesture it actually performs.
                     SlideToConfirm(
                         label = "Slide to Checkout",
-                        sublabel = quote?.let { formatPaise(it.grandTotalPaise) },
+                        // The total is in the bill and in the sticky bar; repeating it inside
+                        // the slide label crowded the text and the reference has no amount here.
+                        sublabel = null,
                         enabled = quote != null && unavailableLines.isEmpty() && homeState.storeOpen,
                         onConfirm = onNavigateToCheckout
                     )
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun StoreCard(estimatedWindow: String?, storeOpen: Boolean) {
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = Color.Transparent,
-        modifier = Modifier
-            .fillMaxWidth()
-            .liquidGlass(
-                shape = RoundedCornerShape(16.dp),
-                fill = MaterialTheme.colorScheme.primaryContainer
-            )
-    ) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            BalajiBasketMark(
-                modifier = Modifier.size(34.dp),
-                basketColor = MaterialTheme.colorScheme.primary,
-                leafColor = MaterialTheme.appColors.success
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Balaji Provision Store",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = when {
-                        // Not "reviewed later": the server refuses an order while the store is
-                        // closed, and a customer who believes a queue exists will wait for it.
-                        !storeOpen -> "Checkout is paused while the store is closed"
-                        !estimatedWindow.isNullOrBlank() -> deliveryWindowLabel(estimatedWindow)
-                        else -> "Cash on Delivery available"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (storeOpen) {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    } else {
-                        MaterialTheme.colorScheme.error
-                    }
-                )
-            }
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = MaterialTheme.colorScheme.primary
-            ) {
-                Text(
-                    text = "COD",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                )
             }
         }
     }
@@ -471,30 +375,55 @@ fun CartItemRow(
     val isWeighted = product?.quantityType == QuantityType.WEIGHTED
     val name = lineInfo?.name ?: product?.name ?: "Item #${item.productId}"
     val step = product?.stepQty ?: 1L
+    val unitPaise = lineInfo?.unitPricePaise ?: product?.pricePaise ?: 0L
+    val totalPaise = lineInfo?.lineTotalPaise
+        ?: product?.let { lineTotalPaise(it.pricePaise, it.priceBasisQty, item.qtyBase) }
+        ?: 0L
+    val multiplePacks = !isWeighted && item.qtyBase > step
+    // The pack-size line describes the pack, not the quantity; a weighted line has to name
+    // the weight the customer actually chose, which is server data on the quote line.
+    val pack = if (isWeighted) {
+        lineInfo?.displayQty ?: formatWeightGrams(item.qtyBase)
+    } else {
+        product?.packLabel?.takeIf { it.isNotBlank() } ?: lineInfo?.displayQty
+    }
+    // A reference amount only. Orders and quotes never read it; the server price is the
+    // line total below, and the struck value is the catalogue MRP scaled to this line.
+    val lineMrpPaise = product?.mrpPaise
+        ?.takeIf { it > product.pricePaise }
+        ?.let { mrp -> if (multiplePacks) mrp * item.qtyBase else mrp }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .semantics {
+                customActions = listOf(
+                    CustomAccessibilityAction(label = "Remove $name from cart") {
+                        onRemove()
+                        true
+                    }
+                )
+            }
             .liquidGlass(
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(BalajiDesign.RadiusCard),
                 fill = MaterialTheme.colorScheme.surface
             ),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(BalajiDesign.RadiusCard),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         // Elevation 0: a shadow under this transparent glass card renders as a grey band
         // around every cart row on device, so the rim alone defines the edge.
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            ProductThumb(name = name, size = 54, imageUrl = product?.imagePath)
+            ProductThumb(name = name, size = 60, imageUrl = product?.imagePath)
 
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+                verticalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 Text(
                     text = name,
@@ -512,36 +441,57 @@ fun CartItemRow(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-                val pack = product?.packLabel?.takeIf { it.isNotBlank() }
-                    ?: lineInfo?.displayQty
                 if (!pack.isNullOrBlank()) {
                     Text(
                         text = pack,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        style = BalajiText.Metadata,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(
-                        text = lineInfo?.let { formatPaise(it.unitPricePaise) }
-                            ?: product?.let { formatPaise(it.pricePaise) }
-                            ?: "",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    if (product != null && product.hasDiscount) {
-                        // A reference price only; the line total below is the server quote.
+                MoneyText(
+                    text = formatPaise(totalPaise),
+                    style = BalajiText.Price,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (lineMrpPaise != null) {
+                    // MRP on its own line. Inline three amounts in a 100 dp column clipped
+                    // the ADD/stepper column on device, and a struck price that wraps mid-number
+                    // is worse than a taller card.
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
                         Text(
-                            text = formatPaise(product.mrpPaise!!),
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                textDecoration = TextDecoration.LineThrough
-                            ),
+                            text = formatPaise(lineMrpPaise),
+                            style = BalajiText.Mrp.copy(textDecoration = TextDecoration.LineThrough),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        if (product.hasVisibleDiscount) {
+                            Text(
+                                text = "${product.discountPercent}% OFF",
+                                style = BalajiText.Metadata.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.appColors.success
+                            )
+                        }
                     }
+                }
+                // When a line is more than one pack, the bold amount is the line total and the
+                // unit rate has to stay visible, otherwise "₹60" next to a "1" stepper reads as
+                // a price change. Weighted lines always need their rate for the same reason.
+                val rateText = when {
+                    isWeighted && unitPaise > 0L ->
+                        "${formatPaise(unitPaise)} / ${product?.priceUnitLabel ?: "kg"}"
+                    multiplePacks -> "${formatPaise(unitPaise)} each"
+                    else -> null
+                }
+                if (rateText != null) {
+                    Text(
+                        text = rateText,
+                        style = BalajiText.Metadata,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
                 if (lineInfo?.available == false) {
                     Text(
@@ -552,34 +502,16 @@ fun CartItemRow(
                 }
             }
 
-            Column(horizontalAlignment = Alignment.End) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    MoneyText(
-                        text = lineInfo?.let { formatPaise(it.lineTotalPaise) }
-                            ?: product?.let { formatPaise(it.pricePaise) }
-                            ?: "—",
-                        style = BalajiText.Price,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    IconButton(
-                        onClick = onRemove,
-                        modifier = Modifier.size(28.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = "Remove $name from cart",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(17.dp)
-                        )
-                    }
-                }
-                Spacer(Modifier.height(6.dp))
-                if (isWeighted && product != null) {
+            if (isWeighted && product != null) {
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
                     OutlinedButton(
                         onClick = { onEditWeight(product) },
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                        modifier = Modifier.height(32.dp)
+                        shape = RoundedCornerShape(BalajiDesign.RadiusPill),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                        modifier = Modifier.height(BalajiDesign.ControlHeight)
                     ) {
                         Icon(
                             Icons.Default.Scale,
@@ -589,30 +521,41 @@ fun CartItemRow(
                         Spacer(Modifier.width(4.dp))
                         Text("Edit", style = MaterialTheme.typography.labelSmall)
                     }
-                } else if (isWeighted) {
-                    Text(
-                        text = lineInfo?.displayQty ?: "${item.qtyBase} g",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else {
-                    OutlinedQuantityStepper(
-                        value = item.qtyBase,
-                        onDecrease = {
-                            if (item.qtyBase - step <= 0L) onRemove()
-                            else onQuantityChange(item.qtyBase - step)
-                        },
-                        onIncrease = {
-                            val max = product?.maxOrderQty ?: Long.MAX_VALUE
-                            onQuantityChange((item.qtyBase + step).coerceAtMost(max))
-                        },
-                        decreaseContentDescription = "Decrease quantity of $name",
-                        increaseContentDescription = "Increase quantity of $name",
-                        canIncrease = product == null ||
-                            product.maxOrderQty <= 0L ||
-                            item.qtyBase < product.maxOrderQty
-                    )
+                    TextButton(
+                        onClick = onRemove,
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Text(
+                            "Remove",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
+            } else if (isWeighted) {
+                Text(
+                    text = lineInfo?.displayQty ?: formatWeightGrams(item.qtyBase),
+                    style = BalajiText.Metadata,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                OutlinedQuantityStepper(
+                    value = item.qtyBase,
+                    onDecrease = {
+                        if (item.qtyBase - step <= 0L) onRemove()
+                        else onQuantityChange(item.qtyBase - step)
+                    },
+                    onIncrease = {
+                        val max = product?.maxOrderQty ?: Long.MAX_VALUE
+                        onQuantityChange((item.qtyBase + step).coerceAtMost(max))
+                    },
+                    decreaseContentDescription = "Decrease quantity of $name",
+                    increaseContentDescription = "Increase quantity of $name",
+                    canIncrease = product == null ||
+                        product.maxOrderQty <= 0L ||
+                        item.qtyBase < product.maxOrderQty
+                )
             }
         }
     }
@@ -661,33 +604,51 @@ private fun UnavailableItemsCard(unavailableLines: List<QuoteBreakdown.Line>) {
 @Composable
 fun OrderSummaryCard(quote: QuoteBreakdown) {
     Card(
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(BalajiDesign.RadiusHero),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = Modifier
             .fillMaxWidth()
             .liquidGlass(
-                shape = RoundedCornerShape(18.dp),
+                shape = RoundedCornerShape(BalajiDesign.RadiusHero),
                 fill = MaterialTheme.colorScheme.surface
             )
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                "Bill details",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.SemiBold
-            )
-            Divider(color = MaterialTheme.colorScheme.outlineVariant)
+            BillRow(label = "Item Total", value = formatPaise(quote.itemSubtotalPaise))
 
-            SummaryRow(label = "Item subtotal", value = formatPaise(quote.itemSubtotalPaise))
+            // Inset and rounded, like the reference. A full-bleed strip touched the card
+            // edges and read as a banner inside the bill rather than a saving on it.
+            if (quote.discountPaise > 0L) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.appColors.successContainer)
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "You Save",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.appColors.onSuccessContainer
+                    )
+                    MoneyText(
+                        text = "-${formatPaise(quote.discountPaise)}",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.appColors.onSuccessContainer
+                    )
+                }
+            }
 
-            SummaryRow(
+            BillRow(
                 label = "Delivery Charges",
-                value = if (quote.deliveryFeePaise == 0L) "FREE" else formatPaise(quote.deliveryFeePaise),
+                value = formatPaise(quote.deliveryFeePaise),
                 valueColor = if (quote.deliveryFeePaise == 0L) {
                     MaterialTheme.appColors.success
                 } else {
@@ -695,38 +656,19 @@ fun OrderSummaryCard(quote: QuoteBreakdown) {
                 }
             )
 
-            if (quote.discountPaise > 0L) {
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = MaterialTheme.appColors.successContainer,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "You Save",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.appColors.onSuccessContainer
-                        )
-                        Text(
-                            text = "-${formatPaise(quote.discountPaise)}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.appColors.onSuccessContainer
-                        )
-                    }
-                }
+            // The old basket dedicated a whole card to the free-delivery nudge. One sentence
+            // under the fee it belongs to says the same thing without pushing the bill down.
+            if (quote.deliveryFeePaise > 0L && quote.amountToFreeDelivery > 0L) {
+                Text(
+                    text = "Add ${formatPaise(quote.amountToFreeDelivery)} more for free delivery",
+                    style = BalajiText.Metadata,
+                    color = MaterialTheme.appColors.success
+                )
             }
 
             // A coupon gift costs nothing, so it is listed rather than discounted.
             if (quote.lines.any { it.isFreeItem }) {
-                SummaryRow(
+                BillRow(
                     label = "Free item" + (quote.couponCode?.let { " ($it)" } ?: ""),
                     value = "FREE",
                     valueColor = MaterialTheme.appColors.success
@@ -734,31 +676,67 @@ fun OrderSummaryCard(quote: QuoteBreakdown) {
             }
 
             if (quote.taxPaise > 0L) {
-                SummaryRow(label = "Tax", value = formatPaise(quote.taxPaise))
+                BillRow(label = "Tax", value = formatPaise(quote.taxPaise))
             }
 
             if (quote.feeRuleNote.isNotBlank()) {
                 Text(
                     quote.feeRuleNote,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = BalajiText.Metadata,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            Divider(color = MaterialTheme.colorScheme.outlineVariant)
-
-            SummaryRow(
-                label = "Total payable",
-                value = formatPaise(quote.grandTotalPaise),
-                emphasise = true
+            Divider(
+                color = MaterialTheme.colorScheme.outlineVariant,
+                modifier = Modifier.padding(top = 4.dp)
             )
 
-            Text(
-                "Cash on Delivery (COD)",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 2.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Total Payable",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                MoneyText(
+                    text = formatPaise(quote.grandTotalPaise),
+                    style = BalajiText.Total,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
         }
+    }
+}
+
+/** One line of the bill: label on the left, tabular amount on the right. */
+@Composable
+private fun BillRow(
+    label: String,
+    value: String,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        MoneyText(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = valueColor
+        )
     }
 }
 
@@ -783,7 +761,8 @@ private fun FreeItemPickerCard(
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        // Elevation 0: a shadow under a transparent glass fill read as a grey halo on device.
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = Modifier
             .fillMaxWidth()
             .liquidGlass(
@@ -928,9 +907,16 @@ private fun FreeItemRow(
             MaterialTheme.appColors.success.copy(alpha = 0.6f)
         ),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.appColors.successContainer
+            containerColor = Color.Transparent
         ),
-        modifier = Modifier.fillMaxWidth()
+        // The gift row is a glass surface like every other card in the basket; the green fill
+        // and border carry the "free" state, the rim keeps it in the same material family.
+        modifier = Modifier
+            .fillMaxWidth()
+            .liquidGlass(
+                shape = RoundedCornerShape(16.dp),
+                fill = MaterialTheme.appColors.successContainer
+            )
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -974,9 +960,9 @@ private fun FreeItemRow(
 }
 
 /**
- * Coupon entry card. When no coupon is applied it shows an input + Apply button.
- * When a coupon is successfully applied it shows a success chip with a remove button.
- * Errors from the backend are displayed inline.
+ * Coupon row. Collapsed it is a single line, like the reference: the code field is not worth
+ * a permanent card in a basket most customers never apply a coupon to. Tapping the row opens
+ * the field; a successful apply collapses it back to the applied state.
  */
 @Composable
 private fun CouponCard(
@@ -989,89 +975,98 @@ private fun CouponCard(
     onRemove: () -> Unit
 ) {
     val focusManager = LocalFocusManager.current
+    val applied = couponApplied && !appliedCode.isNullOrBlank()
+    var expanded by rememberSaveable { mutableStateOf(false) }
+
+    // A failed apply has to show its reason; leaving the row collapsed would hide the error.
+    LaunchedEffect(couponError) {
+        if (!couponError.isNullOrBlank()) expanded = true
+    }
+    LaunchedEffect(applied) {
+        if (applied) expanded = false
+    }
 
     Card(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(BalajiDesign.RadiusCard),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = Modifier
             .fillMaxWidth()
             .liquidGlass(
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(BalajiDesign.RadiusCard),
                 fill = MaterialTheme.colorScheme.surface
             )
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        enabled = !applied,
+                        onClickLabel = if (expanded) "Close coupon entry" else "Enter a coupon code"
+                    ) { expanded = !expanded }
+                    .padding(horizontal = 16.dp, vertical = 15.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 Icon(
                     Icons.Default.LocalOffer,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp)
+                    tint = if (applied) {
+                        MaterialTheme.appColors.success
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    },
+                    modifier = Modifier.size(22.dp)
                 )
-                Spacer(Modifier.width(8.dp))
                 Text(
-                    "Promo / Coupon code",
-                    style = MaterialTheme.typography.titleSmall,
+                    text = if (applied) "Coupon $appliedCode applied" else "Apply Coupon",
+                    style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = if (applied) {
+                        MaterialTheme.appColors.success
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
-            }
-
-            // Applied state
-            AnimatedVisibility(
-                visible = couponApplied && appliedCode != null,
-                enter = expandVertically(),
-                exit = shrinkVertically()
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(50),
-                    color = MaterialTheme.appColors.successContainer,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                if (applied) {
+                    IconButton(
+                        onClick = onRemove,
+                        modifier = Modifier.size(BalajiDesign.MinTouchTarget)
                     ) {
                         Icon(
-                            Icons.Default.CheckCircle,
-                            contentDescription = null,
+                            Icons.Default.Close,
+                            contentDescription = "Remove coupon $appliedCode",
                             tint = MaterialTheme.appColors.success,
                             modifier = Modifier.size(18.dp)
                         )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = appliedCode.orEmpty(),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.appColors.success,
-                            modifier = Modifier.weight(1f)
-                        )
-                        IconButton(
-                            onClick = onRemove,
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Close,
-                                contentDescription = "Remove coupon",
-                                tint = MaterialTheme.appColors.success,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
                     }
+                } else {
+                    Icon(
+                        imageVector = if (expanded) {
+                            Icons.Default.KeyboardArrowUp
+                        } else {
+                            Icons.Default.KeyboardArrowRight
+                        },
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(22.dp)
+                    )
                 }
             }
 
-            // Input state (shown when no valid coupon applied)
             AnimatedVisibility(
-                visible = !couponApplied,
+                visible = expanded && !applied,
                 enter = expandVertically(),
                 exit = shrinkVertically()
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -1115,7 +1110,6 @@ private fun CouponCard(
                         }
                     }
 
-                    // Inline error
                     if (!couponError.isNullOrBlank()) {
                         Text(
                             text = couponError,

@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -38,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -130,6 +130,10 @@ fun SlideToConfirm(
     var trackWidthPx by remember { mutableFloatStateOf(0f) }
     var offsetPx by remember { mutableFloatStateOf(0f) }
     var locked by remember { mutableStateOf(false) }
+    // True only while a finger is on the track. While dragging, the thumb has to track the finger
+    // with no animation; the moment the finger lifts, the animated value takes over so an early
+    // release glides home instead of snapping.
+    var dragging by remember { mutableStateOf(false) }
 
     val thumbSizePx = with(density) { SlideToConfirmMetrics.ThumbSize.roundToPx() }
     val insetPx = with(density) { SlideToConfirmMetrics.Inset.roundToPx() }
@@ -140,13 +144,15 @@ fun SlideToConfirm(
     // that moment. Rendering that as grey would make a submitted order look broken, so the fill
     // follows the state as well as the flag: busy and done keep the orange.
     val filled = enabled || state != SlideConfirmState.Idle
-    val progress = slideProgress(offsetPx, travelPx)
 
-    // Releasing early, or the action finishing, brings the thumb home. A success leaves it parked
-    // at the end so the filled track reads as "this is done" instead of inviting another slide.
+    // Releasing early brings the thumb home; a committed gesture parks it at the end and keeps it
+    // there while the server is working. The previous version sent it home on commit too, so a
+    // successful slide visibly rewound to the start and then jumped forward when the answer
+    // arrived - the control looked like it had rejected the gesture.
     val targetOffset = when {
         state == SlideConfirmState.Success -> travelPx
-        !enabled || locked -> 0f
+        locked || state == SlideConfirmState.Submitting -> travelPx
+        !enabled -> 0f
         else -> offsetPx
     }
     val animatedTarget by animateFloatAsState(
@@ -161,11 +167,10 @@ fun SlideToConfirm(
         },
         label = "slideThumb"
     )
-    val drawnOffset = if (state == SlideConfirmState.Idle && interactive) {
-        offsetPx
-    } else {
-        animatedTarget
-    }
+    val drawnOffset = if (dragging) offsetPx else animatedTarget
+    // The wash follows the drawn thumb, not the raw drag offset, so it glides back with the
+    // circle on an early release instead of vanishing in one frame.
+    val progress = slideProgress(drawnOffset, travelPx)
 
     LaunchedEffect(state) {
         if (state != SlideConfirmState.Submitting) locked = false
@@ -212,7 +217,9 @@ fun SlideToConfirm(
                 .pointerInput(enabled, state, locked, travelPx) {
                     if (!interactive) return@pointerInput
                     detectHorizontalDragGestures(
+                        onDragStart = { dragging = true },
                         onDragEnd = {
+                            dragging = false
                             if (shouldCommit(offsetPx, travelPx, commitFraction)) {
                                 locked = true
                                 haptics.performHapticFeedback(
@@ -223,7 +230,10 @@ fun SlideToConfirm(
                                 offsetPx = 0f
                             }
                         },
-                        onDragCancel = { offsetPx = 0f }
+                        onDragCancel = {
+                            dragging = false
+                            offsetPx = 0f
+                        }
                     ) { change, dragX ->
                         change.consume()
                         offsetPx = (offsetPx + dragX).coerceIn(0f, travelPx)
@@ -237,8 +247,10 @@ fun SlideToConfirm(
                     modifier = Modifier
                         .offset { IntOffset(insetPx, insetPx) }
                         .width(with(density) { (drawnOffset + thumbSizePx).toDp() })
-                        .fillMaxHeight()
-                        .padding(0.dp)
+                        // The wash is the thumb's height, not the track's. Filling the whole
+                        // height started it 4 dp down and clipped its bottom edge on the pill,
+                        // which showed as a grey band under the circle while dragging.
+                        .height(SlideToConfirmMetrics.ThumbSize)
                         .background(
                             Color.White.copy(alpha = 0.18f),
                             RoundedCornerShape(BalajiDesign.RadiusPill)
@@ -288,6 +300,9 @@ fun SlideToConfirm(
                         )
                     }
                     .size(SlideToConfirmMetrics.ThumbSize)
+                    // A 2 dp lift: on the orange fill the white circle otherwise reads as a hole
+                    // punched in the pill rather than a handle resting on it.
+                    .shadow(2.dp, CircleShape)
                     .background(
                         if (filled) Color.White else MaterialTheme.colorScheme.surface,
                         CircleShape

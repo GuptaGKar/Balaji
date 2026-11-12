@@ -1551,3 +1551,85 @@ uses fresh debug installs and is recorded below once sign-in is complete.
 
 
 
+
+
+## Basket, checkout and orders match the mockups without inventing policy (2026-11-12)
+
+The reference boards put a specific card system on every shopping screen: white cards on the warm
+page, a single orange action per screen, pill buttons, and a bill whose total is the loudest number.
+The basket, checkout and orders screens now use it. Only presentation changed; no price, fee, stock or
+eligibility rule moved out of Postgres.
+
+- **Basket.** Header is "Your Cart (n)" with a worded "Clear" action; the separate count line is
+  gone. Lines are white cards with a 60 dp thumb, name, pack, selling price, struck MRP on its own
+  line, and the stepper on the right. There is no per-row bin: the minus button removes a line at
+  one, a visible "Remove" sits under the weighted "Edit" button, and a TalkBack custom action offers
+  removal without hunting for the control. The store card, the standalone free-delivery card and
+  "+ Add more items" are removed. Free delivery is now one line under Delivery Charges, which is
+  where a customer looks for the fee. The coupon is a collapsed "Apply Coupon" row that expands;
+  a failed apply expands automatically so its error cannot hide.
+- **Bill.** Item Total, then an inset rounded green "You Save" band for the coupon discount only
+  (a full-bleed strip touched the card edges and read as a banner inside the bill), then Delivery
+  Charges, then any free-item/tax/rule note, a divider, and a bold Total Payable. A zero delivery
+  fee renders "₹0.00" in green rather than "FREE", matching the mockup. The "Bill details" heading
+  and the redundant COD line are gone.
+- **Checkout.** 22 sp bold title with the live total in orange, 18 sp card titles (`BalajiText.SectionTitle`),
+  pill CTAs, elevation 0 on every card (a shadow under a transparent glass fill drew a grey halo on
+  device), and the fee rule note moved inside the delivery card with the "Within " prefix removed
+  from the server's own window phrase. Success reads "Order placed!" with a "Track your order"
+  button.
+- **Orders.** Cards are flat (elevation 0), actions are pill buttons, the total is black rather than
+  orange, section headers are 18 sp, and the filter chips scroll horizontally with `maxLines = 1`:
+  at a 1.1x font scale "Previous (10)" wrapped onto two lines in an equal-width row.
+- **Slide to confirm.** The thumb parks at the end while submitting or successful, the progress wash
+  matches thumb height, the thumb follows the finger during the drag and springs back on an early
+  release, with a 2 dp shadow. Neither slide repeats the total in its label. The basket slide remains
+  "Slide to Checkout" and only opens the wizard; the order is submitted from checkout.
+- **Glass pass (2026-11-12).** The liquid-glass rim is now on every customer surface that the
+  boards draw as a card: the sign-in panel, both onboarding panels, the product-request form and
+  rows, and the Categories search strip (which was a solid white band behind a glass field, so the
+  page broke into chrome). The closed-store panel is pink glass instead of peach plus a red border,
+  matching the closed-mode board. Elevation is 0 on every glass card; the basket's free-item picker
+  and the order-tracking timeline still carried 1 dp and rendered the grey halo that Orders had
+  already lost. The sticky action bar is transparent, so the slide control sits on the page like the
+  board instead of on a white slab with an 8 dp shadow. A photo banner's caption is now a dark glass
+  panel: raw white text over a creative that carries its own headline made both unreadable. On
+  device the floating pill was then found sitting across the content whenever the keyboard was
+  open (it covered the catalogue's "Clear search" button); it now hides with the IME, and the
+  catalogue's empty state has a compact form so icon, message and action all clear the keyboard.
+  Categories tile labels moved from 13 to 12 sp for the same reason the banner height became a
+  minimum: at a 1.1x font scale a 75 dp cell could not hold "Chocolates" on one line.
+
+**Store closed.** The mockup shows "Slide to Place Order (Deliver Tomorrow)". That promise is not
+implemented: the server refuses orders while the store is closed and no scheduled-order path exists,
+so the closed panel keeps its honest copy and ordering stays disabled. This is a deliberate
+deviation from the mockup, not an oversight.
+
+Verification (2026-11-12): `:app:assembleCustomerDebug` and `:app:assembleStaffDebug` build;
+`:app:testCustomerDebugUnitTest` and `:app:testStaffDebugUnitTest` run 560/560 with zero
+failures/errors/skips (the one failure this pass was `CatalogueGridMetricsTest`, pinned to the old
+13 sp phone label; it now asserts 12 sp, the value that stops "Chocolates" breaking mid-word);
+`:app:lintCustomerDebug` and `:app:lintStaffDebug` report 0 errors, 69 warnings and 5 hints each.
+No formatter is configured in this project, so "format" means the files were kept to the
+surrounding style by hand - there is no tool result to report.
+
+The device pass was run on the Galaxy A34 over wireless ADB after the earlier network split was
+resolved: home (banner caption, illustration banner), categories (all twelve live categories,
+images and 12 sp labels), catalogue (grid, chips, in-stock filter, empty state), basket (lines,
+coupon, bill, slide), checkout steps 1-3 and orders. Screenshots are in `.tmp_device_qa/`
+(untracked). Two defects were found and fixed on device, not in review: a fixed 140 dp photo-less
+banner squeezed its 40 dp arrow circle into a line at a 1.1x font scale, and the catalogue empty
+state showed only its icon while the keyboard was open because a centred `Box` clipped a block
+taller than the shrunken content area and the basket bar consumed layout height. The basket bar is
+now hidden while the IME is up, the pill is hidden with it, and the empty state switches to the
+compact layout - all three elements and "Clear search" are visible on the current build.
+
+Not run, with reasons: weighted cart Edit/Remove (the live catalogue has 89 PACKED products and no
+WEIGHTED one, and creating a product is a production write); the green "You Save" band (no coupon
+with a monetary discount is reachable - `coupons` answers 401 to the publishable key and `FREEDEV`
+only zeroes the delivery fee); the slide's Submitting/Success states and a real order (submitting a
+COD order writes live data and needs explicit approval); migration
+`20261107000001_low_stock_mrp_and_price_hardening.sql` is still unapplied and pgTAP `052` unrun
+(no service-role key and no Docker here). Staff catalogue order under the 68 low-stock cards and
+the Pansari Sooji price restore (3600 to 3500 paise) remain open; staff UI work is paused by
+instruction.
