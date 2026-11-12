@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import { createUuid } from "@/lib/uuid";
 import { prepareProductFile } from "@/lib/product-cutout";
+import {
+  PRODUCT_IMAGE_BUCKET,
+  PRODUCT_IMAGE_MAX_BYTES,
+  managedImagePath,
+} from "@/lib/product-image-url";
 import styles from "./ProductShowcase.module.css";
 
 type CatalogueProduct = {
@@ -11,6 +16,7 @@ type CatalogueProduct = {
   name: string;
   sku?: string | null;
   pack_size_label?: string | null;
+  image_path?: string | null;
 };
 
 function Showcase({ src, dark }: { src: string; dark: boolean }) {
@@ -75,7 +81,7 @@ export function BulkProductImageManager({
       void prepareProductFile(file, removeWhite)
         .then(({ blob, previewBlob }) => {
           if (cancelled) return;
-          if (blob.size > 2 * 1024 * 1024)
+          if (blob.size > PRODUCT_IMAGE_MAX_BYTES)
             throw new Error("Prepared PNG exceeds 2 MB. Choose a smaller source.");
           outputUrl = URL.createObjectURL(blob);
           previewUrl = URL.createObjectURL(previewBlob);
@@ -123,11 +129,11 @@ export function BulkProductImageManager({
       saved = false;
     try {
       const upload = await supabase.storage
-        .from("product-images")
+        .from(PRODUCT_IMAGE_BUCKET)
         .upload(path, processed.blob, { contentType: "image/png", upsert: false });
       if (upload.error) throw upload.error;
       uploaded = true;
-      const url = supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
+      const url = supabase.storage.from(PRODUCT_IMAGE_BUCKET).getPublicUrl(path).data.publicUrl;
       const result = await supabase
         .from("products")
         .update({ image_path: url })
@@ -136,6 +142,23 @@ export function BulkProductImageManager({
         .single();
       if (result.error) throw result.error;
       saved = true;
+      // The catalogue now points at the new object, so the replaced one is unreachable. Deleting
+      // it keeps the public bucket from growing on every re-shoot; only objects under our own
+      // bucket are touched, and one still referenced by another pack is kept.
+      const previousPath = managedImagePath(product.image_path);
+      if (
+        previousPath &&
+        previousPath !== path &&
+        !products.some(
+          (p) => p.id !== product.id && managedImagePath(p.image_path) === previousPath,
+        )
+      ) {
+        // Best-effort: the catalogue already points at the new object, so a failed cleanup must
+        // not turn a successful approval into an error. A leftover object is harmless.
+        const cleanup = await supabase.storage.from(PRODUCT_IMAGE_BUCKET).remove([previousPath]);
+        if (cleanup.error)
+          console.warn("Could not remove the replaced product image", cleanup.error);
+      }
       setNotice(`Approved image for ${product.name} (${product.sku}).`);
       advance();
       await onSaved();

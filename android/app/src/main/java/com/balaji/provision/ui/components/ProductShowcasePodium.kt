@@ -17,6 +17,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
@@ -37,7 +39,14 @@ fun ProductShowcasePodium(
         ImageRequest.Builder(context).data(resolved).allowHardware(false)
             .transformations(TrimProductTransparency).build()
     }
-    BoxWithConstraints(modifier.clipToBounds().background(colors.background), contentAlignment = Alignment.Center) {
+    BoxWithConstraints(
+        modifier.clipToBounds().background(colors.background).clearAndSetSemantics {
+            // One announcement for the whole stage: the drawn platform is decorative and the
+            // loading/error placeholders are not content. The old details hero said the same.
+            contentDescription = "Image of $productName"
+        },
+        contentAlignment = Alignment.Center
+    ) {
         if (showPodium) Canvas(Modifier.fillMaxSize()) {
             val w=size.width; val h=size.height
             drawCircle(Brush.radialGradient(listOf(colors.glow, Color.Transparent), Offset(w*.5f,h*.48f),w*.5f),w*.5f,Offset(w*.5f,h*.48f))
@@ -53,7 +62,7 @@ fun ProductShowcasePodium(
         Box(Modifier.fillMaxWidth(.82f).height(maxHeight * if(showPodium) .77f else .9f)
             .align(Alignment.TopCenter).padding(top=8.dp),contentAlignment=Alignment.BottomCenter) {
             if(resolved == null) Text(productName.take(1),color=MaterialTheme.colorScheme.onSurface)
-            else SubcomposeAsyncImage(model=request,contentDescription=productName,
+            else SubcomposeAsyncImage(model=request,contentDescription=null,
                 contentScale=ContentScale.Fit,alignment=Alignment.BottomCenter,
                 loading={ Text("Loading product image",style=MaterialTheme.typography.labelSmall) },
                 error={ Text("Image unavailable",style=MaterialTheme.typography.labelSmall) },
