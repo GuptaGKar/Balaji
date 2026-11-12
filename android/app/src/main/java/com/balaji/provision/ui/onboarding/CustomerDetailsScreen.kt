@@ -79,12 +79,9 @@ fun CustomerDetailsScreen(
     val locationState by locationViewModel.state.collectAsState()
     val context = LocalContext.current
 
-    // The first sign-in is the only moment the app has a reason to ask for the delivery spot:
-    // there is a name to address the order to and no saved address yet. `autoAsked` is kept in
-    // saveable state so a rotation does not re-prompt the permission dialog.
-    var autoAsked by rememberSaveable { mutableStateOf(false) }
-    // Set while a fix is being fetched for the address form, so a late fix from any entry point
-    // (auto-ask, retry, the button on the card) opens the form exactly once.
+    // The first sign-in shows "Complete your profile" and nothing else. The location prompt is
+    // started by the "Add delivery address" button, not on entry, so the customer sees the page
+    // and knows what the permission is for before the system dialog appears.
     var awaitFixForDialog by rememberSaveable { mutableStateOf(false) }
     // Built from the fix; handed to the editor so the customer corrects instead of retyping.
     var prefill by remember { mutableStateOf<AddressDraft?>(null) }
@@ -125,18 +122,17 @@ fun CustomerDetailsScreen(
         }
     }
 
-    LaunchedEffect(savedName, hasAddress) {
-        if (hasAddress || savedName.isNullOrBlank() || autoAsked) return@LaunchedEffect
-        autoAsked = true
-        fetchLocationForAddress()
+    LaunchedEffect(savedName) {
+        if (!savedName.isNullOrBlank() && name.isBlank()) name = savedName
     }
 
-    // A fix arrives with its reverse-geocoded place in one state update. Open the editor on the
-    // map with every field we could fill already filled; validation still runs on save, so an
-    // incomplete reverse geocode shows as a normal field error rather than a silent failure.
-    LaunchedEffect(locationState.fix, locationState.place, hasAddress) {
+    // The button fetched a fix; it arrives with its reverse-geocoded place in one state update.
+    // Open the editor on the map with every field we could fill already filled; validation still
+    // runs on save, so an incomplete reverse geocode shows as a normal field error. Keyed on the
+    // request id, not the point, so asking twice from the same spot still opens the form.
+    LaunchedEffect(locationState.requestId) {
         val fix = locationState.fix ?: return@LaunchedEffect
-        if (hasAddress || !awaitFixForDialog || showAddressEditor) return@LaunchedEffect
+        if (!awaitFixForDialog || showAddressEditor || hasAddress) return@LaunchedEffect
         val place = locationState.place
         prefill = AddressDraft(
             recipientName = savedName ?: name.trim(),
@@ -153,10 +149,6 @@ fun CustomerDetailsScreen(
         showAddressEditor = true
     }
 
-    LaunchedEffect(savedName) {
-        if (!savedName.isNullOrBlank() && name.isBlank()) name = savedName
-    }
-
     if (showAddressEditor) {
         AddressEditorDialog(
             initial = null,
@@ -170,6 +162,8 @@ fun CustomerDetailsScreen(
                 if (!isSaving) {
                     showAddressEditor = false
                     addressError = null
+                    // A dismissal ends this attempt; a fix that lands later must not reopen it.
+                    awaitFixForDialog = false
                 }
             },
             onSave = { draft ->
@@ -363,17 +357,41 @@ fun CustomerDetailsScreen(
                         }
                     } else {
                         Button(
-                            onClick = {
-                                prefill = null
-                                showAddressEditor = true
-                            },
-                            enabled = !isSaving && !savedName.isNullOrBlank(),
+                            onClick = { fetchLocationForAddress() },
+                            enabled = !isSaving && !savedName.isNullOrBlank() &&
+                                !locationState.isLocating,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(48.dp),
+                                .height(48.dp)
+                                .semantics {
+                                    contentDescription = if (locationState.isLocating) {
+                                        "Finding your location"
+                                    } else {
+                                        "Add delivery address. Asks for location access first"
+                                    }
+                                },
                             shape = RoundedCornerShape(14.dp)
                         ) {
-                            Text("Add delivery address")
+                            if (locationState.isLocating) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Text(
+                                    "Finding your location…",
+                                    modifier = Modifier.padding(start = 8.dp)
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Default.LocationOn,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    "Add delivery address",
+                                    modifier = Modifier.padding(start = 8.dp)
+                                )
+                            }
                         }
                         if (savedName.isNullOrBlank()) {
                             Text(
@@ -383,43 +401,23 @@ fun CustomerDetailsScreen(
                             )
                         } else {
                             OutlinedButton(
-                                onClick = { fetchLocationForAddress() },
-                                enabled = !isSaving && !locationState.isLocating,
+                                onClick = {
+                                    // Manual entry skips the fix: clear any pending fetch so a
+                                    // late GPS answer cannot reopen this form behind the customer.
+                                    awaitFixForDialog = false
+                                    prefill = null
+                                    showAddressEditor = true
+                                },
+                                enabled = !isSaving,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(48.dp)
-                                    .semantics {
-                                        contentDescription = if (locationState.isLocating) {
-                                            "Finding your location"
-                                        } else {
-                                            "Use my current location to fill the delivery address"
-                                        }
-                                    },
+                                    .height(48.dp),
                                 shape = RoundedCornerShape(14.dp)
                             ) {
-                                if (locationState.isLocating) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(16.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                    Text(
-                                        "Finding your location…",
-                                        modifier = Modifier.padding(start = 8.dp)
-                                    )
-                                } else {
-                                    Icon(
-                                        Icons.Default.LocationOn,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Text(
-                                        "Use my current location",
-                                        modifier = Modifier.padding(start = 8.dp)
-                                    )
-                                }
+                                Text("Enter address manually")
                             }
                             Text(
-                                "We can fill the street, area and PIN from GPS. Check them, then save.",
+                                "We ask for location access to fill the street, area and PIN. Check them, then save.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

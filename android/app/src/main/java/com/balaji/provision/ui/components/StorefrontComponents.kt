@@ -104,7 +104,7 @@ fun StoreSearchBar(
     query: String? = null,
     onQueryChange: ((String) -> Unit)? = null,
     onClick: (() -> Unit)? = null,
-    placeholder: String = "Search for milk, atta, snacks…",
+    placeholder: String = "Search for milk, atta, snacksâ€¦",
     autoFocus: Boolean = false,
     trailing: @Composable (() -> Unit)? = null
 ) {
@@ -559,7 +559,7 @@ fun ProductGridCard(
  * The price size on a narrow browse card.
  *
  * The card puts the price and the ADD pill on one 128 dp line, and a seven-glyph price
- * ("₹249.99") already takes about 74 dp of it at 17 sp. Past that the two collide, so the price
+ * ("â‚¹249.99") already takes about 74 dp of it at 17 sp. Past that the two collide, so the price
  * steps down a size rather than being ellipsised - hiding a digit of the amount the customer is
  * asked to pay is not an option. Amounts at or below seven glyphs keep the standard [BalajiText.Price].
  */
@@ -584,7 +584,7 @@ fun HorizontalProductCard(
     wholeRupees: Boolean = false
 ) {
     // The price on a browse card is display-only. `wholeRupees` is set by the manager-composed
-    // rails, which the brief asked to read "₹60" rather than "₹60.00"; every other surface keeps
+    // rails, which the brief asked to read "â‚¹60" rather than "â‚¹60.00"; every other surface keeps
     // `formatPaise`, and neither can change what the server charges - the cart, checkout and bill
     // always show the exact paise amount.
     val priceLabel = if (wholeRupees) formatRupeesWhole(product.pricePaise) else formatPaise(product.pricePaise)
@@ -927,85 +927,6 @@ fun FreeDeliveryProgress(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-        }
-    }
-}
-
-/** Address → Payment → Review step rail used at checkout. */
-@Composable
-fun CheckoutStepIndicator(
-    currentStep: Int,
-    modifier: Modifier = Modifier
-) {
-    val steps = listOf("Address", "Payment", "Review")
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        steps.forEachIndexed { index, label ->
-            val number = index + 1
-            val active = number <= currentStep
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.width(64.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .background(
-                            color = if (active) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.surfaceVariant
-                            },
-                            shape = CircleShape
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (number < currentStep) {
-                        Icon(
-                            Icons.Default.Check,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    } else {
-                        Text(
-                            text = number.toString(),
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (active) {
-                                MaterialTheme.colorScheme.onPrimary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            }
-                        )
-                    }
-                }
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (active) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                )
-            }
-            if (index < steps.lastIndex) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(2.dp)
-                        .background(
-                            if (number < currentStep) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.outlineVariant
-                            }
-                        )
-                )
-            }
         }
     }
 }

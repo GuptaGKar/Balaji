@@ -67,6 +67,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.balaji.provision.data.network.AddressRequest
 import com.balaji.provision.domain.model.CartItem
 import com.balaji.provision.domain.model.Product
 import com.balaji.provision.domain.model.QuantityType
@@ -75,6 +76,7 @@ import com.balaji.provision.domain.model.formatPaise
 import com.balaji.provision.domain.model.formatWeightGrams
 import com.balaji.provision.domain.model.lineTotalPaise
 import com.balaji.provision.ui.account.AccountViewModel
+import com.balaji.provision.ui.account.AddressEditorDialog
 import com.balaji.provision.ui.components.ClosedPanelPlace
 import com.balaji.provision.ui.components.ClosedStorePanel
 import com.balaji.provision.ui.components.EmptyState
@@ -83,6 +85,7 @@ import com.balaji.provision.ui.components.MoneyText
 import com.balaji.provision.ui.components.NAV_PILL_RESERVE_DP
 import com.balaji.provision.ui.components.OutlinedQuantityStepper
 import com.balaji.provision.ui.components.ProductThumb
+import com.balaji.provision.ui.components.SlideConfirmState
 import com.balaji.provision.ui.components.SlideToConfirm
 import com.balaji.provision.ui.components.StickyBottomBar
 import com.balaji.provision.ui.components.WeightedQuantityDialog
@@ -94,11 +97,13 @@ import com.balaji.provision.ui.theme.appColors
 @Composable
 fun CartScreen(
     viewModel: CartViewModel = hiltViewModel(),
-    onNavigateToCheckout: () -> Unit,
     onNavigateToCatalog: () -> Unit = {},
+    onOrderPlaced: () -> Unit = {},
     onBack: () -> Unit = {},
     homeViewModel: HomeViewModel = hiltViewModel(),
-    accountViewModel: AccountViewModel = hiltViewModel()
+    // Shared with the shell: a per-destination copy made "delete the last address" leave the
+    // onboarding gate's copy populated, so the app stayed in the shell with no address.
+    accountViewModel: AccountViewModel
 ) {
     val cart by viewModel.cart.collectAsState()
     val quote by viewModel.quote.collectAsState()
@@ -106,15 +111,52 @@ fun CartScreen(
     val couponInput by viewModel.couponInput.collectAsState()
     val homeState by homeViewModel.state.collectAsState()
     val accountState by accountViewModel.state.collectAsState()
+    val placement by viewModel.orderPlacement.collectAsState()
     val unavailableLines = quote?.lines?.filter { !it.available }.orEmpty()
 
-    // Per-PIN delivery pricing must apply in the cart too. Only checkout used to
-    // pass the PIN, so the cart quoted the store-wide fee and disagreed with the
-    // values the store configured for the customer's PIN code.
-    val deliveryPin = accountState.addresses.firstOrNull { it.isDefault }?.postalCode
-        ?: accountState.addresses.firstOrNull()?.postalCode
+    // The basket is the checkout. Address, delivery instructions and payment sit under the
+    // items on this page, so finishing an order never leaves the basket.
+    var selectedAddressId by rememberSaveable { mutableStateOf<String?>(null) }
+    var customerNote by rememberSaveable { mutableStateOf("") }
+    var showAddressEditor by remember { mutableStateOf(false) }
+    var addressDialogError by remember { mutableStateOf<String?>(null) }
+    val selectedAddress = accountState.addresses.firstOrNull { it.id == selectedAddressId }
+        ?: accountState.addresses.firstOrNull { it.isDefault }
+        ?: accountState.addresses.firstOrNull()
+    val isPlacingOrder = placement is OrderPlacementState.Placing
+    val placedOrder = placement as? OrderPlacementState.Placed
+    // A rejected order has to say why; the slide on its own just rewinds and looks broken.
+    var placeError by remember { mutableStateOf<String?>(null) }
+    val canPlaceOrder = quote != null && unavailableLines.isEmpty() &&
+        cart.items.isNotEmpty() && selectedAddress != null && !isPlacingOrder
+
     LaunchedEffect(Unit) { accountViewModel.refresh() }
-    LaunchedEffect(deliveryPin) { viewModel.setDeliveryPin(deliveryPin) }
+
+    // Per-PIN pricing follows the chosen address. The coordinates are keyed too, because
+    // re-pinning an address inside a different delivery area changes the fee without changing
+    // its PIN. Only the old checkout screen used to pass them, so the basket quoted the
+    // store-wide fee and disagreed with the value configured for the customer's PIN code.
+    LaunchedEffect(selectedAddress?.postalCode, selectedAddress?.lat, selectedAddress?.lng) {
+        viewModel.setDeliveryPin(selectedAddress?.postalCode)
+        viewModel.setDeliveryLocation(selectedAddress?.lat, selectedAddress?.lng)
+    }
+
+    // Deleting the chosen address has to fall back to another one, otherwise the quote keeps
+    // pricing a PIN that no longer exists.
+    LaunchedEffect(accountState.addresses) {
+        if (accountState.addresses.none { it.id == selectedAddressId }) {
+            selectedAddressId = accountState.addresses.firstOrNull { it.isDefault }?.id
+                ?: accountState.addresses.firstOrNull()?.id
+        }
+    }
+
+    // A rejected order says why above the slide; without it the gesture just rewinds and the
+    // customer has no idea the store refused.
+    LaunchedEffect(placement) {
+        val failed = placement as? OrderPlacementState.Failed ?: return@LaunchedEffect
+        viewModel.acknowledgeOrderPlacement()
+        placeError = failed.message
+    }
 
     var showClearDialog by remember { mutableStateOf(false) }
     var weightedProductDialog by remember { mutableStateOf<Pair<Product, Long>?>(null) }
@@ -150,6 +192,45 @@ fun CartScreen(
                 TextButton(onClick = { showClearDialog = false }) {
                     Text("Keep items")
                 }
+            }
+        )
+    }
+
+    if (showAddressEditor) {
+        AddressEditorDialog(
+            initial = null,
+            defaultName = accountState.profile?.displayName?.takeIf { it.isNotBlank() },
+            defaultPhone = accountState.profile?.phone,
+            isSaving = accountState.isSaving,
+            serverError = addressDialogError,
+            onDismiss = {
+                if (!accountState.isSaving) {
+                    showAddressEditor = false
+                    addressDialogError = null
+                }
+            },
+            onSave = { draft ->
+                accountViewModel.saveAddress(draft, null) { success, saved, message ->
+                    if (success && saved != null) {
+                        selectedAddressId = saved.id
+                        showAddressEditor = false
+                        addressDialogError = null
+                    } else {
+                        addressDialogError = message
+                    }
+                }
+            }
+        )
+    }
+
+    // The store clears the cart when it accepts the order, so an empty basket plus a Placed
+    // state is the confirmation moment. "Track your order" leaves for the orders tab.
+    if (placedOrder != null && cart.items.isEmpty()) {
+        OrderPlacedDialog(
+            orderNumber = placedOrder.orderNumber,
+            onTrack = {
+                viewModel.acknowledgeOrderPlacement()
+                onOrderPlaced()
             }
         )
     }
@@ -301,6 +382,36 @@ fun CartScreen(
                         }
                     }
 
+                    // The checkout sections live here now, in the order they were asked for:
+                    // address, the note that belongs with it, then the payment method. The bill
+                    // closes the list so the total sits next to the place-order slide.
+                    item(key = "delivery_address") {
+                        DeliveryAddressCard(
+                            isLoading = accountState.isLoading,
+                            addresses = accountState.addresses,
+                            selectedAddress = selectedAddress,
+                            error = accountState.error,
+                            isSaving = accountState.isSaving,
+                            onSelectAddress = { selectedAddressId = it },
+                            onAddAddress = {
+                                addressDialogError = null
+                                showAddressEditor = true
+                            },
+                            onRetry = { accountViewModel.refresh() }
+                        )
+                    }
+
+                    item(key = "delivery_instructions") {
+                        DeliveryInstructionsCard(
+                            note = customerNote,
+                            onNoteChange = { customerNote = it }
+                        )
+                    }
+
+                    item(key = "payment_method") {
+                        PaymentMethodCard()
+                    }
+
                     quote?.let { q ->
                         item(key = "order_summary") {
                             OrderSummaryCard(quote = q)
@@ -345,17 +456,54 @@ fun CartScreen(
                         storeOpen = homeState.storeOpen,
                         place = ClosedPanelPlace.Cart
                     )
+                    placeError?.let { message ->
+                        Text(
+                            text = message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
                     // Slide, not tap: this is the one place a thumb at the bottom of a scrolling
-                    // page can hit an expensive action by accident. It says "Checkout" rather
-                    // than "Place order" because address, payment and review still have to happen
-                    // - the label has to describe the gesture it actually performs.
+                    // page can hit an expensive action by accident. It places the order now that
+                    // the address, instructions and payment are on this page.
                     SlideToConfirm(
-                        label = "Slide to Checkout",
-                        // The total is in the bill and in the sticky bar; repeating it inside
-                        // the slide label crowded the text and the reference has no amount here.
+                        label = "Slide to Place Order",
+                        successLabel = "Order placed",
+                        // The total is in the bill; repeating it inside the slide label crowded
+                        // the text and the reference has no amount here.
                         sublabel = null,
-                        enabled = quote != null && unavailableLines.isEmpty() && homeState.storeOpen,
-                        onConfirm = onNavigateToCheckout
+                        state = when (placement) {
+                            is OrderPlacementState.Placing -> SlideConfirmState.Submitting
+                            is OrderPlacementState.Placed -> SlideConfirmState.Success
+                            else -> SlideConfirmState.Idle
+                        },
+                        // The store decides whether an order can be taken. A closed store used to
+                        // leave this enabled and let the server reject the gesture, which reads as
+                        // a broken app; the panel above says why instead.
+                        enabled = canPlaceOrder && homeState.storeOpen,
+                        onConfirm = {
+                            val address = selectedAddress
+                            if (address == null) {
+                                placeError = "Add a delivery address before placing the order."
+                            } else {
+                                placeError = null
+                                viewModel.placeOrder(
+                                    AddressRequest(
+                                        recipient_name = address.recipientName,
+                                        phone = address.phone,
+                                        address_lines = address.addressLines,
+                                        landmark = address.landmark,
+                                        area = address.area,
+                                        city = address.city,
+                                        state = address.state,
+                                        postal_code = address.postalCode,
+                                        lat = address.lat,
+                                        lng = address.lng
+                                    ),
+                                    customerNote.ifBlank { null }
+                                )
+                            }
+                        }
                     )
                 }
             }

@@ -17,7 +17,13 @@ data class LocationUiState(
     val isLocating: Boolean = false,
     val fix: GeoPoint? = null,
     val place: GeocodedPlace? = null,
-    val error: String? = null
+    val error: String? = null,
+    /**
+     * Bumped once per fetch. Callers key their "a fix arrived" effect on this rather than on the
+     * coordinates, because a second lookup from the same spot produces an equal [GeoPoint] and
+     * would otherwise never wake them up.
+     */
+    val requestId: Int = 0
 )
 
 @HiltViewModel
@@ -30,12 +36,18 @@ class AddressLocationViewModel @Inject constructor(
 
     fun useCurrentLocation() {
         if (_state.value.isLocating) return
-        _state.update { it.copy(isLocating = true, error = null) }
+        val requestId = _state.value.requestId + 1
+        _state.update { it.copy(isLocating = true, error = null, requestId = requestId) }
         viewModelScope.launch {
             repository.currentLocation()
                 .onSuccess { point ->
                     val place = repository.describe(point)
-                    _state.value = LocationUiState(isLocating = false, fix = point, place = place)
+                    _state.value = LocationUiState(
+                        isLocating = false,
+                        fix = point,
+                        place = place,
+                        requestId = requestId
+                    )
                 }
                 .onFailure { error ->
                     _state.value = LocationUiState(
@@ -44,7 +56,8 @@ class AddressLocationViewModel @Inject constructor(
                             is SecurityException -> "Location permission is required."
                             else -> error.message
                                 ?: "Could not get your location. Check GPS and try again."
-                        }
+                        },
+                        requestId = requestId
                     )
                 }
         }

@@ -81,7 +81,9 @@ fun ProfileScreen(
     onOpenFavourites: () -> Unit = {},
     homeViewModel: HomeViewModel = hiltViewModel(),
     authViewModel: AuthViewModel = hiltViewModel(),
-    accountViewModel: AccountViewModel = hiltViewModel()
+    // Supplied by the shell so the profile, cart, checkout and the first-run gate read one copy
+    // of the profile and address list.
+    accountViewModel: AccountViewModel
 ) {
     val scrollState = rememberScrollState()
     val context = LocalContext.current

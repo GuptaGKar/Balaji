@@ -2,7 +2,6 @@ package com.balaji.provision.data.repository
 
 import com.balaji.provision.BuildConfig
 import com.balaji.provision.data.auth.AuthRepository
-import com.balaji.provision.data.network.AttachOrderImageRequest
 import com.balaji.provision.data.network.AttachOrderProofRequest
 import com.balaji.provision.data.network.CreateProductRequestRequest
 import com.balaji.provision.data.network.OrderProofResponse
@@ -21,7 +20,6 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.asRequestBody
-import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.Response
 import java.io.File
 import java.io.IOException
@@ -67,10 +65,6 @@ interface RequestsRepository {
     ): RequestOutcome<Unit>
 
     suspend fun submitReview(orderId: String, rating: Int, comment: String?): RequestOutcome<Unit>
-    suspend fun attachOrderImage(orderId: String, imagePath: String): RequestOutcome<Unit>
-
-    /** Uploads bytes to `<uid>/<uuid>.<ext>` in the order-images bucket and returns the path. */
-    suspend fun uploadOrderImage(bytes: ByteArray, mimeType: String): RequestOutcome<String>
 
     /** Stages (dispatch, delivery) that already have a proof for this order. */
     suspend fun loadProofs(orderId: String): RequestOutcome<Map<String, String>>
@@ -215,62 +209,6 @@ class RequestsRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun attachOrderImage(orderId: String, imagePath: String): RequestOutcome<Unit> {
-        val token = authRepository.authorizedToken()
-            ?: return RequestOutcome.Failure("Sign in again to attach the photo.")
-        return try {
-            val response = api.attachOrderImage(
-                apiKey = BuildConfig.SUPABASE_ANON_KEY,
-                auth = "Bearer $token",
-                body = AttachOrderImageRequest(p_order_id = orderId, p_image_path = imagePath)
-            )
-            val body = response.body()
-            when {
-                !response.isSuccessful -> RequestOutcome.Failure(errorMessage(response))
-                body?.error != null -> RequestOutcome.Failure(body.message ?: body.error)
-                body?.image_path == null -> RequestOutcome.Failure("The photo was not attached.")
-                else -> RequestOutcome.Success(Unit)
-            }
-        } catch (e: Exception) {
-            RequestOutcome.Failure("Could not attach the photo. Check your connection.")
-        }
-    }
-
-    override suspend fun uploadOrderImage(bytes: ByteArray, mimeType: String): RequestOutcome<String> {
-        val session = authRepository.session.value
-            ?: return RequestOutcome.Failure("Sign in to attach a photo.")
-        val token = authRepository.authorizedToken()
-            ?: return RequestOutcome.Failure("Your session expired. Please sign in again.")
-
-        val safeMime = when (mimeType.lowercase()) {
-            "image/png" -> "image/png"
-            "image/webp" -> "image/webp"
-            else -> "image/jpeg"
-        }
-        val extension = when (safeMime) {
-            "image/png" -> "png"
-            "image/webp" -> "webp"
-            else -> "jpg"
-        }
-        val path = "${session.userId}/${UUID.randomUUID()}.$extension"
-
-        return try {
-            val response = api.uploadOrderImage(
-                apiKey = BuildConfig.SUPABASE_ANON_KEY,
-                auth = "Bearer $token",
-                contentType = safeMime,
-                path = path,
-                body = bytes.toRequestBody(safeMime.toMediaType())
-            )
-            if (response.isSuccessful) {
-                RequestOutcome.Success(path)
-            } else {
-                RequestOutcome.Failure(errorMessage(response))
-            }
-        } catch (e: Exception) {
-            RequestOutcome.Failure("Could not upload the photo. Check your connection.")
-        }
-    }
 
     override suspend fun loadProofs(orderId: String): RequestOutcome<Map<String, String>> {
         val token = authRepository.authorizedToken()

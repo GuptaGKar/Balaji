@@ -1652,43 +1652,102 @@ order, billing or authorization rule changed.
   still had 2 dp and 1 dp elevation. The fill is transparent (the glass is drawn by
   `liquidGlass`), so the shadow showed through as a grey rounded outline. Both are now elevation 0,
   like the rest of the glass surfaces.
-- **First sign-in asked for an address but not for the place.** `CustomerDetailsScreen` now asks
-  for location once, immediately after the name is saved and while no address exists:
-  - The permission request is launched automatically, once per screen instance (`autoAsked` is
-    `rememberSaveable`, so a rotation does not re-prompt). If the grant already exists, the fix is
-    fetched straight away.
-  - When the fix and its reverse-geocoded place arrive, the address editor opens by itself,
-    prefilled with recipient, phone, street, area, city, state and PIN, with lat/lng attached and
-    the delivery map already open and centred on the fix. `prefill` only fills blank fields, so a
-    later fix never overwrites what the customer typed.
-  - "Add delivery address" remains the manual path (blank form); "Use my current location" on the
-    card retries and opens the same prefilled form. Permission denial and GPS failure show their
-    message in the card and leave the manual path working.
+- **First sign-in shows the profile page; location starts from its button.** The first cut asked
+  for location as soon as the page appeared and opened the editor by itself. That hid the
+  "Complete your profile" step and made the permission dialog arrive with no visible reason, so it
+  was reworked:
+  - The page is shown as-is; nothing is requested on entry.
+  - "Add delivery address" asks for location access (if not already granted), fetches the fix, and
+    only then opens the editor: prefilled with recipient, phone, street, area, city, state and PIN,
+    lat/lng attached, and the delivery map already open and centred on the fix. While the fix is in
+    flight the button reads "Finding your location…".
+  - "Enter address manually" opens the same editor blank and clears any pending fetch, so a late
+    GPS answer cannot reopen the form. Permission denial and GPS failure print their message in the
+    card and leave manual entry working; the same button retries.
+  - `prefill` only fills blank fields, so a later fix never overwrites what the customer typed.
   - `AddressEditorDialog` gained `prefill` and `startWithMap`; a fix arriving while the map is open
-    now moves the camera (`openAt`) as well as the fields. `startWithMap` is re-applied in the
-    reset effect, which runs after first composition and had been closing the map the flow asked
-    to open - found on device, where the first-run dialog opened with the button reading "Choose
-    the exact spot on a map" instead of "Hide the map".
+    moves the camera (`openAt`) as well as the fields. `startWithMap` is re-applied in the reset
+    effect, which runs after first composition and had been closing the map the flow asked to
+    open - found on device, where the dialog opened with the button reading "Choose the exact spot
+    on a map" instead of "Hide the map".
+  - `LocationUiState` now carries `requestId`, bumped once per fetch, and the screen keys its "fix
+    arrived" effect on it. Asking twice from the same spot returns an equal `GeoPoint`, and a
+    coordinate-keyed effect would never fire the second time - verified by cancelling the editor
+    and tapping the button again.
+- **One `AccountViewModel` for the whole customer shell.** `ProfileScreen`, `CartScreen` and the
+  (now deleted) `CheckoutScreen` each created their own `hiltViewModel()`, so inside the NavHost
+  each route got a private copy of the profile and address list while `CustomerApp`'s first-run
+  gate read another. Deleting the last address therefore emptied the Profile screen but left the
+  gate's copy populated: the app stayed in the shell showing "No saved addresses yet" instead of
+  returning to "Complete your profile" (seen on device). The shell now owns the view model and
+  passes it to the screens that need it; the parameter has no default so a future route cannot
+  silently split the state again.
 
-Verification (2026-11-12): `:app:assembleCustomerDebug` builds; `:app:testCustomerDebugUnitTest`
-and `:app:testStaffDebugUnitTest` run 560/560 with zero failures/skips; `:app:lintCustomerDebug`
-and `:app:lintStaffDebug` report 0 errors, 69 warnings and 5 hints each. No formatter is configured
-in this project, so formatting was kept to the surrounding style by hand.
+Device pass on the Galaxy A34 with the fresh customer account (917302921610, "Customer", no
+address) and location permission revoked: the "Complete your profile" page rendered with no
+permission prompt; tapping "Add delivery address" produced the system location dialog; dismissing
+it printed "Location permission denied. You can still enter the address manually." in the card and
+left "Enter address manually" usable. With the grant in place the same button fetched the fix and
+opened the editor by itself, prefilled and with the map open (pin at 30.00267, 77.44413, "We
+deliver here - ₹30.00 delivery", street 2C2V+XJG, Saorana, Uttar Pradesh 247232). Cancelling and
+tapping again reopened it, and saving moved straight into the shell with Home showing "Deliver to
+Home / Saorana". The tabs, profile, product details and the delete-last-address path were
+re-checked in the same pass.
 
-Device pass on the Galaxy A34, using a brand-new customer account the owner signed in on the
-device (917302921610, display name "Customer", no address): launching that account showed the
-system location prompt automatically; "While using the app" produced the prefilled editor with the
-map already open, pin at 30.00267, 77.44413, "We deliver here - ?30.00 delivery", street
-2C2V+XJG, area Saorana, Uttar Pradesh 247232. Saving it moved straight into the shell, with Home
-showing "Deliver to Home / Saorana". Profile (new account), product details and the four tabs were
-re-checked for overlap after the navigation change. The map does render - a road is visible once
-the map is scrolled into view; the first screenshot looked blank only because the visible frame
-was empty land at that rural zoom.
+## Customer round: the basket is the checkout (2026-11-13)
 
-Not run, with reasons: a *second, different* fix arriving while the map is already open (the
-re-centre effect is in place, but on device only the initial prefill was exercised - the fix does
-not move when refetched standing still); any automated UI test for the onboarding flow (the project
-has no instrumented Compose test target). The earlier pending items - weighted cart Edit/Remove, the
-coupon "You Save" band, slide submit/success with a real order, migration
+Requested from the device: move the item list off the checkout page, put the delivery address at
+the top, the delivery instructions directly under it and the payment method at the bottom -
+"apply all on basket page". Presentation only; no price, fee, stock, order, billing or
+authorization rule changed.
+
+- **One page instead of a wizard.** `CheckoutScreen` is deleted (not stubbed) and its `checkout`
+  route with it. The basket renders the checkout sections under the items in the requested order:
+  `DeliveryAddressCard` (radio list, "Add new" and the address editor), `DeliveryInstructionsCard`,
+  `PaymentMethodCard`, then the existing bill so the total sits next to the action. The three-step
+  rail (`CheckoutStepIndicator`, also deleted) and the per-step Continue buttons went with the
+  wizard; the section cards live in `ui/cart/CheckoutSections.kt`.
+- **The item list moved, not duplicated.** The basket already listed every line with its stepper
+  and price, and the checkout's "Your items" card was a second rendering of the same server quote
+  lines, so it was removed instead of copied.
+- **"Slide to Checkout" became "Slide to Place Order".** The basket now performs the order, so the
+  slide calls `CartViewModel.placeOrder` with the selected address and the note. It stays disabled
+  until a quote exists, no line is unavailable, an address is selected, the basket is not empty and
+  the store is open; the server still prices and authorises the order. A rejection prints above the
+  slide (this screen has no snackbar host) instead of silently rewinding.
+- **Pricing follows the selected address.** The basket used to pass only the default address's PIN.
+  It now passes the PIN and the coordinates of the address chosen in the card, so the fee and any
+  PIN-restricted coupon agree with what the store configured, and switching address re-quotes.
+  Deleting the chosen address falls back to the default, then to the first one.
+- **Order confirmation moved with it.** `OrderPlacedDialog` (order number, COD reminder, "Track
+  your order" -> orders tab) now lives in `CheckoutSections.kt` and is driven by
+  `OrderPlacementState`.
+- **The order photo was removed.** "Photo for the store" (an optional image attached to the order
+  after placement) lived on the checkout screen; the owner asked for the feature to be removed.
+  `OrderPhotoRow`, the picker/attach effects, `ProductRequestsViewModel.attachPhoto`, the
+  `RequestsRepository` upload/attach methods and the `attach_order_image` / `order-images` endpoint
+  and DTOs are gone. The server RPC and storage bucket are untouched: this is an Android-only
+  removal, and nothing else called them.
+
+Verification (2026-11-13): `:app:assembleCustomerDebug` builds; `:app:testCustomerDebugUnitTest`
+and `:app:testStaffDebugUnitTest` run 280/280 each (560 total) with zero failures, errors or
+skips; `:app:lintCustomerDebug` and `:app:lintStaffDebug` report 0 errors, 69 warnings and 4 hints
+each (one hint fewer than before because `CheckoutStepIndicator` was deleted). No formatter is
+configured in this project, so formatting was kept to the surrounding style by hand.
+
+Device pass on the same Galaxy A34 / test account with one saved address and one line in the
+basket: the Basket tab now renders the item row, the coupon row, "Delivery address" with the saved
+Home address selected, "Delivery instructions (optional)" directly below it, "Payment method"
+(COD selected, online "Coming soon"), the bill and the "Slide to Place Order" bar above the
+navigation pill; scrolling shows the payment card and bill in that order with nothing clipped.
+"Add new" opened the address editor over the basket, prefilled with the profile name, phone and
+label. Back returned to Home.
+
+Not run, with reasons: the slide's Submitting/Success states and `OrderPlacedDialog` on device -
+placing the order writes live data and needs explicit approval, so the gesture was left untouched;
+the disabled-slide state with no address (would mean deleting the account's only saved address and
+re-adding it); a *second, different* location fix arriving while the map is already open; any
+automated UI test for these flows (the project has no instrumented Compose test target). The
+earlier pending items - weighted cart Edit/Remove, the coupon "You Save" band, migration
 `20261107000001_low_stock_mrp_and_price_hardening.sql`, pgTAP `052`, the staff low-stock card
 order and the Pansari Sooji price restore - are unchanged and still open.

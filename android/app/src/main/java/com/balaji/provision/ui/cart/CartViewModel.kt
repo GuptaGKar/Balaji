@@ -21,7 +21,7 @@ import javax.inject.Inject
 sealed interface OrderPlacementState {
     data object Idle : OrderPlacementState
     data object Placing : OrderPlacementState
-    /** [orderId] lets the checkout screen attach the optional order photo after placement. */
+    /** [orderNumber] is what the customer sees; [orderId] is the row the store created. */
     data class Placed(val orderNumber: String, val orderId: String = "") : OrderPlacementState
     data class Failed(val message: String) : OrderPlacementState
 }

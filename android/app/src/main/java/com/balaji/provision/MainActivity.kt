@@ -73,7 +73,6 @@ import com.balaji.provision.ui.catalog.ProductDetailsLoading
 import com.balaji.provision.ui.catalog.ProductDetailsScreen
 import com.balaji.provision.ui.catalog.ProductViewModel
 import com.balaji.provision.ui.categories.CategoriesScreen
-import com.balaji.provision.ui.checkout.CheckoutScreen
 import com.balaji.provision.ui.home.HomeScreen
 import com.balaji.provision.ui.onboarding.CustomerDetailsScreen
 import com.balaji.provision.ui.orders.OrderTrackingScreen
@@ -371,10 +370,11 @@ private fun CustomerShell(
     }
     // The pill is drawn over the page rather than reserving a strip, so it only appears on the
     // screens that were built to clear it: the four tabs and the product listing they lead to.
-    // Full-screen flows (product details, checkout, account, order tracking, requests,
-    // favourites, legal) show no pill, which also means nothing there can end up hidden behind
-    // one. The old strip reserved space on every route; an overlay cannot, so the set is
-    // deliberately narrower.
+    // Full-screen flows (product details, account, order tracking, requests, favourites, legal)
+    // show no pill, which also means nothing there can end up hidden behind one. The old strip
+    // reserved space on every route; an overlay cannot, so the set is deliberately narrower.
+    // The basket is in this list and now also carries the checkout, so its place-order bar
+    // reserves the pill itself rather than relying on the shell.
     val showBottomBar = currentRoute == "home" || currentRoute == "categories" ||
         currentRoute == "orders" || currentRoute == "cart" ||
         currentRoute.startsWith("listing/")
@@ -571,7 +571,11 @@ fun AppNavHost(
         composable("cart") {
             CartScreen(
                 viewModel = cartViewModel,
-                onNavigateToCheckout = { navController.navigate("checkout") },
+                accountViewModel = accountViewModel,
+                onOrderPlaced = {
+                    cartViewModel.acknowledgeOrderPlacement()
+                    navigateToTab(navController, "orders")
+                },
                 onNavigateToCatalog = {
                     navController.navigate(listingRoute("all", focusSearch = false))
                 },
@@ -579,16 +583,6 @@ fun AppNavHost(
                     if (!navController.popBackStack()) {
                         navigateToTab(navController, "home")
                     }
-                }
-            )
-        }
-        composable("checkout") {
-            CheckoutScreen(
-                cartViewModel = cartViewModel,
-                onNavigateBack = { navController.popBackStack() },
-                onOrderPlaced = {
-                    cartViewModel.acknowledgeOrderPlacement()
-                    navigateToTab(navController, "orders")
                 }
             )
         }
@@ -611,6 +605,7 @@ fun AppNavHost(
         }
         composable("account") {
             ProfileScreen(
+                accountViewModel = accountViewModel,
                 onBack = {
                     if (!navController.popBackStack()) {
                         navigateToTab(navController, "home")
