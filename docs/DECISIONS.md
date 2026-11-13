@@ -1777,3 +1777,28 @@ nothing about the fee, the address used for the quote or the order changes.
 
 The earlier "address on top" pass had put the two cards after the items because the item list was
 already there; the owner wanted them at the very top, above the items, which is what this does.
+## 2026-11-13 - Dark theme: paper cards keep paper ink
+
+Reported on device: "dark theme is not looking good". The defect was not the palette, it was three
+surfaces that hard-code paper white while their contents use theme text roles. In dark mode the
+fill stayed #FFFFFF (or 0.96 white) and `onSurface`/`onSurfaceVariant` are near-white (#E5E9EF /
+#B4BECA), so the text disappeared into the card.
+
+Fixed, with the light theme deliberately unchanged:
+
+- Home header address card: it sits on the orange header and is white in both themes on purpose,
+  so it keeps the white fill but its contents now use the fixed `LightOnSurface` /
+  `LightOnSurfaceVariant` inks and `BalajiDesign.Primary` for the pin and the ETA chip. The dark
+  theme's primary is amber and read as a pale wash on white.
+- Home service tiles and Home category shortcuts: these are page-level cards, so they now use
+  `colorScheme.surface` with a `BorderStroke(1.dp, outlineVariant)` hairline instead of a white
+  fill. The hairline is invisible in light mode because `outlineVariant` is near-white there.
+- Profile "Edit": the banner behind it is `primaryContainer`, so the default neutral outline read
+  as a foreign blue-grey ring; the border and content now derive from `onPrimaryContainer`.
+
+Not changed: the brand header gradient and hero copy stay white-on-orange, discount badges stay
+white-on-green, and no pricing, order, quote or server behaviour is touched.
+
+Device re-verification of this pass is outstanding: the phone's wireless ADB dropped mid-session
+(port 44731 refuses connections) and no USB device is attached, so the screenshots taken for this
+report are the pre-fix ones that documented the defect. The gates below did run.

@@ -738,7 +738,11 @@ fun CategoryShortcut(
     Surface(
         modifier = modifier.clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
-        color = Color.White.copy(alpha = 0.96f),
+        // Theme surface: paper white in light, the dark card colour in dark. The white card with
+        // the dark theme's near-white label was unreadable on device; the hairline is only
+        // visible in dark because outlineVariant is near-white in the light scheme.
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         shadowElevation = 2.dp
     ) {
         Column(
