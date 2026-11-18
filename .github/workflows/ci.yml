@@ -61,13 +61,13 @@ jobs:
         run: |
           python3 scripts/check_android_update_distribution.py android/app/build/outputs/apk/customer/debug/app-customer-debug.apk --mode direct --aapt2 "$ANDROID_HOME/build-tools/36.0.0/aapt2"
           python3 scripts/check_android_update_distribution.py android/app/build/outputs/apk/staff/debug/app-staff-debug.apk --mode direct --aapt2 "$ANDROID_HOME/build-tools/36.0.0/aapt2"
-      - name: Build Play customer and check distribution isolation
+      - name: Build Play customer and staff and check distribution isolation
         working-directory: android
         run: ./gradlew --no-daemon -Pbalaji.play=true :app:assembleCustomerDebug :app:assembleStaffDebug
-      - name: Check Play customer and direct staff APKs
+      - name: Check Play customer and Play staff APKs
         run: |
           python3 scripts/check_android_update_distribution.py android/app/build/play/outputs/apk/customer/debug/app-customer-debug.apk --mode play --aapt2 "$ANDROID_HOME/build-tools/36.0.0/aapt2"
-          python3 scripts/check_android_update_distribution.py android/app/build/play/outputs/apk/staff/debug/app-staff-debug.apk --mode direct --aapt2 "$ANDROID_HOME/build-tools/36.0.0/aapt2"
+          python3 scripts/check_android_update_distribution.py android/app/build/play/outputs/apk/staff/debug/app-staff-debug.apk --mode play --aapt2 "$ANDROID_HOME/build-tools/36.0.0/aapt2"
       - name: Upload lint reports
         if: always()
         uses: actions/upload-artifact@v4

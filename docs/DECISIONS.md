@@ -1553,6 +1553,7 @@ uses fresh debug installs and is recorded below once sign-in is complete.
 
 
 
+
 ## Basket, checkout and orders match the mockups without inventing policy (2026-11-12)
 
 The reference boards put a specific card system on every shopping screen: white cards on the warm
@@ -1752,6 +1753,24 @@ earlier pending items - weighted cart Edit/Remove, the coupon "You Save" band, m
 `20261107000001_low_stock_mrp_and_price_hardening.sql`, pgTAP `052`, the staff low-stock card
 order and the Pansari Sooji price restore - are unchanged and still open.
 
+## 2026-11-11 — Customer Play upload version 15
+
+Owner repeatedly authorized a corrected Play AAB. Direct inspection of the previous Play AAB found REQUEST_INSTALL_PACKAGES absent; the earlier conversational claim that its manifest removal rule failed was incorrect. Kept the existing distribution configuration and increased versionCode to 15/versionName to 1.14.
+
+Executed bundleCustomerRelease, assembleCustomerRelease, lintCustomerRelease and testCustomerReleaseUnitTest with -Pbalaji.play=true: BUILD SUCCESSFUL; 273 unit tests, zero failures/errors. Final AAB manifest checked: REQUEST_INSTALL_PACKAGES absent. jarsigner reports jar verified, with self-signed chain, no timestamp and JarInputStream ordering warnings. APK signature verifies with existing upload certificate SHA-256 8A6BC82D4A3C64007870FBD640498FCFB809DD50B9D2AB64F6C0FE1985F7D64D. APK metadata confirms com.balaji.provision, 1.14 (15), target SDK 36.
+
+Upload copy: play asset/balaji-customer-play-1.14-v15.aab. SHA-256: 2568bb29e3fb7a0c0ab4664fa99f23aee794058d8c91195ddc9fea46be9f89d4.
+
+Not run: device runtime, Play upload/review, web and database checks (release version change only). Console acceptance and any permissions referenced by older active bundles must be checked after upload; local artifact checks cannot guarantee store acceptance. No production backend action or upload performed.
+
+
+## 2026-11-11 — Internal testing upload version 16
+
+Owner requested another bundle after Console rejected re-upload of already-used version 15. Add from library could reuse version 15; produced requested fresh version 1.15 (16) with unchanged Play distribution logic. bundleCustomerRelease succeeded including lintVitalCustomerRelease. Decoded final AAB manifest confirms com.balaji.provision, versionCode 16/versionName 1.15 and no REQUEST_INSTALL_PACKAGES. jarsigner reports jar verified, with the existing self-signed chain/timestamp and archive ordering warnings. SHA-256: 6116bdda7f35c2a89f230f3e89224a1359e2a936c96afef17b65500d3a782a87. Upload copy: play asset/balaji-customer-play-1.15-v16.aab.
+
+Unit tests not rerun: version metadata only; 273 passed for preceding build. Device runtime and Play upload/review not run. Existing version 13 in Internal testing was the bundle listed by Console as using the installer permission. No deployment or rollout performed.
+
+
 
 ## 2026-11-13 - Product podium and bulk image approval reverted
 
@@ -1802,3 +1821,140 @@ white-on-green, and no pricing, order, quote or server behaviour is touched.
 Device re-verification of this pass is outstanding: the phone's wireless ADB dropped mid-session
 (port 44731 refuses connections) and no USB device is attached, so the screenshots taken for this
 report are the pre-fix ones that documented the defect. The gates below did run.
+
+## 2026-11-13 — M8 staff stock editing and search
+
+Owner requested stock editing and search in the staff app. The Stock tab now exposes
+Edit stock for normal-stock and zero-stock catalogue rows as well as the existing
+low-stock adjustment control. One fixed search field above both lists matches names
+and SKUs, trims surrounding whitespace, ignores case, and offers a clear action.
+Stock quantities remain integer grams or packs. Malformed/fractional, zero,
+overflowing and locally excessive removal inputs cannot be submitted.
+
+Reuse the existing authenticated `adjust_stock` RPC, its staff/manager role check,
+row lock, negative-stock validation, movement record and audit record. No SQL or
+permission change is needed. A save disables duplicate submissions and closes the
+editor only after server confirmation; failed saves retain the entered quantity.
+Catalogue loading is independent of order loading, exposes connection errors and
+retry, and retains previously loaded rows on refresh failure. The existing
+catalogue request limit of 500 rows is unchanged.
+
+Verification uses the local-audit build configuration with loopback URL and a
+synthetic key. Not run: authenticated stock-change integration or database
+concurrency tests. The backend is unchanged; no production credentials, deployment
+or release upload was used.
+
+Executed: 290 staff JUnit tests, zero failures/errors/skips, including seven new
+stock tests. Web regression suite 51/51; web formatting and lint completed (three
+existing hook-dependency warnings). Web typecheck failed with the same 11 existing
+React Hook Form/Zod errors previously recorded in CategoriesTab, ProductsTab,
+service areas and settings; no web source was changed. The initial stock-test run
+failed compilation on the missing APIs before implementation. Screen-test
+compilation also exposed an existing BrowsingControlsTest chaining an assertion
+after the Unit-returning performImeAction; split the action from the assertion.
+Final `testStaffDebugUnitTest`, `lintStaffDebug`, `assembleStaffDebug` and
+`compileStaffDebugAndroidTestKotlin` completed with BUILD SUCCESSFUL. The
+re-run on 2026-11-13 of `lintStaffDebug` and `assembleStaffDebug` was again
+BUILD SUCCESSFUL with 0 errors, 70 warnings and 5 hints (an earlier run in this
+task reported 36 warnings; both runs report zero errors/fatal findings).
+`git diff --check` passed.
+
+Web gates were re-run on 2026-11-13 after the Android work: `format:check`
+passed, the regression suite passed 51/51, `lint` exited 0 with the same three
+existing react-hooks/exhaustive-deps warnings (plus a Next.js workspace-root
+notice), and `type-check` still exits 1 with the same 11 pre-existing React
+Hook Form/Zod errors under `src/app/`. No web source file was changed here.
+
+On-device instrumentation was executed on 2026-11-13 on the owner's SM-A346E
+(Android 16, font scale 1.1) over wireless adb using the local-audit staff build:
+all three new `StaffStockScreenTest` cases passed (normal-stock Edit stock opens
+the editor, search sits above both lists and filters them with a clear action,
+and a failed save keeps the entered quantity and shows the error inside the
+editor). Four pre-existing `BrowsingControlsTest` cases failed on that device
+(clear-search touch target measured 19.9dp vs the required 48dp, search focus
+not released after the IME action, product card height 748 vs 750, disabled add
+control still reporting enabled). Attribution was checked by running the same
+four tests from a clean HEAD worktree containing only the performImeAction
+compile fix: the identical four failures reproduced there, so they are
+pre-existing device/layout failures and not caused by this change. They are
+likely related to the device's 1.1 font scale; the accessibility touch-target
+finding is a real risk worth a separate fix. Authenticated stock-change flow on
+the device was not exercised (no local backend running).
+
+Demo: open Staff → Stock, search by product name or SKU, tap Edit stock on a
+catalogue row, choose Add stock or Remove stock, enter whole packs/grams and save.
+Check that a failed save keeps the input and displays its error inside the editor;
+clear search to return to both complete loaded lists.
+
+## 2026-11-14 — M8 Task 3: prices page split, QA removal, original-app install
+
+Owner request (2026-11-13): stock adjustment and price changes become separate
+top-level pages each with its own search bar, popup dialogs stay for entry, the
+original app is used instead of the QA app, all QA tooling is deleted, and
+instrumentation runs over IP wireless debugging only.
+
+Implementation: a fifth top-level `Prices` tab (Overview, Orders, Stock, Prices,
+Requests) with `priceSearchQuery`, `setPriceSearch` and `filteredPriceProducts`;
+the stock page keeps only Edit stock, `AdjustStockDialog` lost its price chip and
+price inputs (price editing stays in the existing `EditPriceDialog`), and the
+catalogue tabs are no longer blocked by order loading/error. Pricing, fees and
+stock remain server-side; no migration was touched.
+
+QA/local-audit removal: uninstalled `com.balaji.provision.audit` from the device
+(the staff QA app was already gone), deleted `android/app/src/localAudit/`,
+`scripts/check_local_audit_apk.py`, `scripts/local_audit_ui.py`, the
+`build/local-audit` and `build/play-audit` outputs and every `balaji.localAudit`
+branch in `android/app/build.gradle.kts`. Added an opt-in, default-off
+`-Pbalaji.signDebugWithRelease=true` property so debug and androidTest APKs can be
+signed with the local upload keystore; this is what lets instrumented tests install
+over the release-signed original app instead of needing a separate QA install.
+
+Device: the previously installed original staff app was Android-Debug signed with
+certificate `b56bf76b…`, which no local key matches, so an in-place upgrade was
+impossible. With owner approval it was uninstalled and replaced by a fresh
+upload-signed (`8a6bc82d…`) build; local session data was lost by design and server
+data was untouched. At the end of this task both `com.balaji.provision` and
+`com.balaji.provision.staff` were uninstalled and reinstalled fresh as versionCode
+16 / versionName 1.15 (release APKs), and the staff app was launched on the phone
+to confirm it runs. Online payments remain disabled; no production credentials,
+deployment or release upload was used.
+
+On-device instrumentation ran over IP wireless debugging (`192.168.1.8:39613`)
+with an adb watchdog that drops the duplicate mDNS endpoint, otherwise Gradle sees
+two "devices" for one phone and corrupts the run. Two environmental conditions
+were required and are recorded because they caused false failures first: the phone
+must be unlocked (a locked/dozing screen makes the test activity stop immediately,
+producing "No compose hierarchies found in the app") and the screen must be awake.
+
+Semantics artifact (important): the new search test initially failed on
+`assertDoesNotExist("Rice")` even though the state, the filter, the recomposition
+and the LazyColumn item disposal were all correct (`query=OIL-1 filtered=[oil]`,
+only the Oil item composed, the Rice item disposed). A screenshot captured on the
+device at that exact moment shows only the Oil card is drawn — no Rice card and no
+overlapping text — so the UI is correct and Compose UI 1.5.4 simply retains a
+non-rendered semantics node for a row removed from a `LazyColumn`. This was
+confirmed with a single-root tree walk (one window), after `waitForIdle` and after
+a forced `performScrollTo`, and with the `key` lambda removed (then two ghost Oil
+nodes appeared instead). The test was rewritten to assert signals that are reliable:
+the rendered matching row, the clear affordance, the rendered empty state for a
+non-matching query, the clear action removing that affordance, and the filtered
+result at state level, with the reason recorded in an in-code comment. The ghost
+node is a framework-level risk, not a product defect; it is not fixed here.
+
+Executed: `connectedStaffDebugAndroidTest` for the `ui.manager` package — 8/8
+passed (`StaffPricesScreenTest` 3, `StaffStockScreenTest` 5), including the
+rewritten search test; `testStaffDebugUnitTest` 291/291 with zero failures/errors;
+`lintStaffDebug` 0 errors, 70 warnings, 5 hints (same pre-existing count as before);
+`lintVitalCustomerRelease` and `lintVitalStaffRelease` completed; release APKs built
+(`assembleCustomerRelease` rebuilt, `assembleStaffRelease` reported UP-TO-DATE
+because its inputs are byte-identical to the 2026-11-13 build). Web gates re-run
+after the Android work: `format:check` exit 0, regression suite 51/51, `lint` exit 0
+with the existing warnings plus the Next.js workspace-root notice, `type-check`
+exit 1 with the same 11 pre-existing React Hook Form/Zod errors (no web source
+changed). `git diff --check` exit 0.
+
+Not run this round: the full androidTest suite (only the `ui.manager` package was
+executed; the four `BrowsingControlsTest` failures are the baseline-confirmed
+pre-existing ones recorded above), authenticated price/stock writes against a live
+backend, and any Play upload. Web typecheck still cannot pass for the pre-existing
+reasons above.
