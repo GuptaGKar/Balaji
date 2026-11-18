@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Staff Play variant (-Pbalaji.play=true).
+
+  Merges the staff rules (never request device location) with the Play rules
+  (no in-app APK updater, so no REQUEST_INSTALL_PACKAGES). Play distributes
+  updates itself; see docs/PLAY_STORE_RELEASE.md.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Staff tools never request device location. -->
+    <uses-permission
+        android:name="android.permission.ACCESS_COARSE_LOCATION"
+        tools:node="remove" />
+    <uses-permission
+        android:name="android.permission.ACCESS_FINE_LOCATION"
+        tools:node="remove" />
+
+    <!-- The updater does not ship in Play builds; the permission is restricted. -->
+    <uses-permission
+        android:name="android.permission.REQUEST_INSTALL_PACKAGES"
+        tools:node="remove" />
+</manifest>

@@ -31,12 +31,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Assignment
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -75,6 +77,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDecoration
@@ -214,10 +218,12 @@ fun ManagerScreen(
             viewModel.consumeMessage()
         }
     }
-    LaunchedEffect(state.actionError) {
-        state.actionError?.let {
-            snackbarHostState.showSnackbar(it)
-            viewModel.consumeActionError()
+    LaunchedEffect(state.actionError, adjustingProduct) {
+        if (adjustingProduct == null) {
+            state.actionError?.let {
+                snackbarHostState.showSnackbar(it)
+                viewModel.consumeActionError()
+            }
         }
     }
 
@@ -286,7 +292,7 @@ fun ManagerScreen(
                 selectedTabIndex = selectedTab,
                 edgePadding = 8.dp
             ) {
-                listOf("Overview", "Orders", "Stock", "Requests").forEachIndexed { index, label ->
+                listOf("Overview", "Orders", "Stock", "Prices", "Requests").forEachIndexed { index, label ->
                     Tab(
                         selected = selectedTab == index,
                         onClick = { selectedTab = index },
@@ -303,10 +309,10 @@ fun ManagerScreen(
             }
 
             when {
-                state.isInitialLoading -> Box(Modifier.fillMaxSize()) {
+                state.isInitialLoading && selectedTab != 2 && selectedTab != 3 -> Box(Modifier.fillMaxSize()) {
                     CircularProgressIndicator(Modifier.align(Alignment.Center))
                 }
-                state.error != null && state.orders.isEmpty() -> ManagerErrorState(
+                state.error != null && state.orders.isEmpty() && selectedTab != 2 && selectedTab != 3 -> ManagerErrorState(
                     message = state.error!!,
                     onRetry = viewModel::refresh
                 )
@@ -327,7 +333,17 @@ fun ManagerScreen(
                 )
                 selectedTab == 2 -> StockTab(
                     state = state,
-                    onAdjust = { adjustingProduct = it },
+                    onSearchChange = viewModel::setStockSearch,
+                    onRetryProducts = viewModel::loadProducts,
+                    onAdjust = {
+                        viewModel.consumeActionError()
+                        adjustingProduct = it
+                    }
+                )
+                selectedTab == 3 -> PricesTab(
+                    state = state,
+                    onSearchChange = viewModel::setPriceSearch,
+                    onRetryProducts = viewModel::loadProducts,
                     onEditPrice = { editingPriceProduct = it }
                 )
                 else -> StaffRequestsTab()
@@ -420,15 +436,13 @@ fun ManagerScreen(
         AdjustStockDialog(
             product = product,
             stockBusy = state.adjustingProductId == product.id,
-            priceBusy = state.updatingPriceProductId == product.id,
-            onDismiss = { adjustingProduct = null },
-            onConfirmStock = { delta, note ->
-                viewModel.adjustStock(product, delta, note)
+            error = state.actionError,
+            onDismiss = {
+                viewModel.consumeActionError()
                 adjustingProduct = null
             },
-            onConfirmPrice = { selling, mrp ->
-                viewModel.updateProductPriceById(product.id, product.name, selling, mrp)
-                adjustingProduct = null
+            onConfirmStock = { delta, note ->
+                viewModel.adjustStock(product, delta, note) { adjustingProduct = null }
             }
         )
     }
@@ -812,141 +826,283 @@ private fun ManagerOrderCard(
 }
 
 @Composable
-private fun StockTab(
+internal fun StockTab(
     state: ManagerUiState,
-    onAdjust: (LowStockProduct) -> Unit,
-    onEditPrice: (com.balaji.provision.domain.model.Product) -> Unit
+    onSearchChange: (String) -> Unit,
+    onRetryProducts: () -> Unit,
+    onAdjust: (LowStockProduct) -> Unit
 ) {
-    var searchProduct by rememberSaveable { mutableStateOf("") }
-    val filteredProducts = state.products.filter { p ->
-        val query = searchProduct.trim()
-        query.isEmpty() ||
-            p.name.contains(query, ignoreCase = true) ||
-            p.sku.contains(query, ignoreCase = true)
-    }
+    val filteredProducts = state.filteredStockProducts
+    val filteredLowStock = state.filteredLowStock
     val imageByProductId = state.products.associate { it.id to it.imagePath }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        if (state.lowStock.isNotEmpty()) {
+    Column(Modifier.fillMaxSize()) {
+        OutlinedTextField(
+            value = state.stockSearchQuery,
+            onValueChange = onSearchChange,
+            label = { Text("Search product by name or SKU") },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            trailingIcon = {
+                if (state.stockSearchQuery.isNotEmpty()) {
+                    IconButton(onClick = { onSearchChange("") }) {
+                        Icon(Icons.Default.Close, contentDescription = "Clear stock search")
+                    }
+                }
+            },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+        state.productsError?.let { message ->
+            ErrorBanner(message)
+            TextButton(onClick = onRetryProducts, enabled = !state.isProductsLoading) {
+                Text("Retry loading products")
+            }
+        }
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (state.isProductsLoading) {
+                item {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Text("Loading products…")
+                    }
+                }
+            }
+            if (filteredLowStock.isNotEmpty()) {
+                item {
+                    Text(
+                        "Low stock alert",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        "Update stock after a physical count. Every change is recorded in the audit trail.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                items(filteredLowStock, key = { "low_${it.id}" }) { product ->
+                    Card(shape = RoundedCornerShape(14.dp)) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            ProductThumb(
+                                name = product.name,
+                                imageUrl = imageByProductId[product.id],
+                                size = 56
+                            )
+                            Column(Modifier.weight(1f)) {
+                                Text(product.name, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    "${product.sku} · ${product.quantityLabel} left (threshold ${product.threshold})",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    // The low-stock RPC returns MRP on a migrated database. Until the
+                                    // follow-up migration is applied, enrich the row from the already
+                                    // loaded catalogue so the dialog cannot open with a blank MRP and
+                                    // clear it when the manager saves a price.
+                                    val catalogueProduct =
+                                        state.products.firstOrNull { it.id == product.id }
+                                    onAdjust(
+                                        if (catalogueProduct == null) {
+                                            product
+                                        } else {
+                                            product.copy(
+                                                priceBasisQty = catalogueProduct.priceBasisQty,
+                                                pricePaise = catalogueProduct.pricePaise,
+                                                mrpPaise = catalogueProduct.mrpPaise
+                                            )
+                                        }
+                                    )
+                                },
+                                enabled = state.adjustingProductId == null
+                            ) {
+                                Text("Adjust")
+                            }
+                        }
+                    }
+                }
+            }
+
             item {
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    "Low stock alert",
+                    "All products",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    "Update stock after a physical count. Every change is recorded in the audit trail.",
+                    "Add or remove stock for any product. Quantities are in whole packs or grams.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            items(state.lowStock, key = { "low_${it.id}" }) { product ->
-                Card(shape = RoundedCornerShape(14.dp)) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        ProductThumb(
-                            name = product.name,
-                            imageUrl = imageByProductId[product.id],
-                            size = 56
-                        )
-                        Column(Modifier.weight(1f)) {
-                            Text(product.name, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                "${product.sku} · ${product.quantityLabel} left (threshold ${product.threshold})",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+
+            if (filteredProducts.isEmpty() && !state.isProductsLoading && state.productsError == null) {
+                item {
+                    Text(
+                        if (state.products.isEmpty()) "No products loaded." else "No products match this search.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                items(filteredProducts, key = { "prod_${it.id}" }) { product ->
+                    Card(shape = RoundedCornerShape(14.dp)) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            ProductThumb(
+                                name = product.name,
+                                imageUrl = product.imagePath,
+                                size = 56
                             )
-                        }
-                        OutlinedButton(
-                            onClick = {
-                                // The low-stock RPC returns MRP on a migrated database. Until the
-                                // follow-up migration is applied, enrich the row from the already
-                                // loaded catalogue so the dialog cannot open with a blank MRP and
-                                // clear it when the manager saves a price.
-                                val catalogueProduct =
-                                    state.products.firstOrNull { it.id == product.id }
-                                onAdjust(
-                                    if (catalogueProduct == null) {
-                                        product
-                                    } else {
-                                        product.copy(
-                                            priceBasisQty = catalogueProduct.priceBasisQty,
-                                            pricePaise = catalogueProduct.pricePaise,
-                                            mrpPaise = catalogueProduct.mrpPaise
+                            Column(Modifier.weight(1f)) {
+                                Text(product.name, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    "${product.sku} · ${product.packLabel}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    "Stock: ${product.toStockAdjustmentProduct().quantityLabel}",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "Selling: ${formatPaise(product.pricePaise)}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    if (product.hasDiscount) {
+                                        Text(
+                                            "MRP: ${formatPaise(product.mrpPaise!!)}",
+                                            style = MaterialTheme.typography.bodySmall.copy(textDecoration = TextDecoration.LineThrough),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
-                                )
-                            },
-                            enabled = state.adjustingProductId == null
-                        ) {
-                            Text("Adjust")
+                                }
+                            }
+                            OutlinedButton(
+                                onClick = { onAdjust(product.toStockAdjustmentProduct()) },
+                                enabled = state.adjustingProductId == null,
+                                modifier = Modifier.heightIn(min = 48.dp).semantics {
+                                    contentDescription = "Edit stock for ${product.name}"
+                                }
+                            ) {
+                                Text("Edit stock")
+                            }
                         }
                     }
                 }
             }
         }
+    }
+}
 
-        item {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "Product Pricing & Catalogue",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                "Staff members can update selling prices and MRPs for all products.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            OutlinedTextField(
-                value = searchProduct,
-                onValueChange = { searchProduct = it },
-                label = { Text("Search product by name or SKU") },
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp)
-            )
+@Composable
+internal fun PricesTab(
+    state: ManagerUiState,
+    onSearchChange: (String) -> Unit,
+    onRetryProducts: () -> Unit,
+    onEditPrice: (com.balaji.provision.domain.model.Product) -> Unit
+) {
+    val filteredProducts = state.filteredPriceProducts
+
+    Column(Modifier.fillMaxSize()) {
+        OutlinedTextField(
+            value = state.priceSearchQuery,
+            onValueChange = onSearchChange,
+            label = { Text("Search product by name or SKU") },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            trailingIcon = {
+                if (state.priceSearchQuery.isNotEmpty()) {
+                    IconButton(onClick = { onSearchChange("") }) {
+                        Icon(Icons.Default.Close, contentDescription = "Clear price search")
+                    }
+                }
+            },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+        state.productsError?.let { message ->
+            ErrorBanner(message)
+            TextButton(onClick = onRetryProducts, enabled = !state.isProductsLoading) {
+                Text("Retry loading products")
+            }
         }
-
-        if (filteredProducts.isEmpty()) {
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             item {
                 Text(
-                    if (state.products.isEmpty()) "No products loaded." else "No products match this search.",
+                    "Product pricing",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    "Update selling prices and MRPs. Prices are in Rupees for one pack or unit.",
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-        } else {
-            items(filteredProducts, key = { "prod_${it.id}" }) { product ->
-                Card(shape = RoundedCornerShape(14.dp)) {
+            if (state.isProductsLoading) {
+                item {
                     Row(
-                        modifier = Modifier.padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        ProductThumb(
-                            name = product.name,
-                            imageUrl = product.imagePath,
-                            size = 56
-                        )
-                        Column(Modifier.weight(1f)) {
-                            Text(product.name, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                "${product.sku} · ${product.packLabel}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Text("Loading products...")
+                    }
+                }
+            }
+            if (filteredProducts.isEmpty() && !state.isProductsLoading && state.productsError == null) {
+                item {
+                    Text(
+                        if (state.products.isEmpty()) "No products loaded." else "No products match this search.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                items(filteredProducts, key = { "price_${it.id}" }) { product ->
+                    Card(shape = RoundedCornerShape(14.dp)) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            ProductThumb(
+                                name = product.name,
+                                imageUrl = product.imagePath,
+                                size = 56
                             )
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(product.name, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    "${product.sku} · ${product.packLabel}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                                 Text(
                                     "Selling: ${formatPaise(product.pricePaise)}",
                                     style = MaterialTheme.typography.bodyMedium,
@@ -961,12 +1117,15 @@ private fun StockTab(
                                     )
                                 }
                             }
-                        }
-                        OutlinedButton(
-                            onClick = { onEditPrice(product) },
-                            enabled = state.updatingPriceProductId == null
-                        ) {
-                            Text("Edit Price")
+                            OutlinedButton(
+                                onClick = { onEditPrice(product) },
+                                enabled = state.updatingPriceProductId == null,
+                                modifier = Modifier.heightIn(min = 48.dp).semantics {
+                                    contentDescription = "Edit price for ${product.name}"
+                                }
+                            ) {
+                                Text("Edit Price")
+                            }
                         }
                     }
                 }
@@ -1458,167 +1617,100 @@ private fun RiderPickerDialog(
     )
 }
 
-private enum class AdjustMode { STOCK, PRICE }
-
 @Composable
-private fun AdjustStockDialog(
+internal fun AdjustStockDialog(
     product: LowStockProduct,
     stockBusy: Boolean,
-    priceBusy: Boolean,
+    error: String?,
     onDismiss: () -> Unit,
-    onConfirmStock: (Long, String?) -> Unit,
-    onConfirmPrice: (Long, Long?) -> Unit
+    onConfirmStock: (Long, String?) -> Unit
 ) {
-    var mode by remember { mutableStateOf(AdjustMode.STOCK) }
-
-    // Stock state
     var amount by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var adding by remember { mutableStateOf(true) }
-    val quantity = amount.trim().toLongOrNull()
-    val delta = quantity?.takeIf { it > 0 }?.let { if (adding) it else -it }
+    val delta = stockAdjustmentDelta(amount, adding, product.stockQty)
     val unit = if (product.quantityType == "weighted") "grams" else "packs"
     val newStock = delta?.let { product.stockQty + it }
 
-    // Price state. Every conversion is integer paise; the text field never becomes a Double.
-    var sellingPriceText by remember { mutableStateOf(if (product.pricePaise > 0L) formatRupeesInput(product.pricePaise) else "") }
-    var mrpText by remember { mutableStateOf(product.mrpPaise?.takeIf { it > 0L }?.let(::formatRupeesInput).orEmpty()) }
-
-    val sellingPaise = parseRupeesToPaise(sellingPriceText)
-    val mrpPaise = if (mrpText.isBlank()) null else parseRupeesToPaise(mrpText)
-
-    // ₹0 would make a live product free. Draft rows may legitimately hold 0, so the field is
-    // blank for those and Save stays disabled until the manager types a real price.
-    val validSelling = sellingPaise != null && sellingPaise > 0L
-    val validMrp = mrpText.isBlank() || mrpPaise != null
-    val priceUnit = product.priceUnitLabel
-
-    val busy = stockBusy || priceBusy
+    val busy = stockBusy
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!busy) onDismiss() },
         title = { Text("Adjust ${product.name}") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 Text("${product.sku} · Current stock: ${product.quantityLabel}")
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = mode == AdjustMode.STOCK,
-                        onClick = { mode = AdjustMode.STOCK },
-                        label = { Text("Adjust Stock") }
-                    )
-                    FilterChip(
-                        selected = mode == AdjustMode.PRICE,
-                        onClick = { mode = AdjustMode.PRICE },
-                        label = { Text("Adjust Price & MRP") }
-                    )
+                error?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error)
                 }
 
-                if (mode == AdjustMode.STOCK) {
-                    Text("Choose whether to add or remove stock, then enter the quantity in $unit.")
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(
-                            selected = adding,
-                            onClick = { adding = true },
-                            label = { Text("Add stock") }
-                        )
-                        FilterChip(
-                            selected = !adding,
-                            onClick = { adding = false },
-                            label = { Text("Remove stock") }
-                        )
-                    }
-                    OutlinedTextField(
-                        value = amount,
-                        onValueChange = { input -> amount = input.filter(Char::isDigit) },
-                        label = { Text("Quantity in $unit") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth()
+                Text("Choose whether to add or remove stock, then enter the quantity in $unit.")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = adding,
+                        onClick = { adding = true },
+                        enabled = !busy,
+                        label = { Text("Add stock") }
                     )
-                    OutlinedTextField(
-                        value = note,
-                        onValueChange = { note = it },
-                        label = { Text("Note (optional)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                    FilterChip(
+                        selected = !adding,
+                        onClick = { adding = false },
+                        enabled = !busy,
+                        label = { Text("Remove stock") }
                     )
-                    if (delta != null && delta != 0L) {
-                        Text(
-                            if (newStock != null && newStock < 0) {
-                                "Cannot remove more than the current stock."
-                            } else {
-                                "New stock: $newStock"
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (newStock != null && newStock < 0) {
-                                MaterialTheme.colorScheme.error
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            }
-                        )
-                    }
-                } else {
+                }
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { amount = it },
+                    label = { Text("Quantity in $unit") },
+                    enabled = !busy,
+                    isError = amount.isNotBlank() && delta == null,
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { note = it },
+                    label = { Text("Note (optional)") },
+                    enabled = !busy,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (amount.isNotBlank() && delta == null) {
                     Text(
-                        "Enter the new selling price and optional printed MRP in Rupees (₹) " +
-                            "for one $priceUnit."
+                        "Enter a positive whole number in $unit. Removed stock cannot exceed current stock.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
                     )
-                    OutlinedTextField(
-                        value = sellingPriceText,
-                        onValueChange = { sellingPriceText = filterRupeesInput(it) },
-                        label = { Text("Selling Price (₹ per $priceUnit) *") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = mrpText,
-                        onValueChange = { mrpText = filterRupeesInput(it) },
-                        label = { Text("MRP (₹ per $priceUnit) (Optional)") },
-                        singleLine = true,
-                        placeholder = { Text("e.g. 100") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    when {
-                        sellingPaise == 0L -> Text(
-                            "A selling price of ₹0 would make this product free. Enter an amount greater than zero.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                        mrpPaise != null && sellingPaise != null && mrpPaise > sellingPaise -> {
-                            val discount = ((mrpPaise - sellingPaise) * 100 / mrpPaise).toInt()
-                            Text(
-                                "MRP is higher than selling price. Customer app will show $discount% OFF with strikethrough MRP.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                } else if (delta != null) {
+                    Text(
+                        if (newStock != null && newStock < 0) {
+                            "Cannot remove more than the current stock."
+                        } else {
+                            "New stock: $newStock $unit"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (newStock != null && newStock < 0) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
                         }
-                        mrpPaise != null && sellingPaise != null && mrpPaise <= sellingPaise -> Text(
-                            "MRP is not above the selling price, so the customer app will not show a discount.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    )
                 }
             }
         },
         confirmButton = {
-            if (mode == AdjustMode.STOCK) {
-                TextButton(
-                    onClick = { onConfirmStock(delta ?: 0L, note.trim().ifBlank { null }) },
-                    enabled = !busy && delta != null && delta != 0L && (newStock ?: 0L) >= 0L
-                ) { Text(if (stockBusy) "Saving..." else "Save Stock") }
-            } else {
-                TextButton(
-                    onClick = { sellingPaise?.let { onConfirmPrice(it, mrpPaise) } },
-                    enabled = !busy && validSelling && validMrp
-                ) { Text(if (priceBusy) "Saving..." else "Save Price") }
-            }
+            TextButton(
+                onClick = { onConfirmStock(delta ?: 0L, note.trim().ifBlank { null }) },
+                enabled = !busy && delta != null && delta != 0L && (newStock ?: 0L) >= 0L
+            ) { Text(if (stockBusy) "Saving..." else "Save Stock") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss, enabled = !busy) { Text("Cancel") }
         }
     )
 }

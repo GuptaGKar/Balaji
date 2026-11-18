@@ -45,7 +45,9 @@ class BrowsingControlsTest {
         compose.setContent {
             BalajiTheme { StoreSearchBar(query = "rice", onQueryChange = {}) }
         }
-        compose.onNode(hasSetTextAction()).performClick().performImeAction().assertIsNotFocused()
+        val input = compose.onNode(hasSetTextAction())
+        input.performClick().performImeAction()
+        input.assertIsNotFocused()
     }
 
     @Test

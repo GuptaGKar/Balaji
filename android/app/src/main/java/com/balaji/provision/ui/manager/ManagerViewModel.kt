@@ -34,6 +34,9 @@ data class ManagerUiState(
     val adjustingProductId: String? = null,
     val products: List<Product> = emptyList(),
     val isProductsLoading: Boolean = false,
+    val productsError: String? = null,
+    val stockSearchQuery: String = "",
+    val priceSearchQuery: String = "",
     val storeOpen: Boolean = true,
     val isStoreToggleInProgress: Boolean = false,
     val updatingPriceProductId: String? = null,
@@ -44,6 +47,15 @@ data class ManagerUiState(
     val isItemsPageLoading: Boolean = false,
     val itemsPageError: String? = null
 ) {
+    val filteredStockProducts: List<Product>
+        get() = products.filter { matchesStockSearch(it.name, it.sku, stockSearchQuery) }
+
+    val filteredLowStock: List<LowStockProduct>
+        get() = lowStock.filter { matchesStockSearch(it.name, it.sku, stockSearchQuery) }
+
+    val filteredPriceProducts: List<Product>
+        get() = products.filter { matchesStockSearch(it.name, it.sku, priceSearchQuery) }
+
     val selectedOrder: ManagerOrder?
         get() = orders.firstOrNull { it.id == selectedOrderId }
 
@@ -88,12 +100,14 @@ class ManagerViewModel @Inject constructor(
     val state: StateFlow<ManagerUiState> = _state.asStateFlow()
 
     private var loadJob: Job? = null
+    private var productsJob: Job? = null
 
     init {
         refresh()
     }
 
     fun refresh() {
+        loadProducts()
         // Keep the header switch honest even when another device changed the status.
         viewModelScope.launch {
             when (val status = repository.storeStatus()) {
@@ -141,11 +155,28 @@ class ManagerViewModel @Inject constructor(
                     it.copy(error = it.error ?: result.message)
                 }
             }
+        }
+    }
+
+    fun setStockSearch(query: String) {
+        _state.update { it.copy(stockSearchQuery = query) }
+    }
+
+    fun setPriceSearch(query: String) {
+        _state.update { it.copy(priceSearchQuery = query) }
+    }
+
+    fun loadProducts() {
+        productsJob?.cancel()
+        _state.update { it.copy(isProductsLoading = true, productsError = null) }
+        productsJob = viewModelScope.launch {
             when (val result = repository.loadAllProducts()) {
                 is ManagerResult.Success -> _state.update {
-                    it.copy(products = result.value)
+                    it.copy(products = result.value, isProductsLoading = false, productsError = null)
                 }
-                is ManagerResult.Failure -> { /* ignore optional catalogue fetch error */ }
+                is ManagerResult.Failure -> _state.update {
+                    it.copy(isProductsLoading = false, productsError = result.message)
+                }
             }
         }
     }
@@ -317,10 +348,15 @@ class ManagerViewModel @Inject constructor(
         }
     }
 
-    fun adjustStock(product: LowStockProduct, deltaQty: Long, note: String?) {
+    fun adjustStock(
+        product: LowStockProduct,
+        deltaQty: Long,
+        note: String?,
+        onSuccess: () -> Unit = {}
+    ) {
         if (deltaQty == 0L || _state.value.adjustingProductId != null) return
+        _state.update { it.copy(adjustingProductId = product.id, actionError = null, message = null) }
         viewModelScope.launch {
-            _state.update { it.copy(adjustingProductId = product.id, actionError = null) }
             when (val result = repository.adjustStock(
                 productId = product.id,
                 deltaQty = deltaQty,
@@ -331,9 +367,16 @@ class ManagerViewModel @Inject constructor(
                     _state.update {
                         it.copy(
                             adjustingProductId = null,
+                            products = it.products.map { row ->
+                                if (row.id == product.id) row.copy(stockQty = result.value) else row
+                            },
+                            lowStock = it.lowStock.map { row ->
+                                if (row.id == product.id) row.copy(stockQty = result.value) else row
+                            }.filter { row -> row.stockQty <= row.threshold },
                             message = "${product.name}: stock updated to ${result.value}."
                         )
                     }
+                    onSuccess()
                     refresh()
                 }
                 is ManagerResult.Failure -> _state.update {
