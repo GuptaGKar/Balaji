@@ -1,6 +1,7 @@
 package com.balaji.provision.ui.home
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -95,6 +96,8 @@ import com.balaji.provision.ui.components.StatusPill
 import com.balaji.provision.ui.components.StoreSearchBar
 import com.balaji.provision.ui.components.WeightedQuantityDialog
 import com.balaji.provision.ui.components.categoryColors
+import com.balaji.provision.ui.theme.LightOnSurface
+import com.balaji.provision.ui.theme.LightOnSurfaceVariant
 import com.balaji.provision.ui.theme.appColors
 import kotlinx.coroutines.delay
 
@@ -1202,7 +1205,10 @@ private fun HomeBrandHeader(
                 Icon(
                     Icons.Default.LocationOn,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
+                    // The card is paper-white in both themes (it sits on the orange header), so
+                    // its contents use fixed ink rather than the theme's text roles: in dark mode
+                    // those roles are light and the card was white-on-white on device.
+                    tint = BalajiDesign.Primary,
                     modifier = Modifier.size(20.dp)
                 )
                 Column(modifier = Modifier.weight(1f)) {
@@ -1215,14 +1221,14 @@ private fun HomeBrandHeader(
                         Text(
                             text = addressLabel,
                             style = BalajiText.ProductName,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = LightOnSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                         Icon(
                             Icons.Default.ArrowDropDown,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = LightOnSurfaceVariant,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -1230,7 +1236,7 @@ private fun HomeBrandHeader(
                         Text(
                             text = addressArea,
                             style = BalajiText.Metadata,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = LightOnSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -1244,7 +1250,9 @@ private fun HomeBrandHeader(
                 if (storeOpen && chipText != null) {
                     Surface(
                         shape = RoundedCornerShape(50),
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+                        // Fixed orange on the white card: the dark theme's primary is amber, which
+                        // reads as a pale wash on white.
+                        color = BalajiDesign.Primary.copy(alpha = 0.10f)
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -1254,14 +1262,14 @@ private fun HomeBrandHeader(
                             Icon(
                                 Icons.Default.LocalShipping,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
+                                tint = BalajiDesign.Primary,
                                 modifier = Modifier.size(18.dp)
                             )
                             Text(
                                 text = chipText,
                                 style = BalajiText.Metadata,
                                 fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface,
+                                color = LightOnSurface,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -1337,7 +1345,11 @@ private fun HomeServiceTiles(
             Surface(
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(BalajiDesign.RadiusCard),
-                color = Color.White.copy(alpha = 0.96f),
+                // Theme surface, not paper white: in dark mode the white tile was a glare block
+                // whose onSurface label was the same near-white. The hairline only shows in dark,
+                // because outlineVariant is near-white in the light scheme.
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                 shadowElevation = 2.dp
             ) {
                 Column(

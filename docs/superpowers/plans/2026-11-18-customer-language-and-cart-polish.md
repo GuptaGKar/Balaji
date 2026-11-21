@@ -81,6 +81,25 @@
 - [x] Feature tiles translated and a saved-address label left raw; both were
       device findings from the Hindi pass.
 
+### Branch merge (owner request, 2026-11-21)
+
+- [x] Committed the customer pass as `e899a19` so the tree was clean to merge.
+- [x] Merged `master` (`7ad69ec`) into `feature/customer-orange-glass-v3`.
+      Conflicts resolved: `ProductDetailsScreen.kt` (kept the localized hero label
+      on master's flat hero), `CustomerDetailsScreen.kt` (master's manual-entry
+      button kept the plain modifier; the GPS button's semantics moved through
+      `tr(...)`), `CheckoutScreen.kt` (accepted master's deletion) and
+      `DECISIONS.md` (kept both histories in date order).
+- [x] Ported the localization master's new file needs: `CheckoutSections.kt`
+      now imports `LocalizedText as Text`, a saved-address label is rendered raw,
+      and the four new labels are in `HindiStrings` (`Delivery`,
+      `Enter address manually`).
+- [x] Cart row and `onOpenProduct` survived the merge; the basket keeps the
+      address-on-top order and the slide now places the order.
+- [ ] Re-run the Android gates on the merged tree (in progress).
+- [ ] Reinstall and check the basket, cart → product and the product page on
+      the device.
+
 ### Device checks (SM-A346E, release-signed debug build)
 
 - [x] English home, Hindi switch under Profile, Hindi home, categories,

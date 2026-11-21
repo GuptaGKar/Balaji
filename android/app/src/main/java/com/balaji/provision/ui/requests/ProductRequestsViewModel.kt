@@ -107,24 +107,4 @@ class ProductRequestsViewModel @Inject constructor(
             }
         }
     }
-
-    /** Uploads the optional order photo, then attaches it to the freshly placed order. */
-    fun attachPhoto(
-        orderId: String,
-        bytes: ByteArray,
-        mimeType: String,
-        onDone: (Boolean, String) -> Unit
-    ) {
-        viewModelScope.launch {
-            when (val upload = repository.uploadOrderImage(bytes, mimeType)) {
-                is RequestOutcome.Failure -> onDone(false, upload.message)
-                is RequestOutcome.Success -> {
-                    when (val attach = repository.attachOrderImage(orderId, upload.value)) {
-                        is RequestOutcome.Success -> onDone(true, "Photo attached to your order.")
-                        is RequestOutcome.Failure -> onDone(false, attach.message)
-                    }
-                }
-            }
-        }
-    }
 }

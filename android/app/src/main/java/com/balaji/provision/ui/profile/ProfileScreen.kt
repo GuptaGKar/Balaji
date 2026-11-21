@@ -1,6 +1,7 @@
 package com.balaji.provision.ui.profile
 
 import android.content.Intent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -86,7 +87,9 @@ fun ProfileScreen(
     onOpenFavourites: () -> Unit = {},
     homeViewModel: HomeViewModel = hiltViewModel(),
     authViewModel: AuthViewModel = hiltViewModel(),
-    accountViewModel: AccountViewModel = hiltViewModel()
+    // Supplied by the shell so the profile, cart, checkout and the first-run gate read one copy
+    // of the profile and address list.
+    accountViewModel: AccountViewModel
 ) {
     val scrollState = rememberScrollState()
     val context = LocalContext.current
@@ -370,7 +373,16 @@ fun ProfileScreen(
                     if (session != null) {
                         OutlinedButton(
                             onClick = { showEditProfile = true },
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(12.dp),
+                            // The banner is the brown/orange primaryContainer, so the default
+                            // outline (a neutral grey-blue) read as a foreign blue ring on device.
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ),
+                            border = BorderStroke(
+                                1.dp,
+                                MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.45f)
+                            )
                         ) {
                             Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))

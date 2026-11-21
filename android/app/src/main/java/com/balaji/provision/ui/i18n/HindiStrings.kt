@@ -192,6 +192,7 @@ internal val HindiStrings: Map<String, String> = mapOf(
     "Delivery instructions (optional)" to "डिलीवरी के निर्देश (वैकल्पिक)",
     "Payment method" to "भुगतान का तरीका",
     "Payment" to "भुगतान",
+    "Delivery" to "डिलीवरी",
     "Payment & instructions" to "भुगतान और निर्देश",
     "Cash on Delivery" to "कैश ऑन डिलीवरी",
     "Cash on Delivery (COD)" to "कैश ऑन डिलीवरी (COD)",
@@ -222,6 +223,7 @@ internal val HindiStrings: Map<String, String> = mapOf(
         "चेकआउट से पहले अपने कार्ट में किराना जोड़ें।",
     "Add or select a delivery address." to "डिलीवरी का पता जोड़ें या चुनें।",
     "Add delivery address" to "डिलीवरी का पता जोड़ें",
+    "Enter address manually" to "पता खुद भरें",
     "Add the address where you want your groceries delivered." to
         "वह पता जोड़ें जहाँ आपको किराना चाहिए।",
     "Add a delivery address once and reuse it for every order." to

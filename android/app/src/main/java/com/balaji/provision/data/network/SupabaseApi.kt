@@ -405,24 +405,6 @@ interface SupabaseApi {
         @Body body: SubmitOrderReviewRequest
     ): Response<SubmitOrderReviewResponse>
 
-    @POST("rest/v1/rpc/attach_order_image")
-    suspend fun attachOrderImage(
-        @Header("apikey") apiKey: String,
-        @Header("Authorization") auth: String,
-        @Header("Content-Type") contentType: String = "application/json",
-        @Body body: AttachOrderImageRequest
-    ): Response<AttachOrderImageResponse>
-
-    @POST("storage/v1/object/order-images/{path}")
-    suspend fun uploadOrderImage(
-        @Header("apikey") apiKey: String,
-        @Header("Authorization") auth: String,
-        @Header("Content-Type") contentType: String,
-        @Header("x-upsert") upsert: String = "true",
-        @Path(value = "path", encoded = true) path: String,
-        @Body body: okhttp3.RequestBody
-    ): Response<Unit>
-
     // Dispatch / delivery proof (photo or video)
     @GET("rest/v1/order_proofs")
     suspend fun getOrderProofs(
@@ -606,20 +588,6 @@ data class SubmitOrderReviewRequest(
 @Serializable
 data class SubmitOrderReviewResponse(
     val review_id: String? = null,
-    val error: String? = null,
-    val message: String? = null
-)
-
-@Serializable
-data class AttachOrderImageRequest(
-    val p_order_id: String,
-    val p_image_path: String
-)
-
-@Serializable
-data class AttachOrderImageResponse(
-    val order_id: String? = null,
-    val image_path: String? = null,
     val error: String? = null,
     val message: String? = null
 )

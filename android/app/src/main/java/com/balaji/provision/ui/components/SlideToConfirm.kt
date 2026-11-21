@@ -106,8 +106,9 @@ fun slideLabelFor(state: SlideConfirmState, label: String, successLabel: String?
 
 /**
  * @param label what the gesture does, e.g. "Slide to Place Order". The brief is explicit that this
- *   wording has to match reality: "Slide to Checkout" while steps remain, "Slide to Place Order"
- *   only where the gesture really submits.
+ *   wording has to match reality, so the label says "Place Order" only where the gesture really
+ *   submits the order; the basket used to say "Slide to Checkout" while a separate checkout step
+ *   still had to run, and that step no longer exists.
  * @param onConfirm called once per completed gesture, and by the accessibility action.
  * @param commitFraction fraction of the travel that counts as a deliberate slide.
  * @param successLabel shown after the caller has confirmed the server accepted the action.
