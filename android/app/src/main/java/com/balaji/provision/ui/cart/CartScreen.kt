@@ -42,7 +42,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.balaji.provision.ui.i18n.LocalizedText as Text
+import com.balaji.provision.ui.i18n.tr
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -97,6 +98,7 @@ fun CartScreen(
     onNavigateToCheckout: () -> Unit,
     onNavigateToCatalog: () -> Unit = {},
     onBack: () -> Unit = {},
+    onOpenProduct: (productId: String) -> Unit = {},
     homeViewModel: HomeViewModel = hiltViewModel(),
     accountViewModel: AccountViewModel = hiltViewModel()
 ) {
@@ -163,7 +165,7 @@ fun CartScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                Icon(Icons.Default.ArrowBack, contentDescription = tr("Back"))
             }
             // The reference cart names the count in the title and puts the destructive action in
             // words on the right ("Clear"); a lone red bin read as an icon to guess at, and the
@@ -247,7 +249,8 @@ fun CartScreen(
                             onQuantityChange = { newQty ->
                                 viewModel.updateQuantity(item.productId, newQty)
                             },
-                            onRemove = { viewModel.removeItem(item.productId) }
+                            onRemove = { viewModel.removeItem(item.productId) },
+                            onOpenProduct = onOpenProduct
                         )
                     }
 
@@ -370,7 +373,8 @@ fun CartItemRow(
     product: Product?,
     onEditWeight: (Product) -> Unit,
     onQuantityChange: (Long) -> Unit,
-    onRemove: () -> Unit
+    onRemove: () -> Unit,
+    onOpenProduct: (productId: String) -> Unit = {}
 ) {
     val isWeighted = product?.quantityType == QuantityType.WEIGHTED
     val name = lineInfo?.name ?: product?.name ?: "Item #${item.productId}"
@@ -419,7 +423,17 @@ fun CartItemRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            ProductThumb(name = name, size = 60, imageUrl = product?.imagePath)
+            // The basket is a shortcut, not a dead end: tapping the pack's image or
+            // name opens its live product page so the customer can change pack size,
+            // read the description or check stock without emptying the basket first.
+            Box(
+                modifier = Modifier.clickable(
+                    enabled = product != null,
+                    onClickLabel = tr("Open $name")
+                ) { onOpenProduct(item.productId) }
+            ) {
+                ProductThumb(name = name, size = 60, imageUrl = product?.imagePath)
+            }
 
             Column(
                 modifier = Modifier.weight(1f),
@@ -428,6 +442,10 @@ fun CartItemRow(
                 Text(
                     text = name,
                     style = BalajiText.ProductName,
+                    modifier = Modifier.clickable(
+                        enabled = product != null,
+                        onClickLabel = tr("Open $name")
+                    ) { onOpenProduct(item.productId) },
                     color = if (lineInfo?.available == false) {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     } else {
@@ -869,7 +887,7 @@ private fun FreeItemPickerCard(
                         if (selected) {
                             Icon(
                                 Icons.Default.CheckCircle,
-                                contentDescription = "Selected as your free item",
+                                contentDescription = tr("Selected as your free item"),
                                 tint = MaterialTheme.appColors.success,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -1003,7 +1021,9 @@ private fun CouponCard(
                     .fillMaxWidth()
                     .clickable(
                         enabled = !applied,
-                        onClickLabel = if (expanded) "Close coupon entry" else "Enter a coupon code"
+                        onClickLabel = tr(
+                            if (expanded) "Close coupon entry" else "Enter a coupon code"
+                        )
                     ) { expanded = !expanded }
                     .padding(horizontal = 16.dp, vertical = 15.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1039,7 +1059,7 @@ private fun CouponCard(
                     ) {
                         Icon(
                             Icons.Default.Close,
-                            contentDescription = "Remove coupon $appliedCode",
+                            contentDescription = tr("Remove coupon $appliedCode"),
                             tint = MaterialTheme.appColors.success,
                             modifier = Modifier.size(18.dp)
                         )

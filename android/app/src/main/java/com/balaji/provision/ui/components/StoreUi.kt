@@ -29,7 +29,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.balaji.provision.ui.i18n.LocalizedText as Text
+import com.balaji.provision.ui.i18n.tr
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -76,7 +77,7 @@ fun StoreTopBar(
                 IconButton(onClick = onBack) {
                     Icon(
                         Icons.Default.ArrowBack,
-                        contentDescription = "Back",
+                        contentDescription = tr("Back"),
                         tint = MaterialTheme.colorScheme.onSurface
                     )
                 }

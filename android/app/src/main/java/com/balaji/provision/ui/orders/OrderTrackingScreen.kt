@@ -31,7 +31,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.balaji.provision.ui.i18n.LocalizedText as Text
+import com.balaji.provision.ui.i18n.tr
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -88,7 +89,7 @@ fun OrderTrackingScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                Icon(Icons.Default.ArrowBack, contentDescription = tr("Back"))
             }
             Text(
                 text = "Track order",
@@ -104,7 +105,7 @@ fun OrderTrackingScreen(
                 )
             }
             IconButton(onClick = { viewModel.fetchOrders() }) {
-                Icon(Icons.Default.Refresh, contentDescription = "Refresh order status")
+                Icon(Icons.Default.Refresh, contentDescription = tr("Refresh order status"))
             }
         }
 

@@ -40,7 +40,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.balaji.provision.ui.i18n.LocalizedText as Text
+import com.balaji.provision.ui.i18n.tr
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -144,7 +145,7 @@ fun ProductDetailsScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                Icon(Icons.Default.ArrowBack, contentDescription = tr("Back"))
             }
             Text(
                 text = "Product details",
@@ -169,7 +170,7 @@ fun ProductDetailsScreen(
             }
             if (onShare != null) {
                 IconButton(onClick = onShare) {
-                    Icon(Icons.Default.Share, contentDescription = "Share product")
+                    Icon(Icons.Default.Share, contentDescription = tr("Share product"))
                 }
             }
             CartAction(count = cart.items.size, onClick = onOpenCart)
@@ -344,7 +345,7 @@ fun ProductDetailsLoading(onBack: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                Icon(Icons.Default.ArrowBack, contentDescription = tr("Back"))
             }
             Text("Product", style = MaterialTheme.typography.titleMedium)
         }
@@ -361,11 +362,31 @@ fun ProductDetailsLoading(onBack: () -> Unit) {
 
 @Composable
 private fun ProductImage(product: Product) {
-    com.balaji.provision.ui.components.ProductShowcasePodium(
-        imageUrl = product.imagePath,
-        productName = product.name,
-        modifier = Modifier.fillMaxWidth().aspectRatio(1.25f)
-    )
+    // Flat hero, not the podium: every catalogue image is a white-background JPEG, so a stage
+    // under it only framed the white rectangle. The label is resolved outside the semantics
+    // lambda because tr() is a composable call and the lambda is not.
+    val imageDescription = tr("Image of ${product.name}")
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+            .aspectRatio(1.25f),
+        contentAlignment = Alignment.Center
+    ) {
+        ProductThumb(
+            name = product.name,
+            imageUrl = product.imagePath,
+            contentScale = ContentScale.Fit,
+            shape = RoundedCornerShape(0.dp),
+            backgroundColor = Color.Transparent,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+                .clearAndSetSemantics {
+                    contentDescription = imageDescription
+                }
+        )
+    }
 }
 
 
@@ -610,7 +631,6 @@ private fun DescriptionBlock(description: String) {
 @Composable
 private fun AttributeBlock(product: Product) {
     val rows = buildList {
-        add("SKU" to product.sku)
         add(
             "Unit" to when (product.quantityType) {
                 QuantityType.WEIGHTED -> "Sold by weight"
@@ -677,6 +697,7 @@ private fun PurchaseBar(
     val inCart = inCartQty != null
     val haptics = LocalHapticFeedback.current
     val quantity = inCartQty ?: pendingQty
+    val addToCartLabel = tr("Add ${product.name}, ${product.packLabel}, to cart")
 
     StickyBottomBar {
         if (inCart) {
@@ -752,7 +773,7 @@ private fun PurchaseBar(
                         .fillMaxWidth()
                         .height(BalajiDesign.PrimaryCtaHeight)
                         .clearAndSetSemantics {
-                            contentDescription = "Add ${product.name}, ${product.packLabel}, to cart"
+                            contentDescription = addToCartLabel
                         },
                     shape = RoundedCornerShape(BalajiDesign.RadiusCard),
                     colors = ButtonDefaults.buttonColors(

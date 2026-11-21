@@ -21,7 +21,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.balaji.provision.ui.i18n.LocalizedText as Text
+import com.balaji.provision.ui.i18n.tr
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -233,13 +234,16 @@ fun DeliveryMapPicker(
                 .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center
         ) {
+            // Resolved before the semantics lambda: tr() is composable, the lambda is not.
+            val mapDescription = tr(
+                "Delivery location map. Drag to move the pin to your doorstep."
+            )
             AndroidView(
                 factory = { mapView },
                 modifier = Modifier
                     .fillMaxSize()
                     .semantics {
-                        contentDescription =
-                            "Delivery location map. Drag to move the pin to your doorstep."
+                        contentDescription = mapDescription
                     }
             )
 
@@ -265,12 +269,13 @@ fun DeliveryMapPicker(
                 }
             }
 
+            val recenterLabel = tr("Centre the map on my current location")
             IconButton(
                 onClick = onRecenter,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(8.dp)
-                    .semantics { contentDescription = "Centre the map on my current location" }
+                    .semantics { contentDescription = recenterLabel }
             ) {
                 if (state.isLocating) {
                     CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
@@ -340,15 +345,22 @@ private fun SpotCheckBanner(
             container = DELIVERABLE_CONTAINER
             onContainer = DELIVERABLE_INK
             headline = "We deliver here"
+            // The sentence is assembled here, so the fragments go through tr() rather than
+            // relying on the Text wrapper to match the whole composed line.
+            val deliveryWord = tr("delivery")
+            val freeAboveWord = tr("free above")
+            val freeDelivery = tr("Free delivery")
             detail = buildString {
                 append(
                     when {
-                        availability.feePaise <= 0L -> "Free delivery"
-                        else -> "${formatPaise(availability.feePaise)} delivery"
+                        availability.feePaise <= 0L -> freeDelivery
+                        else -> "${formatPaise(availability.feePaise)} $deliveryWord"
                     }
                 )
                 if (availability.belowChargeThreshold && availability.amountToFreeDeliveryPaise > 0L) {
-                    append(" · free above ")
+                    append(" · ")
+                    append(freeAboveWord)
+                    append(" ")
                     append(formatPaise(availability.amountToFreeDeliveryPaise))
                 }
                 availability.zoneLabel?.let { append(" · $it") }

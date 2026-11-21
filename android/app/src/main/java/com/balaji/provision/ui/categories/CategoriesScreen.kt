@@ -61,7 +61,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.balaji.provision.ui.i18n.LocalizedText as Text
+import com.balaji.provision.ui.i18n.tr
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -293,6 +294,7 @@ private fun CatalogueSearchHeader(
     onSearch: (String) -> Unit
 ) {
     val context = LocalContext.current
+    val searchProductsLabel = tr("Search products")
     // The reference header has a microphone beside the field. It opens the
     // system recogniser (no new dependency or permission); devices without a
     // speech activity get a clear message instead of a dead button.
@@ -370,7 +372,7 @@ private fun CatalogueSearchHeader(
                             keyboardActions = KeyboardActions(onSearch = { onSearch(query) }),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .semantics { contentDescription = "Search products" }
+                                .semantics { contentDescription = searchProductsLabel }
                         )
                     }
 
@@ -381,7 +383,7 @@ private fun CatalogueSearchHeader(
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Close,
-                                contentDescription = "Clear search",
+                                contentDescription = tr("Clear search"),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -392,7 +394,7 @@ private fun CatalogueSearchHeader(
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.ArrowForward,
-                                contentDescription = "Search products",
+                                contentDescription = tr("Search products"),
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(22.dp)
                             )
@@ -421,7 +423,7 @@ private fun CatalogueSearchHeader(
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Mic,
-                                contentDescription = "Search by voice",
+                                contentDescription = tr("Search by voice"),
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(22.dp)
                             )
@@ -626,7 +628,7 @@ private fun ComposedProductTile(product: Product, onClick: () -> Unit) {
         modifier = Modifier
             .width(112.dp)
             .clip(RoundedCornerShape(14.dp))
-            .clickable(onClickLabel = "Open ${product.name}", role = Role.Button, onClick = onClick)
+            .clickable(onClickLabel = tr("Open ${product.name}"), role = Role.Button, onClick = onClick)
             .padding(8.dp),
         horizontalAlignment = Alignment.Start
     ) {
@@ -687,7 +689,7 @@ private fun CatalogueCategoryTile(
         modifier = Modifier
             .clip(RoundedCornerShape(14.dp))
             .clickable(
-                onClickLabel = "Open ${category.name}",
+                onClickLabel = tr("Open ${category.name}"),
                 role = Role.Button,
                 onClick = onClick
             )

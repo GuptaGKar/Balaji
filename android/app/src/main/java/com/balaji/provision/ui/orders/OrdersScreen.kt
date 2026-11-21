@@ -44,7 +44,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.balaji.provision.ui.i18n.LocalizedText as Text
+import com.balaji.provision.ui.i18n.tr
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
@@ -142,7 +143,7 @@ fun OrdersScreen(
                     IconButton(onClick = { viewModel.fetchOrders() }) {
                         Icon(
                             Icons.Default.Refresh,
-                            contentDescription = "Refresh orders",
+                            contentDescription = tr("Refresh orders"),
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }

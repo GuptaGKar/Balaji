@@ -27,7 +27,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.balaji.provision.ui.i18n.LocalizedText as Text
+import com.balaji.provision.ui.i18n.tr
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -152,8 +153,8 @@ fun AnimatedAddQuantityControl(
     LaunchedEffect(quantityBase) { previousQuantity = quantityBase }
 
     val stateLabel = when (mode) {
-        AddControlMode.Add -> if (enabled) "Not added" else "Out of stock"
-        AddControlMode.Stepper -> "$quantityBase in basket"
+        AddControlMode.Add -> tr(if (enabled) "Not added" else "Out of stock")
+        AddControlMode.Stepper -> tr("$quantityBase in basket")
     }
     val digit = stepCount(quantityBase, stepQty)
 
@@ -247,7 +248,7 @@ fun AnimatedAddQuantityControl(
                         ) {
                             Icon(
                                 Icons.Default.Remove,
-                                contentDescription = "Remove one from ${productName}",
+                                contentDescription = tr("Remove one from ${productName}"),
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(16.dp)
                             )
@@ -295,7 +296,7 @@ fun AnimatedAddQuantityControl(
                         ) {
                             Icon(
                                 Icons.Default.Add,
-                                contentDescription = "Add one more to $productName",
+                                contentDescription = tr("Add one more to $productName"),
                                 tint = if (canIncrease) {
                                     MaterialTheme.colorScheme.primary
                                 } else {

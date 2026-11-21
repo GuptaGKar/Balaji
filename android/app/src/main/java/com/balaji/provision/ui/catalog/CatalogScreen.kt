@@ -35,7 +35,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.balaji.provision.ui.i18n.LocalizedText as Text
+import com.balaji.provision.ui.i18n.tr
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -68,11 +69,11 @@ import com.balaji.provision.ui.components.WeightedQuantityDialog
 import com.balaji.provision.ui.components.liquidGlass
 import com.balaji.provision.ui.theme.appColors
 
-private enum class SortOption(val label: String) {
-    DEFAULT("Default"),
-    NAME("Name: A to Z"),
-    PRICE_LOW("Price: Low to High"),
-    PRICE_HIGH("Price: High to Low")
+private enum class SortOption(val label: String, val shortLabel: String) {
+    DEFAULT("Default", "Sort"),
+    NAME("Name: A to Z", "A–Z"),
+    PRICE_LOW("Price: Low to High", "Price ↑"),
+    PRICE_HIGH("Price: High to Low", "Price ↓")
 }
 
 /**
@@ -177,7 +178,7 @@ fun CatalogScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                Icon(Icons.Default.ArrowBack, contentDescription = tr("Back"))
             }
             Text(
                 text = title,
@@ -246,8 +247,11 @@ fun CatalogScreen(
             Box {
                 ControlPill(
                     icon = Icons.Default.SwapVert,
-                    label = "Sort",
-                    onClick = { sortMenuOpen = true }
+                    // Keep the chosen order visible ("Price ↑") instead of hiding it behind
+                    // the generic "Sort" label after every selection.
+                    label = sortOption.shortLabel,
+                    onClick = { sortMenuOpen = true },
+                    active = sortOption != SortOption.DEFAULT
                 )
                 DropdownMenu(
                     expanded = sortMenuOpen,

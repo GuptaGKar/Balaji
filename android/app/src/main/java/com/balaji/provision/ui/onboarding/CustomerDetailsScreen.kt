@@ -33,7 +33,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.balaji.provision.ui.i18n.LocalizedText as Text
+import com.balaji.provision.ui.i18n.tr
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -264,7 +265,7 @@ fun CustomerDetailsScreen(
                         if (!savedName.isNullOrBlank()) {
                             Icon(
                                 Icons.Default.CheckCircle,
-                                contentDescription = "Name saved",
+                                contentDescription = tr("Name saved"),
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         }
@@ -334,7 +335,7 @@ fun CustomerDetailsScreen(
                         if (hasAddress) {
                             Icon(
                                 Icons.Default.CheckCircle,
-                                contentDescription = "Address added",
+                                contentDescription = tr("Address added"),
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         }
@@ -382,6 +383,13 @@ fun CustomerDetailsScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         } else {
+                            // The label is resolved before the semantics lambda: tr() is a
+                            // composable call and the lambda is not one.
+                            val locationButtonLabel = if (locationState.isLocating) {
+                                tr("Finding your location")
+                            } else {
+                                tr("Use my current location to fill the delivery address")
+                            }
                             OutlinedButton(
                                 onClick = { fetchLocationForAddress() },
                                 enabled = !isSaving && !locationState.isLocating,
@@ -389,11 +397,7 @@ fun CustomerDetailsScreen(
                                     .fillMaxWidth()
                                     .height(48.dp)
                                     .semantics {
-                                        contentDescription = if (locationState.isLocating) {
-                                            "Finding your location"
-                                        } else {
-                                            "Use my current location to fill the delivery address"
-                                        }
+                                        contentDescription = locationButtonLabel
                                     },
                                 shape = RoundedCornerShape(14.dp)
                             ) {

@@ -41,7 +41,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.balaji.provision.ui.i18n.LocalizedText as Text
+import com.balaji.provision.ui.i18n.tr
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -1067,6 +1068,7 @@ private fun HomeBrandHeader(
     onOpenAddress: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val accountSemanticsLabel = tr("Your account and saved addresses")
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -1125,7 +1127,7 @@ private fun HomeBrandHeader(
             ) {
                 Icon(
                     Icons.Default.NotificationsNone,
-                    contentDescription = "Notifications",
+                    contentDescription = tr("Notifications"),
                     tint = Color.White,
                     modifier = Modifier
                         .size(24.dp)
@@ -1138,7 +1140,7 @@ private fun HomeBrandHeader(
                         .size(40.dp)
                         .clickable(onClick = onOpenAccount)
                         .semantics {
-                            contentDescription = "Your account and saved addresses"
+                            contentDescription = accountSemanticsLabel
                         }
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -1153,6 +1155,23 @@ private fun HomeBrandHeader(
         }
 
         Spacer(modifier = Modifier.height(12.dp))
+
+        // The merged TalkBack description is built here because tr() is a composable call and
+        // the semantics block below is not. Address and delivery-window text are store data and
+        // pass through as written; only the two UI fragments are translated.
+        // The saved-address label is the customer's own text ("Home", "Office") and is spoken
+        // exactly as typed, even when it collides with app copy. Only the fragments are ours.
+        val statusLabel = tr(storeStatusBadgeLabel(storeOpen))
+        val changeAddressLabel = tr("Change delivery address")
+        val addressAccessDescription = buildString {
+            append(addressLabel)
+            append(". ")
+            addressArea?.let { append(it); append(". ") }
+            headerDeliveryLine(storeOpen, estimatedWindow)?.let { append(it); append(". ") }
+            append(statusLabel)
+            append(". ")
+            append(changeAddressLabel)
+        }
 
         // The board draws this selector as a near-opaque white card with a soft shadow, not as a
         // glass panel: on the orange header the liquid-glass rim's grey mid stop read as a heavy
@@ -1170,12 +1189,7 @@ private fun HomeBrandHeader(
                 // empty description - TalkBack had nothing to say about where the order ships to.
                 // Stating it here is explicit rather than relying on the merge to gather the text.
                 .semantics {
-                    contentDescription =
-                        "$addressLabel. " +
-                        (addressArea?.let { "$it. " } ?: "") +
-                        (headerDeliveryLine(storeOpen, estimatedWindow)
-                            ?.let { "$it. " } ?: "") +
-                        "${storeStatusBadgeLabel(storeOpen)}. Change delivery address"
+                    contentDescription = addressAccessDescription
                 }
         ) {
             Row(

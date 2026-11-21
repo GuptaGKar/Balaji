@@ -16,7 +16,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import com.balaji.provision.ui.i18n.LocalizedText as Text
+import com.balaji.provision.ui.i18n.tr
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -63,8 +64,12 @@ fun SavedAddressCard(
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp)
                 )
+                // A saved-address label is the customer's own text ("Home", "Office") and is
+                // shown exactly as typed, even when it collides with app copy. Only the
+                // "Address" fallback is ours to translate.
                 Text(
                     address.label.ifBlank { "Address" },
+                    localize = address.label.isBlank(),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
@@ -105,14 +110,14 @@ fun SavedAddressCard(
                     IconButton(onClick = onEdit, enabled = !isBusy) {
                         Icon(
                             Icons.Default.Edit,
-                            contentDescription = "Edit ${address.label.ifBlank { "saved" }} address",
+                            contentDescription = tr("Edit ${address.label.ifBlank { "saved" }} address"),
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }
                     IconButton(onClick = onDelete, enabled = !isBusy) {
                         Icon(
                             Icons.Default.Delete,
-                            contentDescription = "Delete ${address.label.ifBlank { "saved" }} address",
+                            contentDescription = tr("Delete ${address.label.ifBlank { "saved" }} address"),
                             tint = MaterialTheme.colorScheme.error
                         )
                     }

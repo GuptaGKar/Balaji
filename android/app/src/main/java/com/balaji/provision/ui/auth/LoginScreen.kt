@@ -31,7 +31,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.balaji.provision.ui.i18n.LocalizedText as Text
+import com.balaji.provision.ui.i18n.tr
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -107,7 +108,7 @@ fun LoginScreen(
                 IconButton(onClick = { chooseMode(AuthMode.CHOOSE) }) {
                     Icon(
                         Icons.Default.ArrowBack,
-                        contentDescription = "Back to sign in options",
+                        contentDescription = tr("Back to sign in options"),
                         tint = MaterialTheme.colorScheme.onSurface
                     )
                 }

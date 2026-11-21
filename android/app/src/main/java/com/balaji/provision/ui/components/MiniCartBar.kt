@@ -14,7 +14,8 @@ import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.balaji.provision.ui.i18n.LocalizedText as Text
+import com.balaji.provision.ui.i18n.tr
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,7 +41,7 @@ fun MiniCartBar(
     detail: String? = null
 ) {
     if (itemCount <= 0) return
-    val countLabel = if (itemCount == 1) "1 item" else "$itemCount items"
+    val countLabel = tr(if (itemCount == 1) "1 item" else "$itemCount items")
     Surface(
         modifier = modifier
             .fillMaxWidth()
@@ -53,7 +54,7 @@ fun MiniCartBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClickLabel = "View basket", role = Role.Button, onClick = onClick)
+                .clickable(onClickLabel = tr("View basket"), role = Role.Button, onClick = onClick)
                 .heightIn(min = 56.dp)
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,

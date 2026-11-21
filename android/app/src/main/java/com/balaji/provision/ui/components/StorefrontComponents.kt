@@ -54,7 +54,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.balaji.provision.ui.i18n.LocalizedText as Text
+import com.balaji.provision.ui.i18n.tr
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -182,7 +183,7 @@ fun StoreSearchBar(
                         ) {
                             Icon(
                                 Icons.Default.Clear,
-                                contentDescription = "Clear search",
+                                contentDescription = tr("Clear search"),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -204,7 +205,7 @@ fun StoreSearchBar(
             } else {
                 Icon(
                     Icons.Default.Mic,
-                    contentDescription = "Voice search",
+                    contentDescription = tr("Voice search"),
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp)
                 )
@@ -461,7 +462,7 @@ fun ProductGridCard(
                 }
                 Icon(
                     Icons.Default.FavoriteBorder,
-                    contentDescription = "Favorite ${product.name}",
+                    contentDescription = tr("Favorite ${product.name}"),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.60f),
                     modifier = Modifier
                         .align(Alignment.TopEnd)
@@ -491,10 +492,15 @@ fun ProductGridCard(
             )
 
             if (group.hasMultipleVariants) {
+                // Show the grouped pack sizes themselves, not just a count: the customer can
+                // see at a glance that the same product comes in 500 g, 1 kg and 2 kg before
+                // opening the details page.
                 Text(
-                    text = "${group.variants.size} pack sizes",
+                    text = group.packSummary,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
@@ -509,11 +515,18 @@ fun ProductGridCard(
                 // things on one 150 dp line - price, MRP and the ADD pill - squeezed the pill to
                 // a few dp wide and the customer was left with an unreadable control. The
                 // percentage is already on the badge over the photo, so the MRP can have a line
-                // of its own and the price keeps the full size.
-                Column(modifier = Modifier.weight(1f)) {
+                // of its own and the price keeps the full size. The price itself steps down a
+                // size once the label is long, because the ADD pill must never sit on top of
+                // the amount the customer is agreeing to pay.
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 4.dp)
+                ) {
+                    val priceLabel = formatPaise(product.pricePaise)
                     Text(
-                        text = formatPaise(product.pricePaise),
-                        style = BalajiText.Price,
+                        text = priceLabel,
+                        style = priceStyleFor(priceLabel),
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1
                     )
@@ -633,7 +646,7 @@ fun HorizontalProductCard(
                 }
                 Icon(
                     Icons.Default.FavoriteBorder,
-                    contentDescription = "Favorite ${product.name}",
+                    contentDescription = tr("Favorite ${product.name}"),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.60f),
                     modifier = Modifier
                         .align(Alignment.TopEnd)
@@ -660,9 +673,11 @@ fun HorizontalProductCard(
             )
             if (group.hasMultipleVariants) {
                 Text(
-                    text = "${group.variants.size} packs",
+                    text = group.packSummary,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
             Spacer(modifier = Modifier.height(4.dp))

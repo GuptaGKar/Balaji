@@ -34,8 +34,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import com.balaji.provision.ui.i18n.LocalizedText as Text
+import com.balaji.provision.ui.i18n.tr
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
@@ -75,6 +77,10 @@ import com.balaji.provision.ui.catalog.ProductViewModel
 import com.balaji.provision.ui.categories.CategoriesScreen
 import com.balaji.provision.ui.checkout.CheckoutScreen
 import com.balaji.provision.ui.home.HomeScreen
+import com.balaji.provision.ui.i18n.AppLanguage
+import com.balaji.provision.ui.i18n.AppStrings
+import com.balaji.provision.ui.i18n.LanguageViewModel
+import com.balaji.provision.ui.i18n.LocalAppStrings
 import com.balaji.provision.ui.onboarding.CustomerDetailsScreen
 import com.balaji.provision.ui.orders.OrderTrackingScreen
 import com.balaji.provision.ui.orders.OrdersScreen
@@ -111,11 +117,18 @@ class MainActivity : ComponentActivity() {
             } else {
                 val themeViewModel: ThemeViewModel = hiltViewModel()
                 val darkTheme by themeViewModel.darkTheme.collectAsState()
-                BalajiTheme(darkTheme = darkTheme) {
-                    MainAppScreen(
-                        isDarkTheme = darkTheme,
-                        onToggleTheme = themeViewModel::setDarkTheme
-                    )
+                val languageViewModel: LanguageViewModel = hiltViewModel()
+                val language by languageViewModel.language.collectAsState()
+                val strings = remember(language) { AppStrings(language) }
+                CompositionLocalProvider(LocalAppStrings provides strings) {
+                    BalajiTheme(darkTheme = darkTheme) {
+                        MainAppScreen(
+                            isDarkTheme = darkTheme,
+                            onToggleTheme = themeViewModel::setDarkTheme,
+                            language = language,
+                            onLanguageChange = languageViewModel::setLanguage
+                        )
+                    }
                 }
             }
         }
@@ -125,7 +138,9 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainAppScreen(
     isDarkTheme: Boolean = false,
-    onToggleTheme: (Boolean) -> Unit = {}
+    onToggleTheme: (Boolean) -> Unit = {},
+    language: AppLanguage = AppLanguage.ENGLISH,
+    onLanguageChange: (AppLanguage) -> Unit = {}
 ) {
     // Overlay splash over the live app; startup work continues underneath so
     // this never adds an artificial delay to first interaction.
@@ -184,6 +199,8 @@ fun MainAppScreen(
                 CustomerApp(
                     isDarkTheme = isDarkTheme,
                     onToggleTheme = onToggleTheme,
+                    language = language,
+                    onLanguageChange = onLanguageChange,
                     onBrandStatusBarChange = { brandStatusBar = it }
                 )
             }
@@ -227,6 +244,8 @@ private fun ApplySystemBarAppearance(brandStatusBar: Boolean) {
 private fun CustomerApp(
     isDarkTheme: Boolean,
     onToggleTheme: (Boolean) -> Unit,
+    language: AppLanguage = AppLanguage.ENGLISH,
+    onLanguageChange: (AppLanguage) -> Unit = {},
     onBrandStatusBarChange: (Boolean) -> Unit = {}
 ) {
     val authViewModel: AuthViewModel = hiltViewModel()
@@ -289,6 +308,8 @@ private fun CustomerApp(
             accountViewModel = accountViewModel,
             isDarkTheme = isDarkTheme,
             onToggleTheme = onToggleTheme,
+            language = language,
+            onLanguageChange = onLanguageChange,
             onBrandStatusBarChange = onBrandStatusBarChange
         )
     }
@@ -353,6 +374,8 @@ private fun CustomerShell(
     accountViewModel: AccountViewModel,
     isDarkTheme: Boolean,
     onToggleTheme: (Boolean) -> Unit,
+    language: AppLanguage = AppLanguage.ENGLISH,
+    onLanguageChange: (AppLanguage) -> Unit = {},
     onBrandStatusBarChange: (Boolean) -> Unit = {}
 ) {
     val navController = rememberNavController()
@@ -398,7 +421,9 @@ private fun CustomerShell(
                 favouritesViewModel = favouritesViewModel,
                 accountViewModel = accountViewModel,
                 isDarkTheme = isDarkTheme,
-                onToggleTheme = onToggleTheme
+                onToggleTheme = onToggleTheme,
+                language = language,
+                onLanguageChange = onLanguageChange
             )
 
             // The customer pill floats over the content instead of reserving a strip, so it is
@@ -452,7 +477,9 @@ fun AppNavHost(
     favouritesViewModel: com.balaji.provision.ui.favourites.FavouritesViewModel,
     accountViewModel: AccountViewModel,
     isDarkTheme: Boolean,
-    onToggleTheme: (Boolean) -> Unit
+    onToggleTheme: (Boolean) -> Unit,
+    language: AppLanguage = AppLanguage.ENGLISH,
+    onLanguageChange: (AppLanguage) -> Unit = {}
 ) {
     val favouriteState by favouritesViewModel.state.collectAsState()
     NavHost(navController = navController, startDestination = "home") {
@@ -575,6 +602,9 @@ fun AppNavHost(
                 onNavigateToCatalog = {
                     navController.navigate(listingRoute("all", focusSearch = false))
                 },
+                onOpenProduct = { productId ->
+                    navController.navigate("product/$productId")
+                },
                 onBack = {
                     if (!navController.popBackStack()) {
                         navigateToTab(navController, "home")
@@ -618,6 +648,8 @@ fun AppNavHost(
                 },
                 isDarkTheme = isDarkTheme,
                 onToggleTheme = onToggleTheme,
+                language = language,
+                onLanguageChange = onLanguageChange,
                 onOpenPrivacy = { navController.navigate("legal/privacy") },
                 onOpenTerms = { navController.navigate("legal/terms") },
                 onOpenAccountDeletion = { navController.navigate("legal/account-deletion") },
@@ -670,7 +702,7 @@ private fun ProductMissing(
             verticalAlignment = Alignment.CenterVertically
         ) {
             androidx.compose.material3.IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                Icon(Icons.Default.ArrowBack, contentDescription = tr("Back"))
             }
             Text("Product details", style = MaterialTheme.typography.titleMedium)
         }

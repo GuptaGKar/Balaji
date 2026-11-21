@@ -50,4 +50,9 @@ object AppModule {
     @Singleton
     @Named("darkThemeKey")
     fun provideDarkThemeKey(): Preferences.Key<Boolean> = booleanPreferencesKey("customer_dark_theme")
+
+    @Provides
+    @Singleton
+    @Named("appLanguageKey")
+    fun provideAppLanguageKey(): Preferences.Key<String> = stringPreferencesKey("customer_app_language")
 }

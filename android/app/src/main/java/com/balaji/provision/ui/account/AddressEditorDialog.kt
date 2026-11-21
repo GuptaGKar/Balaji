@@ -27,7 +27,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
+import com.balaji.provision.ui.i18n.LocalizedText as Text
+import com.balaji.provision.ui.i18n.tr
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -312,16 +313,18 @@ fun AddressEditorDialog(
                         }
                     )
                 }
+                // Resolved before the semantics lambda: tr() is composable, the lambda is not.
+                val mapToggleLabel = if (showMapPicker) {
+                    tr("Hide the delivery area map")
+                } else {
+                    tr("Choose the exact delivery spot on a map")
+                }
                 OutlinedButton(
                     onClick = { showMapPicker = !showMapPicker },
                     modifier = Modifier
                         .fillMaxWidth()
                         .semantics {
-                            contentDescription = if (showMapPicker) {
-                                "Hide the delivery area map"
-                            } else {
-                                "Choose the exact delivery spot on a map"
-                            }
+                            contentDescription = mapToggleLabel
                         }
                 ) {
                     Icon(

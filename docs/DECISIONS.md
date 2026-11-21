@@ -1859,3 +1859,104 @@ executed; the four `BrowsingControlsTest` failures are the baseline-confirmed
 pre-existing ones recorded above), authenticated price/stock writes against a live
 backend, and any Play upload. Web typecheck still cannot pass for the pre-existing
 reasons above.
+
+## 2026-11-18 — Customer app: Hindi/English, pack groups, cart shortcut (provisional)
+
+Owner request: a Hindi/English language option; remove the SKU from the customer
+product page; open a product from the basket by tapping it; stop ADD overlapping
+the price; show the grouped pack sizes and not only a count; and sort by price
+ascending/descending.
+
+Language is a **runtime string catalogue, not Android resource locales**. The
+customer UI never had `res/values/strings.xml` entries - its copy is inline
+Kotlin - so adding `values-hi` would have required moving every label at once and
+would have translated store data as well. Instead:
+
+- `AppLanguage` (English / हिंदी), `AppStrings`, `HindiStrings` (static map keyed
+  by the exact English copy) and `HindiDynamicStrings` (regex rules for composed
+  labels such as `Your Cart (3)` and `Add ₹40.00 more for free delivery`).
+- `LocalizedText` is a Material 3 `Text` wrapper that resolves the copy; customer
+  screens import it as `Text`, so one wrapper covers labels, buttons, dialogs,
+  empty states and snackbars. `tr(...)` covers `contentDescription`,
+  `onClickLabel` and other non-`Text` strings.
+- The choice is stored in the existing DataStore under `customer_app_language`
+  and exposed from Profile (English / हिंदी chips). It is applied before the first
+  customer screen composes and survives process death.
+- **Store data is never translated**: product names, descriptions, pack labels,
+  category names, addresses, section titles composed by the manager, order
+  numbers, prices and server messages pass through unchanged. A key is only
+  translated when the entire string is app copy; unknown strings fall back to
+  English, never to a blank label.
+- Scope is the customer app only. Staff, manager, driver, bill/legal prose and
+  the staff build stay English: staff need the exact wording the store trained
+  them on, and legal text needs an owner-approved translation, not mine.
+- Devanagari uses the platform fallback font (the bundled Poppins/Inter/Manrope
+  carry no Devanagari), which the typography file already documents for Hindi
+  place names. Line heights stay the Latin-tuned values; whether matras clip on a
+  2-line product name at small widths has **not** been measured on a device, so
+  it is recorded here as an open visual check rather than claimed fixed.
+- The Hindi copy was written by the agent and has **not** been reviewed by a
+  native speaker or the owner. It is provisional UI copy; product/brand terms and
+  units stay in Latin script. Changing a translation is a one-line map edit.
+
+Other changes in the same pass, none of which touch server logic:
+
+- SKU removed from `AttributeBlock` on the customer product page. SKU still
+  exists on products and order/bill snapshots; it is simply not customer copy.
+- Basket rows expose the product image and name as a navigation target to
+  `product/{id}`. The stepper, remove control and free-item controls keep their
+  own hit areas.
+- `ProductGridCard` price uses the same `priceStyleFor(...)` step-down as the
+  horizontal card and keeps 4 dp from the ADD control, so a long price cannot sit
+  under the pill.
+- Both card types show `group.packSummary` (`500 ml · 1 L · 2 L`), not
+  `"3 packs"`. The count remains as a fallback only where a summary is blank.
+- The catalogue already had price ascending/descending; the Sort pill now shows
+  the active choice (`Price ↑`, `Price ↓`, `A–Z`) instead of reverting to `Sort`.
+
+No minimum-order rule was added or changed. ₹250 remains only the seeded,
+configurable free-delivery threshold. Online payments stay disabled; no
+migration, schema, price, stock or authorization code was touched.
+
+Executed after the copy sweep: `:app:testCustomerDebugUnitTest` 297 tests, 0
+failures/errors/skips; `:app:lintCustomerDebug` 0 errors, 70 warnings, 5 hints
+(the same pre-existing counts as the 2026-11-14 entry); `:app:assembleCustomerDebug`
+built `app-customer-debug.apk`; `:app:compileCustomerDebugAndroidTestKotlin`
+compiled. `git diff --check` exit 0.
+
+Not run: any device or emulator pass, so the Devanagari line-height question
+above and the Hindi copy's readability on a narrow card are unverified;
+`connectedCustomerDebugAndroidTest` was not executed; no Play upload. The staff
+build and its 291 tests were not re-run because no staff source changed.
+
+## 2026-11-21 — Product podium and bulk image approval removed here too
+
+The owner asked for the podium to be removed from the customer product page. `master`
+had already done exactly this in `e373058` ("revert: remove the product podium and bulk
+image approval"); this branch was cut before that commit and still carried the feature,
+so the same revert is now applied on `feature/customer-orange-glass-v3`:
+
+- Android: deleted `ProductShowcasePodium.kt`, `TrimProductTransparency.kt`,
+  `PodiumColors.kt` and `ProductBoundsTest.kt`; `ProductDetailsScreen.ProductImage` is
+  back to the flat hero (image on a `surfaceVariant` wash, `ContentScale.Fit`, 16 dp
+  inset). Its `clearAndSetSemantics` label is resolved before the lambda because `tr()`
+  is composable, and the new `Image of <name>` rule keeps the store's product name
+  verbatim.
+- Web: deleted `BulkProductImageManager.tsx`, `ProductShowcase.module.css`,
+  `lib/product-cutout.ts` and the cutout test, and removed the manager's import and
+  render line from `ProductsTab.tsx`. The product form keeps its own `managedImagePath`
+  and bucket constants, as on `master`.
+- Docs: deleted `docs/PRODUCT_PODIUM_QA.md` and the podium plan. No server, schema,
+  bucket, policy, price, stock or authorization rule was ever involved.
+
+Reason, unchanged from `master`: every catalogue image is a white-background JPEG, the
+alpha trim is a no-op without alpha, so the stage only framed a white rectangle on the
+hero.
+
+Also fixed in the same pass, both found on the device: the Home capability tiles
+("Wide Range", "Local Delivery", "Secure Orders", "Easy Reorder") are now in
+`HindiStrings` under their two-line keys, and a saved-address label is no longer
+translated. The label is the customer's own text ("Home", "Office"), so the header and
+the saved-address card render it raw even when it collides with app copy;
+`LocalizedText` gained `localize = false` for that case. Only the "Address" fallback is
+translated.
