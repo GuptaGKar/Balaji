@@ -18,8 +18,10 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -69,11 +71,29 @@ import com.balaji.provision.ui.components.WeightedQuantityDialog
 import com.balaji.provision.ui.components.liquidGlass
 import com.balaji.provision.ui.theme.appColors
 
-private enum class SortOption(val label: String, val shortLabel: String) {
+enum class SortOption(val label: String, val shortLabel: String) {
     DEFAULT("Default", "Sort"),
     NAME("Name: A to Z", "A–Z"),
     PRICE_LOW("Price: Low to High", "Price ↑"),
     PRICE_HIGH("Price: High to Low", "Price ↓")
+}
+
+/**
+ * Grid state for the catalogue list.
+ *
+ * Sorting reorders the grid underneath the scroll offset the customer has
+ * already scrolled to, so the item that is now first can be left off-screen and
+ * the sort looks like it did nothing. The list therefore returns to the top
+ * whenever the sort changes. Re-keyed on the sort alone: scrolling, cart
+ * changes and the in-stock filter must not yank the list back up.
+ */
+@Composable
+fun rememberCatalogueGridState(sortOption: SortOption): LazyGridState {
+    val state = rememberLazyGridState()
+    LaunchedEffect(sortOption) {
+        state.scrollToItem(0)
+    }
+    return state
 }
 
 /**
@@ -168,6 +188,8 @@ fun CatalogScreen(
             SortOption.PRICE_HIGH -> list.sortedByDescending { it.defaultVariant.pricePaise }
         }
     }
+
+    val gridState = rememberCatalogueGridState(sortOption)
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Header: back, title, search.
@@ -421,6 +443,7 @@ fun CatalogScreen(
                 }
 
                 else -> LazyVerticalGrid(
+                    state = gridState,
                     columns = GridCells.Fixed(
                         // 2 on phones, more on tablets, instead of two giant cards.
                         (LocalConfiguration.current.screenWidthDp / 170).coerceIn(2, 5)

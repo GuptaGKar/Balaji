@@ -2060,3 +2060,47 @@ translated. The label is the customer's own text ("Home", "Office"), so the head
 the saved-address card render it raw even when it collides with app copy;
 `LocalizedText` gained `localize = false` for that case. Only the "Address" fallback is
 translated.
+
+## 2026-11-21 — Sorting now returns the catalogue to the top
+
+The plan's last open device re-check ("after the sort, the ₹105 item was not in the
+visible dump; scroll-to-top re-check still open") turned out to be a real gap, not a
+verification miss: `CatalogScreen` gave `LazyVerticalGrid` no explicit state, so sorting
+reordered the grid underneath whatever scroll offset the customer already had. The item
+that was now first could sit off-screen and the sort looked like it had done nothing.
+
+Fixed UI-only, inside the standing constraint that no pricing, stock, order or
+authorization logic changes:
+
+- `rememberCatalogueGridState(sortOption)` holds the grid state and calls
+  `scrollToItem(0)` from a `LaunchedEffect` keyed on the sort alone, so scrolling, cart
+  changes and the in-stock filter do not yank the list back up.
+- `SortOption` was file-private; it is now public so the instrumented test can drive it.
+- Covered by `CatalogSortScrollTest` (both cases pass on device): a sort change returns
+  to the top, and a recomposition that is not a sort change keeps the position.
+
+No server, schema, price or stock rule is involved.
+
+## 2026-11-21 — First instrumented run, and the app it took off the device
+
+`connectedCustomerDebugAndroidTest` had never run (no device pass). It now runs, but the
+first attempt ended in `INSTALL_FAILED_UPDATE_INCOMPATIBLE` and **uninstalled
+`com.balaji.provision` from the device** (`deletePackageX` at 12:33:56), wiping its local
+data — session, cart, language preference and saved addresses. The staff app was
+untouched, and no server-side data was affected. Reported to the owner immediately rather
+than papered over.
+
+Recovery, approved by the owner: rebuild with the existing opt-in
+`-Pbalaji.signDebugWithRelease=true`, which signs the debug and androidTest APKs with the
+upload key so they install over the release-signed app, then reinstall (versionCode 16).
+Any future instrumented run must pass that flag, or it will repeat the same failure.
+
+Results with that setup: 14 tests, 4 failures — the same 4 `BrowsingControlsTest` cases
+that fail on an unmodified tree (proven by stashing), so this pass added 2 passing tests
+and broke none. The `No compose hierarchies found` failures seen once against the staff
+screens under the customer flavor did not reproduce and pass on re-run; they are test
+launch flakiness, not a product defect.
+
+Also closed: order `BPS-261121-9020`, placed during the device pass, was confirmed by the
+owner as placed by hand on the device. The screens had changed twice with no input from
+the agent, which is consistent with that; it is not an app defect and no action was taken.

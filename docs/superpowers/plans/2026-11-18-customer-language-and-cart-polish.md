@@ -61,8 +61,10 @@
       number, units and store-entered text.
 - [x] Hindi wrapping: the product card name (`maxLines = 2`), pack label and pack
       summary (`maxLines = 1`) and the cart row name (`maxLines = 2`) already
-      ellipsise; the added Hindi copy fits those slots. Devanagari line-height
-      clipping at small widths is **not device-verified** (no device attached).
+      ellipsise; the added Hindi copy fits those slots. A device pass confirmed
+      Hindi renders without clipping at normal width (product hero and the
+      two-line capability tiles), but the **narrow-width** edge case remains
+      **not device-verified**.
 - [x] Decision recorded in `docs/DECISIONS.md`.
 - [ ] Decide whether the language card belongs only under Profile or also in a
       first-run/onboarding step (current: Profile only). Open question for the
@@ -96,9 +98,12 @@
       `Enter address manually`).
 - [x] Cart row and `onOpenProduct` survived the merge; the basket keeps the
       address-on-top order and the slide now places the order.
-- [ ] Re-run the Android gates on the merged tree (in progress).
-- [ ] Reinstall and check the basket, cart → product and the product page on
-      the device.
+- [x] Re-run the Android gates on the merged tree: `testCustomerDebugUnitTest`
+      **294 tests / 0 failures**, `lintCustomerDebug` **0 errors** (70 warnings,
+      4 hints), `assembleCustomerDebug` and `compileCustomerDebugAndroidTestKotlin`
+      BUILD SUCCESSFUL. `git diff --check` clean.
+- [x] Reinstall and check the basket, cart → product and the product page on
+      the device (screenshots `23_basket_hi.png`, `31_tap_name.png`).
 
 ### Device checks (SM-A346E, release-signed debug build)
 
@@ -108,12 +113,48 @@
 - [x] Grouped pack sizes render from the store's own variant labels
       (`Rs. 10 · Rs 20`).
 - [x] Sort pill shows `कीमत ↓` and the list reorders (₹20 before ₹10).
-- [ ] Cart row, cart → product navigation and the product page itself were not
-      captured before the wireless-debugging connection dropped.
-- [ ] After the sort, the ₹105 item was not in the visible dump; scroll-to-top
-      re-check still open.
-- [ ] Hindi text on the flat product hero and the two-line capability tiles is
-      not yet re-checked on the device after the podium removal.
+- [x] Cart row, cart → product navigation and the product page itself
+      captured (`31_tap_name.png`): tapping the row name opens the product page
+      with the flat hero, grouped pack sizes and no SKU.
+- [x] Scroll-to-top on sort: the re-check found the behaviour **missing** —
+      `LazyVerticalGrid` kept its scroll offset, so the new first item could be
+      left off-screen. Fixed by `rememberCatalogueGridState`, re-keyed on the
+      sort alone, and covered by `CatalogSortScrollTest` (both cases pass on
+      device).
+- [x] Hindi text on the flat product hero (`31_tap_name.png`: मात्रा, जोड़ें,
+      विवरण) and the two-line capability tiles (`22_home_hi_persist.png`:
+      विविध/विकल्प, स्थानीय/डिलीवरी, सुरक्षित/ऑर्डर, आसान/दोबारा ऑर्डर)
+      re-checked on the device after the podium removal. Both lines render with
+      no clipping.
+
+### Instrumented gate (`connectedCustomerDebugAndroidTest`, 2026-11-21)
+
+Ran for the first time on SM-A346E. Note the opt-in
+`-Pbalaji.signDebugWithRelease=true`, which signs the debug and androidTest
+APKs with the upload key so they install over the release-signed app.
+
+- [x] `CatalogSortScrollTest` **2/2 pass** (both new scroll cases).
+- [x] `BrowsingControlsTest` **4/4 fail — pre-existing**, proven by re-running
+      on a stashed (unmodified) tree where it also failed 4/4. It tests
+      `StoreSearchBar`, `ProductGridCard` and `AnimatedAddQuantityControl`,
+      none of which this change touches.
+- [x] `StaffStockScreenTest` / `StaffPricesScreenTest` under the **customer**
+      flavor: **8/8 pass** on re-run with this change. Three had failed in one
+      earlier run of the same suite while passing in the baseline run of the
+      same suite — flakiness (`No compose hierarchies found`, the test activity
+      not launching), not a regression.
+- [x] Net result with this change: **14 tests, 4 failures**, the same 4
+      `BrowsingControlsTest` cases as the unmodified baseline (12 tests,
+      4 failures). This change adds 2 passing tests and breaks none.
+- [x] **Incident:** the first connected run ended in
+      `INSTALL_FAILED_UPDATE_INCOMPATIBLE` and uninstalled
+      `com.balaji.provision` from the device (`deletePackageX`, 12:33:56),
+      wiping its local data. Owner approved the recovery path; the app was
+      rebuilt release-signed and reinstalled (versionCode 16). The staff app
+      was untouched.
+- [x] Order `BPS-261121-9020`, placed during the device pass, was confirmed by
+      the owner as placed by hand on the device. Not an app defect; no action
+      taken.
 
 ## Files touched
 
