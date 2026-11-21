@@ -97,6 +97,31 @@ fun rememberCatalogueGridState(sortOption: SortOption): LazyGridState {
 }
 
 /**
+ * The catalogue grid's rows: **one entry per pack**, then sorted.
+ *
+ * A grouped product is several SKUs with its own price, stock and ADD control, so the listing
+ * flattens the groups instead of showing one card per product and hiding the other pack sizes
+ * behind a summary line. The in-stock filter therefore applies per pack too: a group with one
+ * pack in stock and one out contributes a single row, not a row that claims both.
+ *
+ * The home rails still collapse a group behind one card and its `packSummary`
+ * (see `HorizontalProductCard`); only this listing is flat.
+ */
+fun List<ProductVariantGroup>.listingProducts(
+    sortOption: SortOption,
+    inStockOnly: Boolean
+): List<Product> {
+    val allPacks = flatMap { it.variants }
+    val visible = if (inStockOnly) allPacks.filter { it.isInStock } else allPacks
+    return when (sortOption) {
+        SortOption.DEFAULT -> visible
+        SortOption.NAME -> visible.sortedBy { it.name.lowercase() }
+        SortOption.PRICE_LOW -> visible.sortedBy { it.pricePaise }
+        SortOption.PRICE_HIGH -> visible.sortedByDescending { it.pricePaise }
+    }
+}
+
+/**
  * Product listing: back navigation, category title, search, sort/filter
  * controls and a two-column grid. Data comes from the live catalogue; the only
  * local operations are sorting and hiding out-of-stock packs.
@@ -176,17 +201,10 @@ fun CatalogScreen(
         else -> categoryName ?: "Products"
     }
 
-    val visibleGroups = remember(groups, sortOption, inStockOnly) {
-        var list = groups
-        if (inStockOnly) {
-            list = list.filter { group -> group.variants.any { it.isInStock } }
-        }
-        when (sortOption) {
-            SortOption.DEFAULT -> list
-            SortOption.NAME -> list.sortedBy { it.baseName.lowercase() }
-            SortOption.PRICE_LOW -> list.sortedBy { it.defaultVariant.pricePaise }
-            SortOption.PRICE_HIGH -> list.sortedByDescending { it.defaultVariant.pricePaise }
-        }
+    // One card per pack. See [listingProducts] for why the groups are flattened here and not
+    // on the home rails.
+    val visibleProducts = remember(groups, sortOption, inStockOnly) {
+        groups.listingProducts(sortOption = sortOption, inStockOnly = inStockOnly)
     }
 
     val gridState = rememberCatalogueGridState(sortOption)
@@ -331,7 +349,8 @@ fun CatalogScreen(
             }
 
             val inStockCount = remember(groups) {
-                groups.count { group -> group.variants.any { it.isInStock } }
+                // Counted per pack, not per group: the grid now lists every pack.
+                groups.flatMap { it.variants }.count { it.isInStock }
             }
             Row(
                 modifier = Modifier
@@ -387,7 +406,7 @@ fun CatalogScreen(
                     onAction = { viewModel.loadData() }
                 )
 
-                visibleGroups.isEmpty() -> BoxWithConstraints(
+                visibleProducts.isEmpty() -> BoxWithConstraints(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     Column(
@@ -461,26 +480,33 @@ fun CatalogScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(visibleGroups, key = { it.groupId }) { group ->
-                        ProductGrid(
-                            group = group,
-                            cartItems = cart.items.associateBy { it.productId },
-                            onOpenDetails = {
-                                onNavigateToProduct(group.defaultVariant.id)
+                    items(visibleProducts, key = { it.id }) { product ->
+                        val cartItem = cart.items.firstOrNull { line ->
+                            line.productId == product.id
+                        }
+                        ProductGridCard(
+                            product = product,
+                            cartItem = cartItem,
+                            onOpenDetails = { onNavigateToProduct(product.id) },
+                            onAdd = { cartViewModel.addItem(product.id, product.minQty) },
+                            onIncrease = {
+                                cartItem?.let { line ->
+                                    cartViewModel.updateQuantity(
+                                        product.id,
+                                        (line.qtyBase + product.stepQty)
+                                            .coerceAtMost(product.maxOrderQty)
+                                    )
+                                }
                             },
-                            onAdd = { product ->
-                                cartViewModel.addItem(product.id, product.minQty)
+                            onDecrease = {
+                                cartItem?.let { line ->
+                                    cartViewModel.updateQuantity(
+                                        product.id,
+                                        line.qtyBase - product.stepQty
+                                    )
+                                }
                             },
-                            onIncrease = { product, cartQty ->
-                                cartViewModel.updateQuantity(
-                                    product.id,
-                                    (cartQty + product.stepQty).coerceAtMost(product.maxOrderQty)
-                                )
-                            },
-                            onDecrease = { product, cartQty ->
-                                cartViewModel.updateQuantity(product.id, cartQty - product.stepQty)
-                            },
-                            onWeight = { product -> weightDialogProduct = product }
+                            onWeight = { weightDialogProduct = product }
                         )
                     }
                 }
@@ -511,30 +537,6 @@ fun CatalogScreen(
             )
         }
     }
-}
-
-@Composable
-private fun ProductGrid(
-    group: ProductVariantGroup,
-    cartItems: Map<String, com.balaji.provision.domain.model.CartItem>,
-    onOpenDetails: () -> Unit,
-    onAdd: (Product) -> Unit,
-    onIncrease: (Product, Long) -> Unit,
-    onDecrease: (Product, Long) -> Unit,
-    onWeight: (Product) -> Unit
-) {
-    val product = group.defaultVariant
-    val cartItem = cartItems[product.id]
-    ProductGridCard(
-        group = group,
-        product = product,
-        cartItem = cartItem,
-        onOpenDetails = onOpenDetails,
-        onAdd = { onAdd(product) },
-        onIncrease = { cartItem?.let { onIncrease(product, it.qtyBase) } },
-        onDecrease = { cartItem?.let { onDecrease(product, it.qtyBase) } },
-        onWeight = { onWeight(product) }
-    )
 }
 
 @Composable

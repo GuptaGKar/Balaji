@@ -11,7 +11,6 @@ import androidx.compose.ui.unit.dp
 import com.balaji.provision.domain.model.CartItem
 import com.balaji.provision.domain.model.Product
 import com.balaji.provision.domain.model.QuantityType
-import com.balaji.provision.domain.model.toVariantGroups
 import com.balaji.provision.ui.theme.BalajiTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -51,14 +50,14 @@ class BrowsingControlsTest {
     }
 
     @Test
-    fun addingAProductDoesNotMoveTheNextRow() {
+    fun addingAProductKeepsThePriceVisibleAndPutsTheControlBelowIt() {
         val quantity = mutableStateOf(0L)
         val product = product()
         compose.setContent {
             BalajiTheme {
                 Box(Modifier.width(164.dp)) {
                     ProductGridCard(
-                        group = listOf(product).toVariantGroups().single(), product = product,
+                        product = product,
                         cartItem = quantity.value.takeIf { it > 0 }?.let { CartItem(product.id, it) },
                         onOpenDetails = {}, onAdd = { quantity.value = 1 },
                         onIncrease = { quantity.value++ }, onDecrease = { quantity.value-- },
@@ -67,11 +66,36 @@ class BrowsingControlsTest {
                 }
             }
         }
-        val before = compose.onNodeWithTag("product-card").fetchSemanticsNode().boundsInRoot.height
+        val add = compose.onNodeWithText("ADD").fetchSemanticsNode().boundsInRoot
+        val priceBefore = compose.onNodeWithText("₹199.00").fetchSemanticsNode().boundsInRoot
+        assertTrue(
+            "ADD shares the price row while the line is not in the basket",
+            add.top < priceBefore.bottom && add.left > priceBefore.left
+        )
+
         compose.onNodeWithText("ADD").performClick()
         compose.waitForIdle()
-        val after = compose.onNodeWithTag("product-card").fetchSemanticsNode().boundsInRoot.height
-        assertEquals("Adding must keep the card height stable", before, after, 1f)
+
+        // The bug this replaced: the stepper measured ~124 dp on a 144 dp content line, the
+        // weighted price column measured zero, and the amount disappeared the moment the
+        // customer tapped ADD. The price must survive, and the control must sit under it.
+        val price = compose.onNodeWithText("₹199.00").fetchSemanticsNode().boundsInRoot
+        assertTrue("Price must still have a width after adding", price.width > 1f)
+        val control = compose
+            .onNodeWithContentDescription("Test rice")
+            .fetchSemanticsNode().boundsInRoot
+        assertTrue(
+            "The stepper must sit below the price, not on top of it",
+            control.top >= price.bottom - 1f
+        )
+        // Containment is against the card, not against the price text: the text stops where its
+        // glyphs stop, while the stepper is end-aligned to the card's content edge, so the text
+        // is the wrong yardstick (it made this assertion fail on a stepper inside the card).
+        val card = compose.onNodeWithTag("product-card").fetchSemanticsNode().boundsInRoot
+        assertTrue(
+            "The stepper must stay inside the card",
+            control.right <= card.right + 1f && control.left >= card.left - 1f
+        )
     }
 
     @Test

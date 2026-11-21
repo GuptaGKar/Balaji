@@ -265,11 +265,12 @@ fun AddPill(
  * The one purchasing control on a product card.
  *
  * Where it sits is decided by the card, not here: the reference board shows ADD to the right of
- * the price, and it never shows a stepper inside a narrow card - the stepper appears in its wide
- * list rows. Both of those are possible here, so a card with no basket line puts this control in
- * the price row and a card that already has one gives it a row of its own. The stepper needs
- * about 124 dp and the price about 45 dp; a 148 dp rail card has 128 dp of content, and forcing
- * them together would clip one of them.
+ * the price, and both cards follow that while the line is not in the basket. Once the line
+ * exists the control becomes the stepper, and a stepper cannot share that line - it needs about
+ * 124 dp where a 148 dp rail card has 128 dp of content, so the price column measured zero and
+ * the amount vanished the moment the customer tapped ADD. Cards therefore give the stepper a
+ * row of its own under the price and keep a pill (ADD, or the weighted item's "Edit") beside it,
+ * where there is room for it. This function only renders; the placement is the card's decision.
  *
  * @param narrow true on a rail or grid card, where the weighted item's label has to stay "ADD" -
  *   "Choose weight" is the honest wording and the details screen uses it, but at 148 dp it
@@ -404,10 +405,17 @@ fun OutlinedQuantityStepper(
     }
 }
 
-/** Two-column listing card matching the reference product grid. */
+/**
+ * Two-column listing card matching the reference product grid.
+ *
+ * The listing grid draws **one card per pack**: a grouped product's 180 g and 650 g are
+ * separate SKUs with their own price, stock and ADD control, so each is listed rather than
+ * collapsed behind one card and a summary line. The card therefore takes a [Product] and not a
+ * [ProductVariantGroup]; the home rails still show one card per group with `packSummary` and
+ * use [HorizontalProductCard].
+ */
 @Composable
 fun ProductGridCard(
-    group: ProductVariantGroup,
     product: Product,
     cartItem: CartItem?,
     onOpenDetails: () -> Unit,
@@ -491,20 +499,15 @@ fun ProductGridCard(
                 overflow = TextOverflow.Ellipsis
             )
 
-            if (group.hasMultipleVariants) {
-                // Show the grouped pack sizes themselves, not just a count: the customer can
-                // see at a glance that the same product comes in 500 g, 1 kg and 2 kg before
-                // opening the details page.
-                Text(
-                    text = group.packSummary,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
             Spacer(modifier = Modifier.height(6.dp))
+
+            // A stepper cannot share the price line. This card's content is 128-174 dp wide and
+            // the stepper needs about 124 dp of it, so the weighted price column measured zero
+            // the moment the line entered the basket and the amount the customer is agreeing to
+            // pay disappeared behind the control. Pills still share the row - the ADD pill and
+            // the weighted item's "Edit" pill both fit - because that is the state the mockup
+            // shows. This is the "row of its own" [ProductPurchaseControl] documents.
+            val stepperOnOwnRow = !weighted && cartItem != null
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -539,16 +542,38 @@ fun ProductGridCard(
                         )
                     }
                 }
-                ProductPurchaseControl(
-                    product = product,
-                    cartItem = cartItem,
-                    weighted = weighted,
-                    onAdd = onAdd,
-                    onIncrease = onIncrease,
-                    onDecrease = onDecrease,
-                    onWeight = onWeight,
-                    narrow = true
-                )
+                if (!stepperOnOwnRow) {
+                    ProductPurchaseControl(
+                        product = product,
+                        cartItem = cartItem,
+                        weighted = weighted,
+                        onAdd = onAdd,
+                        onIncrease = onIncrease,
+                        onDecrease = onDecrease,
+                        onWeight = onWeight,
+                        narrow = true
+                    )
+                }
+            }
+
+            if (stepperOnOwnRow) {
+                // End-aligned so the price keeps the left column it already owns; the row itself
+                // is full width so the stepper is never squeezed by SpaceBetween.
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    ProductPurchaseControl(
+                        product = product,
+                        cartItem = cartItem,
+                        weighted = weighted,
+                        onAdd = onAdd,
+                        onIncrease = onIncrease,
+                        onDecrease = onDecrease,
+                        onWeight = onWeight,
+                        narrow = true
+                    )
+                }
             }
 
             if (!product.isInStock) {
@@ -687,6 +712,13 @@ fun HorizontalProductCard(
             // now sits on its own line under the price, which leaves the price and the pill
             // their full widths: the price is never ellipsised (it would hide digits the
             // customer is agreeing to pay) and the pill keeps its whole label.
+            //
+            // The stepper is the one control that cannot share that 128 dp line: at about
+            // 124 dp it left the weighted price column zero width, so the amount vanished the
+            // moment the line entered the basket. It takes a row of its own instead; pills
+            // (ADD, "Edit") still share the price line. See [ProductPurchaseControl].
+            val stepperOnOwnRow = !weighted && cartItem != null
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -711,16 +743,36 @@ fun HorizontalProductCard(
                         )
                     }
                 }
-                ProductPurchaseControl(
-                    product = product,
-                    cartItem = cartItem,
-                    weighted = weighted,
-                    onAdd = onAdd,
-                    onIncrease = onIncrease,
-                    onDecrease = onDecrease,
-                    onWeight = onWeight,
-                    narrow = true
-                )
+                if (!stepperOnOwnRow) {
+                    ProductPurchaseControl(
+                        product = product,
+                        cartItem = cartItem,
+                        weighted = weighted,
+                        onAdd = onAdd,
+                        onIncrease = onIncrease,
+                        onDecrease = onDecrease,
+                        onWeight = onWeight,
+                        narrow = true
+                    )
+                }
+            }
+
+            if (stepperOnOwnRow) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    ProductPurchaseControl(
+                        product = product,
+                        cartItem = cartItem,
+                        weighted = weighted,
+                        onAdd = onAdd,
+                        onIncrease = onIncrease,
+                        onDecrease = onDecrease,
+                        onWeight = onWeight,
+                        narrow = true
+                    )
+                }
             }
 
             if (!product.isInStock) {

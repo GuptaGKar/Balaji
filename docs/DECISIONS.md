@@ -2104,3 +2104,84 @@ launch flakiness, not a product defect.
 Also closed: order `BPS-261121-9020`, placed during the device pass, was confirmed by the
 owner as placed by hand on the device. The screens had changed twice with no input from
 the agent, which is consistent with that; it is not an app defect and no action was taken.
+
+## 2026-11-21 — Two customer-list defects: ADD hid the price; grouped packs were collapsed
+
+Both were UI-only, inside the standing no-pricing-logic constraint. The owner reproduced
+both on the phone and confirmed the intended behaviour before anything was changed.
+
+**1. Tapping ADD made the price disappear.** `ProductGridCard` and `HorizontalProductCard`
+put the price and the purchase control on one row (`Arrangement.SpaceBetween`, price in a
+`weight(1f)` column). An `ADD` pill fits in that row, but the stepper does not: it needs
+about 124 dp where a 148 dp card has ~128 dp of content, so the weighted price column
+measured ~0 dp the moment the line entered the basket and `₹300` vanished behind the
+control (reproduced: screenshots `43_grid.png` before vs `45_add_settled.png` after, where
+only the stepper digit `1` remained). The control's own KDoc already said a card with a
+basket line should give it "a row of its own"; the code never did. Fixed as documented:
+once `cartItem != null` (and the item is not weighted — the weighted card's pill still
+shares the price line), the control renders on a full-width, end-aligned row **below** the
+price. Pills (ADD, "Edit") never needed this; they fit. Verified on device: after ADD,
+`₹48.00` keeps bounds `[73,1165][253,1246]` and the stepper sits under it at
+`[185,1291][444,1336]` (`63_added.png`). The `BrowsingControlsTest` case that asserted the
+opposite — card height stable to 1 dp after adding — was rewritten to assert the new
+contract: price keeps its width and the control is below it. That test was one of the four
+pre-existing failures (`expected:<750.0> but was:<748.0>`), so it is now a passing test
+for the behaviour we actually want.
+
+**2. Grouped packs were hidden in the item list.** The category/search grid rendered one
+card per `ProductVariantGroup` — the group's default variant plus an orange `packSummary`
+line — so a customer browsing the list never saw the 650 g pack, its price or its own ADD
+control. The owner chose "show every pack as its own card" over the alternatives (pack+price
+on one card, tappable pack sizes, tidying the summary line). The grid now flattens:
+`List<ProductVariantGroup>.listingProducts(sortOption, inStockOnly)` in `CatalogScreen.kt`
+returns one row per pack, the in-stock filter counts per pack, and the four sorts order the
+rows the customer actually sees (price sort no longer uses one price per group).
+`ProductGridCard` lost its `group` parameter — it takes a `Product` and renders its own
+pack label only; the summary line is gone from this card because each card is now a single
+pack. The home rails are untouched: they still collapse a group behind `HorizontalProductCard`
+and its `packSummary`, which is the browse surface where that line belongs. Regression
+tests in `CatalogListingTest` (4 cases): every pack gets its own row with its own price,
+the in-stock filter is per pack, price/name sorts order the flattened rows.
+
+Device verification (Samsung SM-A346E, build installed 14:51:37, versionCode 16, signed with
+the release key): Sauces & Ketchup grid lists `9AM Green Chilli - Sauce 180g` ₹48.00 and
+`9AM Green Chilli Sauce - 650 g` ₹85.00 as separate cards with separate ADD controls
+(`62_flat_grid.png`), and the in-stock chip now reads `In stock (14)` because it counts
+packs, not groups.
+
+Gates on the final tree: `testCustomerDebugUnitTest` 298/0/0 (294 + the 4 new
+`CatalogListingTest` cases), `lintCustomerDebug` 0 errors, `assembleCustomerDebug`
+(with `-Pbalaji.signDebugWithRelease=true`) and `compileCustomerDebugAndroidTestKotlin`
+BUILD SUCCESSFUL, `git diff --check` exit 0. Full `connectedCustomerDebugAndroidTest`
+executed with the release-key flag: **14 tests, 3 failures, 11 passed** — all three are
+the baseline-confirmed pre-existing `BrowsingControlsTest` cases (`clearSearchHasItsOwnTouchTarget…`
+19.9 dp clear button, `imeSearchReleasesFocus…`, `unavailableItemCanBeRemoved…` disabled
+stepper). The fourth pre-existing failure, `addingAProductDoesNotMoveTheNextRow`
+(`expected:<750.0> but was:<748.0>`), is the test rewritten by this change and it now
+passes, so the pre-existing failure count dropped from 4 to 3. The rewritten test's first
+run caught a bug in the test itself — it measured the stepper against the price *text's*
+right edge (the text stops where its glyphs stop, the stepper is end-aligned to the card)
+and failed on a stepper that was in fact inside the card; it now asserts containment
+against the card bounds.
+
+## 2026-11-21 — Play bundle version 17
+
+Play Console rejected the previous upload copy (`balaji-customer-play-1.15-v16.aab`) with
+"Version code 16 has already been used", so the bundle for the next upload is versionCode 17.
+`android/app/build.gradle.kts` `versionCode` changed 16 → 17; `versionName` stays 1.15.
+
+Executed `testCustomerReleaseUnitTest bundleCustomerRelease -Pbalaji.play=true`: BUILD
+SUCCESSFUL in 6m19s. 298 release unit tests, 0 failures, 0 errors, 0 skipped. The merged
+release manifest from this build confirms `android:versionCode="17"`,
+`android:versionName="1.15"` and `REQUEST_INSTALL_PACKAGES` count 0 (the Play source set
+keeps the in-app updater and installer permission out). `jarsigner -verify` reports
+`jar verified` against the Balaji upload key. Note: play builds write outputs under
+`android/app/build/play/` (separate from the default `build/` tree), which is why the
+default `build/outputs/bundle` still shows the Nov 2 bundle.
+
+Upload copy: `play asset/balaji-customer-play-1.15-v17.aab`, SHA-256
+`339ddd7c348d887eb057b7703f5d278f2154abf2e1b5aeb3f62dd3af388100ab` (sidecar written).
+
+Not run: Play upload/review, device runtime on this bundle, web/database checks (release
+metadata + bug-fix bundle only). The bundle contains today's two storefront bug fixes
+(price/ADD overlap and per-pack category listing) from the still-uncommitted working tree.
